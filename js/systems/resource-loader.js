@@ -1,36 +1,6 @@
 window.ResourceLoader = (() => {
   const imagePromises = new Map();
 
-  function getImageManifestEntries() {
-    const profiles = window.CHARACTER_PROFILES || {};
-    return Object.values(profiles)
-      .filter((profile) => profile && profile.avatarSrc)
-      .map((profile) => ({
-        id: `image:${profile.id}`,
-        kind: "image",
-        src: profile.avatarSrc,
-        fallbackSrc: profile.avatarFallbackSrc || null
-      }));
-  }
-
-  function getBgmManifestEntries() {
-    if (!window.BgmSystem || !BgmSystem.getManifestEntries) return [];
-    return BgmSystem.getManifestEntries();
-  }
-
-  function getSfxManifestEntries() {
-    if (!window.SoundSystem || !SoundSystem.getManifestEntries) return [];
-    return SoundSystem.getManifestEntries();
-  }
-
-  function getManifest() {
-    return [
-      ...getImageManifestEntries(),
-      ...getSfxManifestEntries(),
-      ...getBgmManifestEntries()
-    ];
-  }
-
   function loadImage(src, fallbackSrc = null) {
     const key = `${src}|${fallbackSrc || ""}`;
     if (imagePromises.has(key)) return imagePromises.get(key);
@@ -54,8 +24,13 @@ window.ResourceLoader = (() => {
     return promise;
   }
 
-  async function preloadAll(onProgress = null) {
-    const manifest = getManifest();
+  function getManifest(groupNames = ["common", "gameBoot", "gameDeferred"]) {
+    if (!window.ResourceManifest || !ResourceManifest.getEntriesForGroups) return [];
+    return ResourceManifest.getEntriesForGroups(groupNames);
+  }
+
+  async function preloadEntries(entries = [], onProgress = null) {
+    const manifest = entries || [];
     let completed = 0;
 
     if (typeof onProgress === "function") onProgress({ completed: 0, total: manifest.length, item: null });
@@ -84,9 +59,19 @@ window.ResourceLoader = (() => {
     return true;
   }
 
+  function preloadGroups(groupNames = [], onProgress = null) {
+    return preloadEntries(getManifest(groupNames), onProgress);
+  }
+
+  async function preloadAll(onProgress = null) {
+    return preloadGroups(["common", "gameBoot", "gameDeferred"], onProgress);
+  }
+
   return {
     getManifest,
     loadImage,
+    preloadEntries,
+    preloadGroups,
     preloadAll
   };
 })();

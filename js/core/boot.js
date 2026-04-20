@@ -516,13 +516,19 @@ window.Boot = (() => {
     }
 
     if (window.ResourceLoader) {
-      await ResourceLoader.preloadAll(({ completed, total, item }) => {
+      await ResourceLoader.preloadGroups(["common", "gameBoot"], ({ completed, total, item }) => {
         updateLoadingUi(completed, total, item);
       });
     }
 
     updateLoadingUi(1, 1, null);
     hideLoadingUi();
+
+    if (window.ResourceLoader) {
+      setTimeout(() => {
+        ResourceLoader.preloadGroups(["gameDeferred"]).catch(() => {});
+      }, 0);
+    }
 
     UI.bindButtons({
       onStart: ()=>{ primeAudioSystems(); resetAll({ difficulty:S.difficulty || "normal" }); },

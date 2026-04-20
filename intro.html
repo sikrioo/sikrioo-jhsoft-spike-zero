@@ -515,6 +515,7 @@
     </div>
   </div>
 
+  <script src="./js/data/resource-manifest.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const introScreen = document.getElementById("introScreen");
@@ -548,39 +549,12 @@
       const uiClickAudio = new Audio("./assets/sfx/kenney_ui-audio/Audio/click3.ogg");
       uiClickAudio.volume = 0.28;
       uiClickAudio.preload = "auto";
-      const prefetchAssets = [
-        "./resources/avatar-controller.jpg",
-        "./resources/avatar-controller2.jpg",
-        "./assets/sfx/kenney_digital-audio/Audio/laser2.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/laser9.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/laser5.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/laser1.ogg",
-        "./assets/sfx/kenney_sci-fi-sounds/Audio/forceField_003.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/powerUp5.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/phaserUp3.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/phaserUp2.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/phaserDown2.ogg",
-        "./assets/sfx/levelup/universfield-level-up-05-326133.mp3",
-        "./assets/sfx/kenney_ui-audio/Audio/rollover2.ogg",
-        "./assets/sfx/alert/red-alert.mp3",
-        "./assets/sfx/kenney_sci-fi-sounds/Audio/lowFrequency_explosion_001.ogg",
-        "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_001.ogg",
-        "./assets/sfx/kenney_digital-audio/Audio/powerUp10.ogg",
-        "./assets/sfx/stage/clear/grumpynora-rock-ending-8-440862.mp3",
-        "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_000.ogg",
-        "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_003.ogg",
-        "./assets/sfx/kenney_impact-sounds/Audio/impactGlass_heavy_003.ogg",
-        "./assets/sfx/kenney_impact-sounds/Audio/impactPlate_heavy_001.ogg",
-        "./assets/bgm/stage-ready/the_mountain-jazz-cafe-music-496552.mp3",
-        "./assets/bgm/stage-1/gameplay/Everything falls apart.ogg",
-        "./assets/bgm/stage-1/boss/usb.mp3",
-        "./assets/bgm/stage-2/gameplay/racing tecno.ogg",
-        "./assets/bgm/stage-2/boss/phase1/racing tecno_v2(slow).ogg",
-        "./assets/bgm/stage-2/boss/phase2/racing tecno_v2.ogg",
-        "./assets/bgm/stage-3/gameplay/ente_evil.ogg",
-        "./assets/bgm/stage-3/boss/phase1/Boss Battle 6 V1.wav",
-        "./assets/bgm/stage-3/boss/phase2/litesaturation-nu-metal-no-solo-109317.mp3"
-      ];
+      const introPrefetchEntries = window.ResourceManifest
+        ? ResourceManifest.getEntriesForGroups(["intro"])
+        : [];
+      const commonPrefetchEntries = window.ResourceManifest
+        ? ResourceManifest.getEntriesForGroups(["common"])
+        : [];
 
       let w = 0;
       let h = 0;
@@ -601,6 +575,8 @@
       let introRenderQueued = false;
       let cacheWarmupPromise = null;
       let cacheWarmupDone = false;
+      let commonWarmupPromise = null;
+      let commonWarmupDone = false;
       let introActivatedByUser = false;
       let introReadyToStart = false;
       let introPendingUserStart = false;
@@ -629,26 +605,47 @@
         if (prefetchAction) prefetchAction.classList.remove("visible");
       }
 
-      function warmGameCache() {
-        if (cacheWarmupPromise) return cacheWarmupPromise;
+      function preloadEntries(entries, onProgress = null) {
+        const total = entries.length;
         let completed = 0;
-        updatePrefetchUi(0, prefetchAssets.length, null);
-        cacheWarmupPromise = Promise.all(prefetchAssets.map((src) =>
-          fetch(src, { cache: "force-cache" })
-            .catch(() => null)
+        if (typeof onProgress === "function") onProgress(0, total, null);
+        return Promise.all(entries.map((entry) =>
+          fetch(entry.src, { cache: "force-cache" })
+            .catch(() => {
+              if (!entry.fallbackSrc) return null;
+              return fetch(entry.fallbackSrc, { cache: "force-cache" }).catch(() => null);
+            })
             .finally(() => {
               completed += 1;
-              updatePrefetchUi(completed, prefetchAssets.length, src);
+              if (typeof onProgress === "function") onProgress(completed, total, entry.src);
             })
-        )).then((result) => {
+        ));
+      }
+
+      function warmGameCache() {
+        if (cacheWarmupPromise) return cacheWarmupPromise;
+        cacheWarmupPromise = preloadEntries(introPrefetchEntries, (completed, total, src) => {
+          updatePrefetchUi(completed, total, src);
+        }).then((result) => {
           cacheWarmupDone = true;
-          updatePrefetchUi(prefetchAssets.length, prefetchAssets.length, null);
+          updatePrefetchUi(introPrefetchEntries.length, introPrefetchEntries.length, null);
           if (prefetchStatus) {
-            prefetchStatus.textContent = "Assets ready. Starting intro...";
+            prefetchStatus.textContent = "Intro assets ready. Starting logo sequence...";
           }
           return result;
         });
         return cacheWarmupPromise;
+      }
+
+      function warmCommonCache() {
+        if (commonWarmupPromise) return commonWarmupPromise;
+        commonWarmupPromise = preloadEntries(commonPrefetchEntries).then((result) => {
+          commonWarmupDone = true;
+          startButton.disabled = false;
+          startButton.textContent = "Start Mission";
+          return result;
+        });
+        return commonWarmupPromise;
       }
 
       function startIntroAnimation() {
@@ -1229,6 +1226,9 @@
         menuScreen.classList.add("show");
         if (audioPrompt) audioPrompt.classList.remove("visible");
         menuVisible = true;
+        startButton.disabled = true;
+        startButton.textContent = "Syncing Common Assets";
+        warmCommonCache();
         drawMenuStars(performance.now());
         animateMenu();
         startButton.focus({ preventScroll: true });
@@ -1318,12 +1318,12 @@
           sessionStorage.setItem("spike-zero-audio-activated", audioStarted ? "1" : "0");
         } catch (_) {}
         startButton.disabled = true;
-        startButton.textContent = cacheWarmupDone ? "Entering Mission" : "Syncing Cache";
+        startButton.textContent = commonWarmupDone ? "Entering Mission" : "Syncing Common Assets";
         menuScreen.classList.add("leaving");
         transitionMask.classList.add("show");
         fadeOutAudio(420);
         await Promise.race([
-          warmGameCache(),
+          warmCommonCache(),
           new Promise((resolve) => setTimeout(resolve, 1200))
         ]);
         setTimeout(() => {
