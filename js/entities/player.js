@@ -4,10 +4,10 @@ window.PlayerFactory = (() => {
 
   function makeShield() {
     const shield = new PIXI.Graphics();
-    shield.lineStyle(2.5, 0x7fe7ff, 0.72);
-    shield.drawCircle(0, 0, 22);
-    shield.beginFill(0x7fe7ff, 0.06);
-    shield.drawCircle(0, 0, 20);
+    shield.lineStyle(1.6, 0x9eeeff, 0.38);
+    shield.drawEllipse(0, 3, 25, 31);
+    shield.beginFill(0x9eeeff, 0.035);
+    shield.drawEllipse(0, 3, 24, 30);
     shield.endFill();
     shield.alpha = 0;
     return shield;

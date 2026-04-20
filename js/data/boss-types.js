@@ -4,7 +4,7 @@ window.BOSS_DEFINITIONS = {
     name: "Sentinel Core",
     code: "CTRL-A",
     radius: 34,
-    maxHp: 180,
+    maxHp: 150,
     scoreBase: 260,
     xp: 24,
     glowColor: 0x79ffbf

@@ -85,6 +85,44 @@ window.Effects = (() => {
       const inner = new PIXI.Graphics();
       const r = tier.radius;
 
+      if (tierKey === "lancer" || tierKey === "spin_lancer") {
+        aura.beginFill(tier.fillColor, 0.10);
+        aura.drawPolygon([
+          r + 12, 0,
+          -r - 6, -r * 0.82,
+          -r * 0.55, 0,
+          -r - 6, r * 0.82
+        ]);
+        aura.endFill();
+
+        ring.beginFill(0x0b0b18, 1);
+        ring.lineStyle(2.5, tier.lineColor, 0.96);
+        ring.drawPolygon([
+          r + 5, 0,
+          -r, -r * 0.72,
+          -r * 0.48, 0,
+          -r, r * 0.72
+        ]);
+        ring.endFill();
+
+        inner.beginFill(tier.fillColor, 0.24);
+        inner.drawPolygon([
+          r * 0.45, 0,
+          -r * 0.5, -r * 0.34,
+          -r * 0.26, 0,
+          -r * 0.5, r * 0.34
+        ]);
+        inner.endFill();
+
+        const core = new PIXI.Graphics();
+        core.beginFill(0xffffff, 0.32);
+        core.drawCircle(-r * 0.2, 0, r * 0.16);
+        core.endFill();
+
+        c.addChild(aura, ring, inner, core);
+        return c;
+      }
+
       aura.beginFill(tier.fillColor, tierKey === "normal" ? 0.06 : 0.10);
       aura.drawCircle(0, 0, r + (tierKey === "boss" ? 16 : tierKey === "midboss" ? 10 : 6));
       aura.endFill();
@@ -190,6 +228,22 @@ window.Effects = (() => {
     });
   }
 
+  function emitElectricArc(x1, y1, x2, y2, color=0x6cf5ff, coreColor=0xffffff, life=8, jitter=12){
+    const S = GameState;
+    const g = new PIXI.Graphics();
+    S.fx.addChild(g);
+    S.particles.push({
+      spr: g,
+      x: x1,
+      y: y1,
+      vx: 0,
+      vy: 0,
+      life,
+      maxLife: life,
+      electricArc: { x1, y1, x2, y2, color, coreColor, jitter }
+    });
+  }
+
   function emitParticle(x, y, color=0x32f6ff, count=10, power=1){
     const S = GameState;
     for (let i=0;i<count;i++){
@@ -253,6 +307,7 @@ window.Effects = (() => {
     emitLineTelegraph,
     emitGroundTelegraph,
     emitSlashArc,
+    emitElectricArc,
     emitPlayerExplosion,
     makeParticleSprite,
     makeTrailSprite,

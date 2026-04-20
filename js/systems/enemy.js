@@ -32,10 +32,14 @@ window.EnemySystem = (() => {
     if (stage >= 3 && wave >= 6  && roll > 0.89)  return "turret_laser";
     if (stage >= 3 && wave >= 5  && roll > 0.84)  return "turret_sniper";
     if (stage >= 3 && wave >= 7  && roll > 0.88)  return "tank";
+    if (stage >= 3 && wave >= 4  && roll > 0.70)  return "spin_lancer";
+    if (stage >= 3 && wave >= 3  && roll > 0.62)  return "lancer";
 
     if (stage >= 2 && wave >= 4  && roll > 0.80)  return "turret_mg";
     if (stage >= 2 && wave >= 5  && roll > 0.82)  return "rusher";
     if (stage >= 2 && wave >= 4  && roll > 0.74)  return "flanker";
+    if (stage >= 2 && wave >= 4  && roll > 0.66)  return "spin_lancer";
+    if (stage >= 2 && wave >= 3  && roll > 0.58)  return "lancer";
 
     if (wave >= 3  && roll > 0.66)  return "elite";
     if (wave >= 2  && roll > 0.58)  return "bomber";
@@ -635,7 +639,7 @@ window.EnemySystem = (() => {
   function hitPlayerWithEnemyDamage(damage, color, hitDx, hitDy, options={}){
     const S = GameState;
     const p = S.player;
-    if (p.inv > 0 || S.stats.practice) return false;
+    if (p.inv > 0) return false;
 
     let remainingDamage = Math.max(1, Math.ceil(damage - S.stats.defense));
     if (S.activeSkillState.boostMitigationT > 0){
@@ -846,6 +850,165 @@ window.EnemySystem = (() => {
     }
   }
 
+  function getLancerDashMode(tierKey) {
+    const stage = Math.max(1, GameState.progression.stage || 1);
+    if (tierKey === "lancer" || stage <= 1) return "straight";
+    const modes = stage >= 3 ? ["left", "right", "back"] : ["left", "right"];
+    return modes[Helpers.randi(0, modes.length - 1)];
+  }
+
+  function getLancerDashVector(enemy, target, mode) {
+    const baseDx = target.x - enemy.x;
+    const baseDy = target.y - enemy.y;
+    const baseDist = Math.hypot(baseDx, baseDy) || 1;
+    const toTargetX = baseDx / baseDist;
+    const toTargetY = baseDy / baseDist;
+    let aimX = target.x;
+    let aimY = target.y;
+
+    if (mode === "left" || mode === "right" || mode === "back") {
+      const player = GameState.player;
+      const facing = target.player && player && player.spr
+        ? player.spr.rotation - Math.PI / 2
+        : Math.atan2(toTargetY, toTargetX);
+      const sideX = -Math.sin(facing);
+      const sideY = Math.cos(facing);
+      const forwardX = Math.cos(facing);
+      const forwardY = Math.sin(facing);
+      const offset = mode === "back" ? 96 : 108;
+
+      if (mode === "left") {
+        aimX += sideX * offset;
+        aimY += sideY * offset;
+      } else if (mode === "right") {
+        aimX -= sideX * offset;
+        aimY -= sideY * offset;
+      } else {
+        aimX -= forwardX * offset;
+        aimY -= forwardY * offset;
+      }
+    }
+
+    const dx = aimX - enemy.x;
+    const dy = aimY - enemy.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const ang = Math.atan2(dy, dx);
+    return {
+      dx: dx / d,
+      dy: dy / d,
+      angle: ang
+    };
+  }
+
+  function drawLancerSignal(enemy, alpha = 0.22) {
+    if (!enemy.signalSpr || !enemy.enemyState) return;
+    const g = enemy.signalSpr;
+    const state = enemy.enemyState;
+    const length = state.dashDistance || 210;
+    const width = enemy.r * 1.1;
+    g.clear();
+    g.lineStyle(2, enemy.glowColor, Math.min(0.75, alpha + 0.14));
+    g.beginFill(enemy.glowColor, alpha);
+    g.drawRoundedRect(0, -width * 0.35, length, width * 0.7, width * 0.22);
+    g.endFill();
+    g.beginFill(0xffffff, alpha * 0.8);
+    g.drawCircle(enemy.r * 0.25, 0, Math.max(3, enemy.r * 0.16));
+    g.endFill();
+  }
+
+  function beginLancerCharge(enemy, target) {
+    const state = enemy.enemyState;
+    const mode = getLancerDashMode(enemy.tier);
+    const vec = getLancerDashVector(enemy, target, mode);
+    state.state = "charge";
+    state.mode = mode;
+    state.timer = state.chargeTime;
+    state.dashDx = vec.dx;
+    state.dashDy = vec.dy;
+    state.dashAngle = vec.angle;
+    state.cooldown = state.postDashCooldown;
+    enemy.signalSpr.visible = true;
+    enemy.signalSpr.rotation = vec.angle - enemy.spr.rotation;
+    drawLancerSignal(enemy, 0.24);
+  }
+
+  function updateLancerEnemy(enemy, target, dt) {
+    const state = enemy.enemyState;
+    const signal = enemy.signalSpr;
+    const body = enemy.bodySpr;
+    const dx = target.x - enemy.x;
+    const dy = target.y - enemy.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    let moveDx = dx / dist;
+    let moveDy = dy / dist;
+    let moveSpeed = enemy.sp * (enemy.slowMul || 1);
+
+    if (state.cooldown > 0) state.cooldown -= dt;
+
+    if (state.state === "approach") {
+      signal.visible = false;
+      body.tint = 0xffffff;
+      if (dist <= state.triggerDistance && state.cooldown <= 0) {
+        beginLancerCharge(enemy, target);
+      }
+    } else if (state.state === "charge") {
+      state.timer -= dt;
+      moveSpeed *= 0.08;
+      moveDx = 0;
+      moveDy = 0;
+      enemy.spr.rotation += (enemy.tier === "spin_lancer" ? 0.18 : 0.08) * dt;
+      signal.visible = true;
+      signal.rotation = state.dashAngle - enemy.spr.rotation;
+      signal.alpha = 0.18 + Math.abs(Math.sin((state.timer / state.chargeTime) * Math.PI * 4)) * 0.28;
+      drawLancerSignal(enemy, signal.alpha);
+      body.tint = state.timer % 7 < 3.5 ? 0xffd09a : 0xffffff;
+      if ((performance.now() | 0) % 4 === 0) {
+        Effects.emitParticle(enemy.x, enemy.y, enemy.glowColor, 2, 0.35);
+      }
+      if (state.timer <= 0) {
+        state.state = "dash";
+        state.timer = state.dashTime;
+        signal.visible = false;
+        body.tint = 0xffb06a;
+        Effects.emitParticle(enemy.x, enemy.y, enemy.glowColor, 12, 1.0);
+      }
+    } else if (state.state === "dash") {
+      state.timer -= dt;
+      moveDx = state.dashDx;
+      moveDy = state.dashDy;
+      moveSpeed = state.dashSpeed * (enemy.slowMul || 1);
+      body.tint = 0xffc07a;
+      if ((performance.now() | 0) % 3 === 0) {
+        const t = Effects.makeTrailSprite(enemy.x - moveDx * 12, enemy.y - moveDy * 12, enemy.glowColor, 0.25, 0.18);
+        GameState.fx.addChild(t);
+        GameState.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:9 });
+      }
+      if (state.timer <= 0) {
+        state.state = "recover";
+        state.timer = state.recoveryTime;
+      }
+    } else if (state.state === "recover") {
+      state.timer -= dt;
+      moveDx = state.dashDx;
+      moveDy = state.dashDy;
+      moveSpeed = enemy.sp * 0.18;
+      body.tint = 0xffdfbd;
+      if (state.timer <= 0) {
+        state.state = "approach";
+        body.tint = 0xffffff;
+      }
+    }
+
+    enemy.x += moveDx * moveSpeed * dt;
+    enemy.y += moveDy * moveSpeed * dt;
+    enemy.spr.x = enemy.x;
+    enemy.spr.y = enemy.y;
+    if (state.state !== "charge") {
+      enemy.spr.rotation = Math.atan2(moveDy, moveDx);
+    }
+    enemy.hpText.rotation = -enemy.spr.rotation;
+  }
+
   function makeEnemy(tierKey="normal"){
     const S = GameState;
     const tier = ENEMY_TIERS[tierKey];
@@ -864,7 +1027,7 @@ window.EnemySystem = (() => {
     const r = tier.radius;
     const hits = Helpers.randi(tier.hitsMin, tier.hitsMax);
     const c = new PIXI.Container();
-    const signal = (tierKey === "rusher" || tierKey === "bomber") ? new PIXI.Graphics() : null;
+    const signal = (tierKey === "rusher" || tierKey === "bomber" || tierKey === "lancer" || tierKey === "spin_lancer") ? new PIXI.Graphics() : null;
     const isTurret = tierKey === "turret_mg" || tierKey === "turret_laser" || tierKey === "turret_sniper";
     const body = isTurret ? new PIXI.Container() : Effects.makeEnemySprite(tierKey, tier, 0, 0);
 
@@ -900,6 +1063,7 @@ window.EnemySystem = (() => {
       dmg: tier.damage,
       xp: tier.xpBase,
       hitT: 0,
+      staggerT: 0,
       slowT: 0,
       slowMul: 1,
       hpText,
@@ -1040,6 +1204,25 @@ window.EnemySystem = (() => {
       };
       drawRusherSignal(enemy, 0.28);
     }
+    if (tierKey === "lancer" || tierKey === "spin_lancer"){
+      enemy.enemyState = {
+        state: "approach",
+        mode: "straight",
+        timer: 0,
+        cooldown: Helpers.randi(42, 78),
+        triggerDistance: tierKey === "spin_lancer" ? 644 : 588,
+        chargeTime: tierKey === "spin_lancer" ? 34 : 30,
+        dashTime: tierKey === "spin_lancer" ? 22 : 20,
+        recoveryTime: 20,
+        dashSpeed: tierKey === "spin_lancer" ? 14.0 : 13.4,
+        dashDistance: tierKey === "spin_lancer" ? 546 : 490,
+        postDashCooldown: tierKey === "spin_lancer" ? 62 : 54,
+        dashDx: 1,
+        dashDy: 0,
+        dashAngle: 0
+      };
+      drawLancerSignal(enemy, 0.24);
+    }
 
     return enemy;
   }
@@ -1108,9 +1291,12 @@ window.EnemySystem = (() => {
       } else {
         e.slowMul = 1;
       }
+      if (e.staggerT > 0) e.staggerT = Math.max(0, e.staggerT - dt);
 
       if (e.tier === "rusher"){
         updateRusherEnemy(e, target, dt);
+      } else if (e.tier === "lancer" || e.tier === "spin_lancer"){
+        updateLancerEnemy(e, target, dt);
       } else if (e.tier === "bomber"){
         updateBomberEnemy(e, target, dt);
       } else if (e.tier === "gunner"){
@@ -1124,6 +1310,12 @@ window.EnemySystem = (() => {
       } else if (e.tier === "flanker"){
         updateFlankerEnemy(e, target, dt);
       } else {
+        if (e.staggerT > 0){
+          e.spr.x = e.x;
+          e.spr.y = e.y;
+          e.spr.rotation += 0.05 * dt;
+          e.hpText.rotation = -e.spr.rotation;
+        } else {
         if (e.tier === "normal"){
           const wig = Math.sin(now * 5 + i) * 0.18;
           const ca = Math.cos(wig);
@@ -1162,6 +1354,7 @@ window.EnemySystem = (() => {
         e.spr.y = e.y;
         e.spr.rotation = Math.atan2(dy, dx);
         e.hpText.rotation = -e.spr.rotation;
+        }
       }
 
       if (e.hitT > 0){
@@ -1170,12 +1363,15 @@ window.EnemySystem = (() => {
       } else {
         e.spr.alpha = 1;
       }
+      if (e.staggerT > 0 && e.bodySpr && e.bodySpr.tint != null) {
+        e.bodySpr.tint = ((performance.now() | 0) % 6 < 3) ? 0xc9fbff : 0xe1c7ff;
+      }
 
       if (e.tier === "bomber") continue;
 
       const rr = e.r + target.r;
       if (Helpers.dist2(e.x, e.y, target.x, target.y) < rr * rr){
-        const isDashHit = e.tier === "rusher" && e.enemyState && e.enemyState.state === "dash";
+        const isDashHit = (e.tier === "rusher" || e.tier === "lancer" || e.tier === "spin_lancer") && e.enemyState && e.enemyState.state === "dash";
         const hitDx = isDashHit && e.enemyState ? e.enemyState.dashDx : dx;
         const hitDy = isDashHit && e.enemyState ? e.enemyState.dashDy : dy;
         if (target.decoy){
@@ -1190,7 +1386,7 @@ window.EnemySystem = (() => {
             e.enemyState.timer = e.enemyState.recoveryTime;
             e.signalSpr.visible = false;
           }
-        } else if (p.inv <= 0 && !S.stats.practice){
+        } else if (p.inv <= 0){
           let baseDamage = isDashHit ? e.dmg * 1.8 : e.dmg;
           if (e.tier === "tank") baseDamage *= 1.15;
           const playerPush = e.tier === "tank" ? 6.5 : (isDashHit ? 9 : 4.2);

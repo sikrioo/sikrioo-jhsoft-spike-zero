@@ -128,6 +128,23 @@ html,body{
   font-size:13px;
 }
 .pill b{ font-weight:700; }
+.pauseQuickBtn{
+  pointer-events:auto;
+  cursor:pointer;
+  border:none;
+  border-radius:999px;
+  padding:8px 12px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.10);
+  color:#eef4ff;
+  font-size:13px;
+  font-weight:700;
+  box-shadow:0 0 18px rgba(110,90,255,.08);
+}
+.pauseQuickBtn:hover{
+  border-color:rgba(50,246,255,.34);
+  background:rgba(50,246,255,.08);
+}
 
 .activeHud{
   position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
@@ -306,6 +323,16 @@ html,body{
   max-height:min(42vh, 420px);
   overflow:hidden;
 }
+.dialogueSkipHint{
+  margin-top:10px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.8px;
+  text-transform:uppercase;
+  color:rgba(242,246,255,.62);
+  text-shadow:0 0 12px rgba(0,0,0,.28);
+  pointer-events:none;
+}
 .dialogueCard{
   display:flex;
   align-items:flex-end;
@@ -470,6 +497,151 @@ html,body{
   letter-spacing:.4px;
   text-transform:uppercase;
 }
+.pauseCard{
+  width:min(920px, calc(100vw - 28px));
+  max-height:min(86vh, 820px);
+  overflow:auto;
+}
+.pauseHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.pauseHint{
+  font-size:12px;
+  opacity:.72;
+  text-align:right;
+}
+.pauseLayout{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+  margin-top:16px;
+}
+.pauseSection{
+  padding:14px;
+  border-radius:16px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+}
+.pauseSection h2{
+  margin:0 0 12px;
+  font-size:14px;
+}
+.pauseInfoGrid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+}
+.pauseInfoItem,
+.pauseInfoRow,
+.pauseAdjustRow{
+  border-radius:12px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.07);
+}
+.pauseInfoItem{
+  padding:10px 12px;
+}
+.pauseInfoLabel{
+  font-size:11px;
+  opacity:.66;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+}
+.pauseInfoValue{
+  margin-top:6px;
+  font-size:14px;
+  font-weight:700;
+}
+.pauseInfoList,
+.pauseAdjustList{
+  display:grid;
+  gap:10px;
+}
+.pauseFilterBar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:12px;
+}
+.pauseFilterBtn{
+  border:none;
+  border-radius:999px;
+  padding:7px 10px;
+  cursor:pointer;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.10);
+  color:#eef4ff;
+  font-size:12px;
+  font-weight:700;
+}
+.pauseFilterBtn.active,
+.pauseFilterBtn:hover{
+  border-color:rgba(50,246,255,.34);
+  background:rgba(50,246,255,.10);
+}
+.pauseAdjustActions{
+  display:flex;
+  justify-content:flex-end;
+  margin-bottom:12px;
+}
+.pauseAdjustActions[hidden]{
+  display:none;
+}
+.pauseInfoRow,
+.pauseAdjustRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+}
+.pauseInfoMeta{
+  font-size:12px;
+  opacity:.72;
+}
+.pauseAdjustName{
+  font-size:13px;
+  font-weight:700;
+}
+.pauseAdjustMeta{
+  font-size:11px;
+  opacity:.68;
+}
+.pauseAdjustControls{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-shrink:0;
+}
+.pauseAdjustControls button{
+  width:30px;
+  height:30px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.10);
+  color:#eef4ff;
+  font-size:16px;
+  line-height:1;
+}
+.pauseAdjustControls button:hover{
+  border-color:rgba(50,246,255,.34);
+  background:rgba(50,246,255,.08);
+}
+.pauseAdjustControls button:disabled{
+  opacity:.32;
+  cursor:not-allowed;
+}
+.pauseAdjustLevel{
+  min-width:54px;
+  text-align:center;
+  font-size:13px;
+  font-weight:700;
+}
 
 .btnRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
 .btn{
@@ -586,5 +758,15 @@ html,body{
   }
   .dialogueBubble{
     max-width:calc(100vw - 98px);
+  }
+  .pauseLayout,
+  .pauseInfoGrid{
+    grid-template-columns:1fr;
+  }
+  .pauseHead{
+    flex-direction:column;
+  }
+  .pauseHint{
+    text-align:left;
   }
 }

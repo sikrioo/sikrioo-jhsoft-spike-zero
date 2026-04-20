@@ -221,8 +221,8 @@ window.ActiveSkillSystem = (() => {
   function castAfterburner(skill){
     const S = GameState;
     S.activeSkillState.afterburnerT = Math.max(S.activeSkillState.afterburnerT, skill.duration);
-    Effects.emitParticle(S.player.spr.x, S.player.spr.y, 0xff7a47, 20, 1.5);
-    Effects.emitPulse(S.player.spr.x, S.player.spr.y, 0xff7a47, 92, 18);
+    Effects.emitParticle(S.player.spr.x, S.player.spr.y, 0xff7a47, 10, 0.75);
+    Effects.emitPulse(S.player.spr.x, S.player.spr.y, 0xff7a47, 46, 12);
     return true;
   }
 
@@ -358,9 +358,9 @@ window.ActiveSkillSystem = (() => {
     if (S.activeSkillState.afterburnerT > 0){
       S.activeSkillState.afterburnerT = Math.max(0, S.activeSkillState.afterburnerT - dt);
       if ((performance.now() | 0) % 3 === 0){
-        const p = Effects.makeTrailSprite(S.player.spr.x, S.player.spr.y + 14, 0xff7a47, Helpers.rand(0.25, 0.45), 0.28);
+        const p = Effects.makeTrailSprite(S.player.spr.x, S.player.spr.y + 12, 0xff7a47, Helpers.rand(0.12, 0.22), 0.22);
         S.fx.addChild(p);
-        S.particles.push({ spr:p, x:p.x, y:p.y, vx:Helpers.rand(-0.6, 0.6), vy:Helpers.rand(0.8, 2.2), life:14, drag:0.88 });
+        S.particles.push({ spr:p, x:p.x, y:p.y, vx:Helpers.rand(-0.4, 0.4), vy:Helpers.rand(0.6, 1.5), life:10, drag:0.88 });
       }
     }
 

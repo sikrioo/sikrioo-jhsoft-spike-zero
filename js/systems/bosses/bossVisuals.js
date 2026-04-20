@@ -15,8 +15,10 @@ window.BossVisuals = (() => {
     const aura  = new PIXI.Graphics();
     const shell = new PIXI.Graphics();
     const core  = new PIXI.Graphics();
+    const showValue = config.showValue !== false;
+    const useGlow = config.useGlow !== false;
 
-    const value = new PIXI.Text("", {
+    const value = showValue ? new PIXI.Text("", {
       fontFamily: "Arial",
       fontSize: Math.max(10, Math.round(config.radius * 0.6)),
       fontWeight: "900",
@@ -24,9 +26,11 @@ window.BossVisuals = (() => {
       stroke: 0x000000,
       strokeThickness: 3,
       align: "center"
-    });
-    value.anchor.set(0.5);
-    value.y = -3;
+    }) : null;
+    if (value) {
+      value.anchor.set(0.5);
+      value.y = -3;
+    }
 
     aura.beginFill(config.glowColor, 0.12);
     aura.drawCircle(0, 0, config.radius + 20);
@@ -46,15 +50,18 @@ window.BossVisuals = (() => {
     core.moveTo(0, -config.radius * 0.45);
     core.lineTo(0,  config.radius * 0.45);
 
-    root.addChild(aura, shell, core, value);
+    root.addChild(aura, shell, core);
+    if (value) root.addChild(value);
 
-    const glow = Effects.makeGlowFilter({
-      color: config.glowColor,
-      distance: 22,
-      outerStrength: 2.1,
-      innerStrength: 0.5
-    });
-    root.filters = Effects.asFilters(glow);
+    if (useGlow) {
+      const glow = Effects.makeGlowFilter({
+        color: config.glowColor,
+        distance: 22,
+        outerStrength: 2.1,
+        innerStrength: 0.5
+      });
+      root.filters = Effects.asFilters(glow);
+    }
 
     root.valueText = value;
     return root;
@@ -67,7 +74,9 @@ window.BossVisuals = (() => {
    */
   function setFrameValue(frame, value) {
     if (!frame || !frame.valueText) return;
-    frame.valueText.text = String(Math.max(0, Math.ceil(value)));
+    const nextText = String(Math.max(0, Math.ceil(value)));
+    if (frame.valueText.text === nextText) return;
+    frame.valueText.text = nextText;
   }
 
   /**

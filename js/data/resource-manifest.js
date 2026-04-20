@@ -3,8 +3,8 @@ window.ResourceManifest = (() => {
     intro_bgm: { id: "bgm:introLogo", kind: "audio", src: "./assets/bgm/intro-logo/jeremusic70-space-intro-no-copyright-music-124261.mp3" },
     intro_ui_hover: { id: "audio:introUiHover", kind: "audio", src: "./assets/sfx/kenney_ui-audio/Audio/rollover2.ogg" },
     intro_ui_click: { id: "audio:introUiClick", kind: "audio", src: "./assets/sfx/kenney_ui-audio/Audio/click3.ogg" },
-    avatar_rhea: { id: "image:rhea", kind: "image", src: "./resources/avatar-controller.jpg", fallbackSrc: "./resources/avatar-controller.png" },
-    avatar_serin: { id: "image:serin", kind: "image", src: "./resources/avatar-controller2.jpg", fallbackSrc: "./resources/avatar-controller2.png" },
+    avatar_rhea: { id: "image:rhea", kind: "image", src: "./assets/images/characters/avatar-controller.jpg", fallbackSrc: "./assets/images/characters/avatar-controller.png" },
+    avatar_serin: { id: "image:serin", kind: "image", src: "./assets/images/characters/avatar-controller2.jpg", fallbackSrc: "./assets/images/characters/avatar-controller2.png" },
     bgm_stage_briefing: { id: "bgm:stageBriefing:intro", kind: "audio", src: "./assets/bgm/stage-ready/the_mountain-jazz-cafe-music-496552.mp3" },
     bgm_stage1_gameplay: { id: "bgm:stage1:gameplay", kind: "audio", src: "./assets/bgm/stage-1/gameplay/Everything falls apart.ogg" },
     bgm_stage1_boss: { id: "bgm:stage1:boss", kind: "audio", src: "./assets/bgm/stage-1/boss/usb.mp3" },
@@ -39,16 +39,14 @@ window.ResourceManifest = (() => {
   const groups = {
     intro: ["intro_bgm", "intro_ui_hover", "intro_ui_click"],
     common: ["avatar_rhea", "avatar_serin", "bgm_stage_briefing", "sfx_comms", "sfx_radio_in", "sfx_radio_out", "sfx_ui_hover"],
-    gameBoot: [
-      "bgm_stage1_gameplay", "bgm_stage1_boss", "sfx_player_fire", "sfx_laser_fire", "sfx_shotgun_fire",
-      "sfx_missile_launch", "sfx_player_hit", "sfx_level_up", "sfx_upgrade_pick", "sfx_boss_alarm",
-      "sfx_low_explosion", "sfx_boss_destroy", "sfx_boss_clear", "sfx_stage_clear", "sfx_player_death",
-      "sfx_enemy_destroy", "sfx_debris_glass", "sfx_armor_hit"
+    gameCritical: [
+      "sfx_player_fire", "sfx_laser_fire", "sfx_shotgun_fire", "sfx_missile_launch",
+      "sfx_player_hit", "sfx_boss_alarm", "sfx_low_explosion", "sfx_enemy_destroy",
+      "sfx_boss_destroy", "sfx_player_death", "sfx_debris_glass", "sfx_armor_hit"
     ],
-    gameDeferred: [
-      "bgm_stage2_gameplay", "bgm_stage2_boss_phase1", "bgm_stage2_boss_phase2",
-      "bgm_stage3_gameplay", "bgm_stage3_boss_phase1", "bgm_stage3_boss_phase2"
-    ]
+    stage1: ["bgm_stage1_gameplay", "bgm_stage1_boss", "sfx_level_up", "sfx_upgrade_pick", "sfx_boss_clear", "sfx_stage_clear"],
+    stage2: ["bgm_stage2_gameplay", "bgm_stage2_boss_phase1", "bgm_stage2_boss_phase2"],
+    stage3: ["bgm_stage3_gameplay", "bgm_stage3_boss_phase1", "bgm_stage3_boss_phase2"]
   };
 
   function getEntriesForGroups(groupNames = []) {

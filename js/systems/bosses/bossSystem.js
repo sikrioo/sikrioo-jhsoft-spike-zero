@@ -222,16 +222,23 @@ window.BossSystem = (() => {
 
     boss.core       = BossVisuals.buildFrame({ radius: def.radius, code: def.code, bodyColor: 0x79ffbf, glowColor: 0x48ffc5 });
     boss.hpBar      = BossVisuals.attachHpBar(boss.spr, 180);
+    boss.phase      = 1;
+    boss.phaseShiftPlayed = false;
     boss.fireCd     = 24;
     boss.patternIndex = 0;
     boss.orbitT     = 0;
     boss.pendingBlast = null;
+    boss.phaseShiftFx = 0;
+    boss.phaseRing = new PIXI.Graphics();
+    boss.phaseCoreTint = new PIXI.Graphics();
     boss.spr.addChild(boss.core);
+    boss.spr.addChild(boss.phaseCoreTint);
+    boss.spr.addChild(boss.phaseRing);
 
     function triggerAreaBlast(blast) {
       if (!blast) return;
-      Effects.emitPulse(blast.x, blast.y, blast.color, blast.radius, 14);
-      Effects.emitParticle(blast.x, blast.y, blast.color, 18, 1.15);
+      Effects.emitPulse(blast.x, blast.y, blast.color, blast.radius * 0.78, 12);
+      Effects.emitParticle(blast.x, blast.y, blast.color, 12, 0.9);
       const player = GameState.player;
       const rr = blast.radius + player.r;
       if (Helpers.dist2(blast.x, blast.y, player.spr.x, player.spr.y) <= rr * rr) {
@@ -241,7 +248,7 @@ window.BossSystem = (() => {
           push: 5.2,
           particleCount: 14,
           particlePower: 1.0,
-          pulseRadius: blast.radius * 0.65,
+          pulseRadius: blast.radius * 0.52,
           pulseLife: 10
         });
       }
@@ -249,6 +256,15 @@ window.BossSystem = (() => {
 
     boss.updateBoss = (dt) => {
       const w = GameState.app.renderer.width;
+      if (boss.hp <= boss.maxHp * 0.3) boss.phase = 2;
+      if (boss.phase === 2 && !boss.phaseShiftPlayed) {
+        boss.phaseShiftPlayed = true;
+        boss.phaseShiftFx = 36;
+        Effects.emitPulse(boss.x, boss.y, 0xff9b8d, 84, 16);
+        Effects.emitParticle(boss.x, boss.y, 0xff9b8d, 16, 1.2);
+        Effects.emitPulse(boss.x, boss.y, 0xffffff, 62, 10);
+        boss.fireCd = Math.min(boss.fireCd, 22);
+      }
       boss.orbitT += dt * 0.012;
       boss.x = Helpers.lerp(boss.x, w * 0.5 + Math.cos(boss.orbitT) * 150, 0.05 * dt);
       boss.y = Helpers.lerp(boss.y, 118 + Math.sin(boss.orbitT * 2) * 28,  0.05 * dt);
@@ -256,53 +272,59 @@ window.BossSystem = (() => {
       boss.spr.y = boss.y;
 
       boss.fireCd -= dt;
+      if (boss.phaseShiftFx > 0) boss.phaseShiftFx -= dt;
 
       // 발사 예고
-      if (boss.fireCd <= 14 && boss.fireCd + dt > 14) {
-        const pattern = boss.patternIndex % 3;
-        if (pattern === 0) {
-          const aim = getAngleToTrackedPlayer(boss.x, boss.y);
-          Effects.emitLineTelegraph(boss.x, boss.y, boss.x + Math.cos(aim) * 220, boss.y + Math.sin(aim) * 220, 0x79ffbf, 14, 6);
-        } else if (pattern === 1) {
-          Effects.emitGroundTelegraph(boss.x, boss.y, boss.hp <= boss.maxHp * 0.5 ? 86 : 70, 0xffd166, 14);
-        } else {
-          const player = getStealthAwarePlayerTarget();
-          const radius = boss.hp <= boss.maxHp * 0.5 ? 76 : 62;
-          const tx = Helpers.clamp(player.x + player.vx * 5, 44, GameState.app.renderer.width - 44);
-          const ty = Helpers.clamp(player.y + player.vy * 5, 64, GameState.app.renderer.height - 44);
-          boss.pendingBlast = { x: tx, y: ty, radius, damage: boss.hp <= boss.maxHp * 0.5 ? 12 : 10, color: 0xff6b6b };
-          Effects.emitGroundTelegraph(tx, ty, radius, 0xff6b6b, 14);
-        }
+      const pattern = boss.patternIndex % (boss.phase === 1 ? 1 : 2);
+      if (pattern !== 0 && !boss.pendingBlast && boss.fireCd <= 48) {
+        const player = getStealthAwarePlayerTarget();
+        const radius = 50;
+        const tx = Helpers.clamp(player.x + player.vx * 5, 44, GameState.app.renderer.width - 44);
+        const ty = Helpers.clamp(player.y + player.vy * 5, 64, GameState.app.renderer.height - 44);
+        boss.pendingBlast = { x: tx, y: ty, radius, damage: 11, color: 0xff6b6b };
+        Effects.emitGroundTelegraph(tx, ty, radius, 0xff6b6b, 48);
       }
 
       if (boss.fireCd <= 0) {
-        const pattern = boss.patternIndex % 3;
         if (pattern === 0) {
           const aim = getAngleToTrackedPlayer(boss.x, boss.y);
-          for (let i = -2; i <= 2; i++) {
+          const spread = boss.phase === 1 ? 1 : 2;
+          for (let i = -spread; i <= spread; i++) {
             GameState.enemyBullets.push(BossBullets.make(boss.x, boss.y + 16, aim + i * 0.16, {
-              color: 0x79ffbf, speed: 6.6, damage: 8, radius: 8
+              color: 0x79ffbf, speed: boss.phase === 1 ? 3.82 : 5.05, damage: 8, radius: 8
             }));
           }
-          boss.fireCd = 34;
-        } else if (pattern === 1) {
-          const isEnraged = boss.hp <= boss.maxHp * 0.5;
-          const count  = isEnraged ? 14 : 10;
-          const speed  = isEnraged ? 5.8 : 5.0;
-          const spin   = performance.now() * 0.0025;
-          BossBullets.radialBurst(boss.x, boss.y, count, speed, 0xffd166, 7, spin, 7);
-          boss.fireCd  = isEnraged ? 48 : 58;
+          boss.fireCd = boss.phase === 1 ? 41 : 34;
         } else {
           triggerAreaBlast(boss.pendingBlast);
           boss.pendingBlast = null;
-          boss.fireCd = boss.hp <= boss.maxHp * 0.5 ? 44 : 52;
+          boss.fireCd = 60;
         }
         boss.patternIndex += 1;
       }
 
-      BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, boss.hp <= boss.maxHp * 0.4 ? 0xff9b8d : 0x79ffbf);
+      BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, boss.phase === 1 ? 0x79ffbf : 0xff9b8d);
       BossVisuals.setFrameValue(boss.core, boss.hp);
-      boss.core.scale.set(1 + Math.sin(performance.now() * 0.01) * 0.03);
+      const pulse = 1 + Math.sin(performance.now() * 0.01) * 0.03;
+      const shiftBoost = boss.phaseShiftFx > 0 ? (boss.phaseShiftFx / 36) * 0.18 : 0;
+      boss.core.scale.set(pulse + shiftBoost);
+      boss.core.alpha = boss.phase === 1 ? 1 : 0.96;
+      boss.phaseCoreTint.clear();
+      if (boss.phase === 2 || boss.phaseShiftFx > 0) {
+        const tintAlpha = boss.phaseShiftFx > 0 ? 0.14 + (boss.phaseShiftFx / 36) * 0.22 : 0.16;
+        boss.phaseCoreTint.beginFill(0xff8a8a, tintAlpha);
+        boss.phaseCoreTint.drawCircle(0, 0, def.radius - 8);
+        boss.phaseCoreTint.endFill();
+      }
+      boss.phaseRing.clear();
+      if (boss.phase === 2 || boss.phaseShiftFx > 0) {
+        const alpha = boss.phaseShiftFx > 0 ? 0.28 + (boss.phaseShiftFx / 36) * 0.5 : 0.24;
+        const radius = def.radius + 10 + (boss.phaseShiftFx > 0 ? (1 - boss.phaseShiftFx / 36) * 8 : 4);
+        boss.phaseRing.lineStyle(3, 0xff9b8d, alpha);
+        boss.phaseRing.drawCircle(0, 0, radius);
+        boss.phaseRing.lineStyle(1.5, 0xffffff, alpha * 0.8);
+        boss.phaseRing.drawCircle(0, 0, Math.max(10, radius - 6));
+      }
     };
 
     return boss;
@@ -476,7 +498,9 @@ window.BossSystem = (() => {
           radius:    22,
           code:      isBlue ? "B" : "R",
           bodyColor: isBlue ? 0x7df9ff : 0xff8fab,
-          glowColor: isBlue ? 0x54d6ff : 0xff5f90
+          glowColor: isBlue ? 0x54d6ff : 0xff5f90,
+          useGlow: false,
+          showValue: false
         }),
         hpBar:     null,
         glowColor: isBlue ? 0x54d6ff : 0xff5f90
@@ -746,7 +770,9 @@ window.BossSystem = (() => {
           radius:    isShooter ? 15 : 17,
           code:      isShooter ? "S" : "C",
           bodyColor: isShooter ? 0xd8dcff : 0xff8be4,
-          glowColor: isShooter ? 0xa2a8ff : 0xd85cf0
+          glowColor: isShooter ? 0xa2a8ff : 0xd85cf0,
+          useGlow: false,
+          showValue: false
         }),
         hpBar:     null,
         glowColor: isShooter ? 0xa2a8ff : 0xd85cf0

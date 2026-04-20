@@ -25,7 +25,12 @@ window.GAME_BALANCE = {
     STARTING_UPGRADES: [
       "shield",
       "homingmissile",
-      "multishot"
+      "weapon_level",
+      "flak_burst",      
+      "arc_defender",
+      "proximity_mine",
+      "proximity_mine",
+      "proximity_mine"
     ],
     STARTING_ACTIVE_SKILL_LEVELS: {
       boost: 3

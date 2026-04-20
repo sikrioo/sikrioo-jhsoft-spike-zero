@@ -1,4 +1,17 @@
 window.WaveSystem = (() => {
+  const stagePreloadMap = {
+    1: ["stage1", "stage2"],
+    2: ["stage2", "stage3"],
+    3: ["stage3"]
+  };
+
+  function warmStageAssets(stage = 1) {
+    if (!window.ResourceLoader) return;
+    const groups = stagePreloadMap[stage] || [];
+    if (!groups.length) return;
+    ResourceLoader.preloadGroups(groups).catch(() => {});
+  }
+
   function getMaxStage() {
     return window.BossSystem && BossSystem.getStageCount ? BossSystem.getStageCount() : 3;
   }
@@ -35,6 +48,7 @@ window.WaveSystem = (() => {
   function startStage(stage = 1, options = {}){
     const P = GameState.progression;
     P.stage = Math.min(getMaxStage(), Math.max(1, stage));
+    warmStageAssets(P.stage);
     if (window.BackgroundRenderer) BackgroundRenderer.drawBackground();
     P.stageDuration = options.stageDurationFrames || getDefaultStageDurationFrames();
     P.stageTime = P.stageDuration;

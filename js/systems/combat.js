@@ -3,10 +3,41 @@ window.CombatSystem = (() => {
     return WEAPON_DEFINITIONS[GameState.weaponState.current];
   }
 
+  function getWeaponLevel() {
+    return Math.max(1, Math.min(7, GameState.stats.weaponLevel || 1));
+  }
+
+  function getWeaponProfile(type = GameState.weaponState.current, level = getWeaponLevel()) {
+    const def = WEAPON_DEFINITIONS[type];
+    if (!def) return null;
+    const steps = def.levels || [];
+    const index = Math.max(0, Math.min(steps.length - 1, level - 1));
+    return {
+      ...def,
+      level,
+      ...(steps[index] || {})
+    };
+  }
+
+  function getRangeMultiplier() {
+    return Math.max(0.5, GameState.stats.rangeMultiplier || 1);
+  }
+
+  function syncWeaponStats() {
+    const S = GameState;
+    const profile = getWeaponProfile();
+    if (!profile) return false;
+    S.stats.weaponLevel = profile.level;
+    S.stats.bulletDamage = profile.damage || GAME_BALANCE.PLAYER.BULLET_DAMAGE;
+    S.stats.bulletCount = profile.shots || profile.pellets || 1;
+    UI.hudUpdate();
+    return true;
+  }
+
   function setWeaponType(type){
     if (!WEAPON_DEFINITIONS[type]) return false;
     GameState.weaponState.current = type;
-    UI.hudUpdate();
+    syncWeaponStats();
     return true;
   }
 
@@ -14,6 +45,7 @@ window.CombatSystem = (() => {
     GameState.weaponState.current = testMode
       ? ((GAME_BALANCE.TEST && GAME_BALANCE.TEST.STARTING_WEAPON) || "machinegun")
       : "machinegun";
+    syncWeaponStats();
   }
 
   function findNearestEnemy(x, y, takenSet=null){
@@ -103,7 +135,7 @@ window.CombatSystem = (() => {
     g.lineTo(endX, endY);
   }
 
-  function makeMissile(x, y, target){
+  function makeMissile(x, y, target, damageMul=1){
     const S = GameState;
     const spr = Effects.makeBulletSprite(x, y, -Math.PI / 2, 0xffb347);
     spr.scale.set(1.25, 1.4);
@@ -116,14 +148,14 @@ window.CombatSystem = (() => {
       vx:0,
       vy:-2.4,
       r:12,
-      dmg:S.stats.homingMissileDamage,
+      dmg:S.stats.homingMissileDamage * damageMul,
       color: 0xffb347,
       target,
       life:180
     };
   }
 
-  function makeStrikeMissile(target, damageMultiplier=2){
+  function makeStrikeMissile(target, damageMultiplier=2, bonusDamageMul=1){
     const S = GameState;
     const startX = target ? target.x + Helpers.rand(-120, 120) : S.player.spr.x + Helpers.rand(-180, 180);
     const startY = -40 - Helpers.rand(0, 90);
@@ -139,7 +171,7 @@ window.CombatSystem = (() => {
       vx:0,
       vy:6.8,
       r:16,
-      dmg:Math.max(2, S.stats.bulletDamage * damageMultiplier),
+      dmg:Math.max(2, S.stats.bulletDamage * damageMultiplier * bonusDamageMul),
       color:0xffd27a,
       target,
       heavy:true,
@@ -230,38 +262,117 @@ window.CombatSystem = (() => {
     const S = GameState;
     const afterburnerSkill = window.ActiveSkillSystem && ActiveSkillSystem.getDefinition("afterburner");
     return {
+      damageMul: S.activeSkillState.afterburnerT > 0 && afterburnerSkill ? (afterburnerSkill.effectData.damageMultiplier || 1) : 1,
       fireRateMul: S.activeSkillState.afterburnerT > 0 && afterburnerSkill ? afterburnerSkill.effectData.fireRateMultiplier : 1,
       bulletSpeedMul: S.activeSkillState.afterburnerT > 0 && afterburnerSkill ? afterburnerSkill.effectData.bulletSpeedMultiplier : 1
     };
   }
 
+  function getHardpointBarrels(ang) {
+    const S = GameState;
+    const level = Math.max(0, Math.min(3, S.stats.hardpointLevel || 0));
+    if (level <= 0) return [];
+
+    const forwardX = Math.cos(ang);
+    const forwardY = Math.sin(ang);
+    const sideX = -forwardY;
+    const sideY = forwardX;
+
+    const barrels = [
+      {
+        muzzleX: S.player.spr.x + forwardX * 8 - sideX * 12,
+        muzzleY: S.player.spr.y + forwardY * 8 - sideY * 12,
+        angle: ang - Math.PI / 2
+      }
+    ];
+
+    if (level >= 2) {
+      barrels.push({
+        muzzleX: S.player.spr.x + forwardX * 8 + sideX * 12,
+        muzzleY: S.player.spr.y + forwardY * 8 + sideY * 12,
+        angle: ang + Math.PI / 2
+      });
+    }
+
+    if (level >= 3) {
+      barrels.push({
+        muzzleX: S.player.spr.x - forwardX * 16,
+        muzzleY: S.player.spr.y - forwardY * 16,
+        angle: ang + Math.PI
+      });
+    }
+
+    return barrels;
+  }
+
+  function tryShootHardpoints(ang, bulletSpeedMul, damageMul=1) {
+    const S = GameState;
+    if ((S.stats.hardpointLevel || 0) <= 0) return;
+    if (S.stats.hardpointCooldown > 0) return;
+
+    const level = Math.max(1, Math.min(3, S.stats.hardpointLevel || 1));
+    const barrels = getHardpointBarrels(ang);
+    if (!barrels.length) return;
+
+    const baseDamageMul = 0.58 + (level - 1) * 0.08;
+    for (const barrel of barrels) {
+      const bullet = makeBullet(
+        barrel.muzzleX,
+        barrel.muzzleY,
+        barrel.angle,
+        Math.max(0.8, S.stats.bulletDamage * damageMul * baseDamageMul),
+        S.stats.bulletSpeed * WEAPON_DEFINITIONS.machinegun.projectileSpeedMul * bulletSpeedMul * 0.92,
+        0,
+        {
+          color: 0x7fd9ff,
+          radius: 5.5,
+          kind: "hardpoint",
+          scaleX: 0.78,
+          scaleY: 0.84,
+          life: 54,
+          trailAlpha: 0.14
+        }
+      );
+      S.bullets.push(bullet);
+      Effects.emitParticle(barrel.muzzleX, barrel.muzzleY, 0x7fd9ff, 4, 0.55);
+    }
+
+    S.stats.hardpointCooldown = Math.max(8, S.stats.fireRate * 1.08);
+    if (window.SoundSystem) {
+      SoundSystem.play("player_fire", { playbackRate: 1.18 + Helpers.rand(-0.04, 0.03), volume: 0.34, cooldownMs: 0 });
+    }
+  }
+
   function tryShoot(){
     const S = GameState;
     const player = S.player;
+    if (S.stats.hardpointCooldown > 0) S.stats.hardpointCooldown -= 1;
     if (player.fireCd > 0) return;
     if (!(S.mouse.down || S.keys.has("Space"))) return;
     if (S.activeSkillState.stealthT > 0 && window.ActiveSkillSystem) {
       ActiveSkillSystem.breakStealth("attack");
     }
 
-    const { fireRateMul, bulletSpeedMul } = getAfterburnerMultipliers();
+    const { damageMul, fireRateMul, bulletSpeedMul } = getAfterburnerMultipliers();
     const ang = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
 
-    if (S.weaponState.current === "machinegun") fireMachinegun(ang, bulletSpeedMul);
-    if (S.weaponState.current === "laser") fireLaser(ang);
-    if (S.weaponState.current === "shotgun") fireShotgun(ang, bulletSpeedMul);
+    if (S.weaponState.current === "machinegun") fireMachinegun(ang, bulletSpeedMul, damageMul);
+    if (S.weaponState.current === "laser") fireLaser(ang, damageMul);
+    if (S.weaponState.current === "shotgun") fireShotgun(ang, bulletSpeedMul, damageMul);
+    tryShootHardpoints(ang, bulletSpeedMul, damageMul);
 
     if (S.weaponState.current !== "laser"){
       player.fireCd = S.stats.fireRate * fireRateMul;
     }
   }
 
-  function fireMachinegun(ang, bulletSpeedMul){
+  function fireMachinegun(ang, bulletSpeedMul, damageMul=1){
     const S = GameState;
     const px = S.player.spr.x;
     const py = S.player.spr.y;
-    const count = Math.min(5, Math.max(1, S.stats.bulletCount));
-    const spread = count === 1 ? 0 : Math.min(0.42, 0.10 * (count - 1));
+    const spec = getWeaponProfile("machinegun");
+    const count = Math.min(7, Math.max(1, spec.shots || 1));
+    const spread = count === 1 ? 0 : Math.min(0.52, spec.spread || (0.08 * (count - 1)));
 
     for (let i=0; i<count; i++){
       const t = count === 1 ? 0 : (i / (count - 1)) - 0.5;
@@ -270,7 +381,7 @@ window.CombatSystem = (() => {
         px + Math.cos(shotAng) * 18,
         py + Math.sin(shotAng) * 18,
         shotAng,
-        S.stats.bulletDamage,
+        (spec.damage || S.stats.bulletDamage) * damageMul,
         S.stats.bulletSpeed * WEAPON_DEFINITIONS.machinegun.projectileSpeedMul * bulletSpeedMul,
         S.stats.bulletPierce,
         {
@@ -279,7 +390,7 @@ window.CombatSystem = (() => {
           kind:"machinegun",
           scaleX:1,
           scaleY:1.05,
-          life:WEAPON_DEFINITIONS.machinegun.projectileLife
+          life:(spec.projectileLife || 68) * getRangeMultiplier()
         }
       );
       S.bullets.push(bullet);
@@ -289,33 +400,36 @@ window.CombatSystem = (() => {
     if (window.SoundSystem) SoundSystem.play("player_fire", { playbackRate: 1 + Helpers.rand(-0.04, 0.04) });
   }
 
-  function fireLaser(ang){
+  function fireLaser(ang, damageMul=1){
     const S = GameState;
     if (S.weaponState.laserChannel) return;
     if (S.player.fireCd > 0) return;
-    const def = WEAPON_DEFINITIONS.laser;
+    const def = getWeaponProfile("laser");
     const color = def.color;
-    const width = 5 + Math.max(0, S.stats.bulletCount - 1) * 1.35;
+    const width = def.width || 5;
     const originX = S.player.spr.x + Math.cos(ang) * 18;
     const originY = S.player.spr.y + Math.sin(ang) * 18;
-    const beam = makeBeam(originX, originY, ang, def.range, width, color);
+    const laserRange = (def.range || 520) * getRangeMultiplier();
+    const beam = makeBeam(originX, originY, ang, laserRange, width, color);
     Effects.emitParticle(originX, originY, color, 12, 1.1);
     if (window.SoundSystem) SoundSystem.play("laser_fire", { playbackRate: 1 + Helpers.rand(-0.03, 0.03) });
     S.weaponState.laserChannel = {
       beam,
-      remaining: 28 + Math.max(0, S.stats.bulletCount - 1) * 6,
-      maxRemaining: 28 + Math.max(0, S.stats.bulletCount - 1) * 6,
+      damageMul,
+      remaining: def.channelFrames || 28,
+      maxRemaining: def.channelFrames || 28,
       damageTick: 0,
       damageInterval: 4,
       color,
       width,
-      length: def.range
+      length: laserRange,
+      weaponDamageMul: def.damageMul || 1.55
     };
   }
 
   function damageLaserChannel(channel){
     const S = GameState;
-    const damage = S.stats.bulletDamage * (1.55 + Math.max(0, S.stats.bulletCount - 1) * 0.12);
+    const damage = S.stats.bulletDamage * (channel.damageMul || 1) * (channel.weaponDamageMul || 1.55);
     const cos = Math.cos(channel.beam.ang);
     const sin = Math.sin(channel.beam.ang);
     const originX = channel.beam.x;
@@ -346,13 +460,14 @@ window.CombatSystem = (() => {
     S.player.fireCd = S.stats.fireRate;
   }
 
-  function fireShotgun(ang, bulletSpeedMul){
+  function fireShotgun(ang, bulletSpeedMul, damageMul=1){
     const S = GameState;
     const px = S.player.spr.x;
     const py = S.player.spr.y;
-    const pelletCount = 6 + Math.min(8, S.stats.bulletCount * 2);
-    const spread = 0.26 + Math.max(0, S.stats.bulletCount - 1) * 0.025;
-    const pelletDamage = Math.max(0.72, S.stats.bulletDamage * (0.72 + Math.max(0, S.stats.bulletCount - 1) * 0.05));
+    const spec = getWeaponProfile("shotgun");
+    const pelletCount = Math.min(12, Math.max(4, spec.pellets || 4));
+    const spread = spec.spread || 0.24;
+    const pelletDamage = Math.max(0.72, (spec.damage || S.stats.bulletDamage) * damageMul * (spec.pelletDamageMul || 1));
 
     for (let i=0; i<pelletCount; i++){
       const shotAng = ang + Helpers.rand(-spread, spread);
@@ -366,7 +481,7 @@ window.CombatSystem = (() => {
         {
           color:0xffbf7a,
           radius:8.5,
-          life:WEAPON_DEFINITIONS.shotgun.projectileLife,
+          life:(spec.projectileLife || 24) * getRangeMultiplier(),
           kind:"shotgun",
           scaleX:1.25,
           scaleY:1.3,
@@ -387,13 +502,14 @@ window.CombatSystem = (() => {
     if (S.activeSkillState.stealthT > 0) return;
     if (S.enemies.length <= 0) return;
 
+    const { damageMul } = getAfterburnerMultipliers();
     const taken = new Set();
     const spawnCount = Math.min(1 + Math.floor(Math.max(0, S.stats.homingMissileLevel - 1) / 2), S.enemies.length);
     for (let i=0; i<spawnCount; i++){
       const target = findNearestEnemy(S.player.spr.x, S.player.spr.y, taken);
       if (!target) break;
       taken.add(target);
-      const missile = makeMissile(S.player.spr.x, S.player.spr.y - 12, target);
+      const missile = makeMissile(S.player.spr.x, S.player.spr.y - 12, target, damageMul);
       S.missiles.push(missile);
       Effects.emitParticle(missile.x, missile.y, 0xffb347, 6, 0.8);
     }
@@ -408,12 +524,13 @@ window.CombatSystem = (() => {
   function launchMissileVolley(count=4, damageMultiplier=2.2){
     const S = GameState;
     if (S.enemies.length <= 0) return false;
+    const { damageMul } = getAfterburnerMultipliers();
     const taken = new Set();
     for (let i=0; i<count; i++){
       const target = findNearestEnemy(S.player.spr.x + Helpers.rand(-40, 40), S.player.spr.y, taken) || findNearestEnemy(S.player.spr.x, S.player.spr.y);
       if (!target) break;
       taken.add(target);
-      const missile = makeStrikeMissile(target, damageMultiplier);
+      const missile = makeStrikeMissile(target, damageMultiplier, damageMul);
       S.missiles.push(missile);
     }
     return true;
@@ -581,6 +698,7 @@ window.CombatSystem = (() => {
     tryShootMissiles,
     launchMissileVolley,
     setWeaponType,
+    syncWeaponStats,
     applyStartingWeaponLoadout,
     updateBullets,
     updateBeams,

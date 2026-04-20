@@ -14,6 +14,7 @@ window.GameState = {
 
   player: null,
   decoys: [],
+  mines: [],
   bullets: [],
   enemyBullets: [],
   beams: [],
@@ -37,7 +38,11 @@ window.GameState = {
     bulletSpeed: GAME_BALANCE.PLAYER.BULLET_SPEED,
     bulletDamage: GAME_BALANCE.PLAYER.BULLET_DAMAGE,
     bulletCount: GAME_BALANCE.PLAYER.BULLET_COUNT,
+    weaponLevel: 1,
     bulletPierce: 0,
+    rangeMultiplier: 1,
+    hardpointLevel: 0,
+    hardpointCooldown: 0,
     defense: GAME_BALANCE.PLAYER.DEFENSE,
     mp: GAME_BALANCE.PLAYER.MP_MAX,
     mpMax: GAME_BALANCE.PLAYER.MP_MAX,
@@ -52,6 +57,16 @@ window.GameState = {
     homingMissileDamage: GAME_BALANCE.PLAYER.HOMING_MISSILE_DAMAGE,
     homingMissileCd: 0,
     homingMissileCdMax: GAME_BALANCE.PLAYER.HOMING_MISSILE_CD_MAX,
+    flakLevel: 0,
+    flakCooldown: 0,
+    arcLevel: 0,
+    arcCooldown: 0,
+    mineLevel: 0,
+    mineCd: 0,
+    mineCdMax: 0,
+    mineMaxCount: 0,
+    mineRadius: 0,
+    mineDamage: 0,
     practice: false,
     practiceMode: "none"
   },
@@ -76,6 +91,16 @@ window.GameState = {
     pendingLevelUps: 0,
     bossFinishTimer: 0,
     deathTimer: 0
+  },
+
+  upgrades: {
+    levels: {},
+    pickedIds: [],
+    categoryCounts: {
+      weapon: 0,
+      passive: 0,
+      active: 0
+    }
   },
 
   activeSkillState: {
@@ -103,6 +128,10 @@ window.GameState = {
   weaponState: {
     current: "machinegun",
     laserChannel: null
+  },
+
+  pause: {
+    open: false
   },
 
   shake: 0

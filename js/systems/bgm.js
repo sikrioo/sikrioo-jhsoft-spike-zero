@@ -1,15 +1,15 @@
 window.BgmSystem = (() => {
   const TRACKS = {
     "stageBriefing:intro": {
-      src: "./assets/bgm/stage-ready/the_mountain-jazz-cafe-music-496552.mp3",
+      src: "./assets/bgm/stage-ready/the_mountain-jazz-cafe-music-496552.optimized.mp3",
       volume: 0.34
     },
     "stage1:gameplay": {
-      src: "./assets/bgm/stage-1/gameplay/Everything falls apart.ogg",
+      src: "./assets/bgm/stage-1/gameplay/Everything falls apart.optimized.ogg",
       volume: 0.34
     },
     "stage1:boss": {
-      src: "./assets/bgm/stage-1/boss/usb.mp3",
+      src: "./assets/bgm/stage-1/boss/usb.optimized.mp3",
       volume: 0.42
     },
     "stage2:gameplay": {
@@ -29,7 +29,7 @@ window.BgmSystem = (() => {
       volume: 0.35
     },
     "stage3:boss:phase1": {
-      src: "./assets/bgm/stage-3/boss/phase1/Boss Battle 6 V1.wav",
+      src: "./assets/bgm/stage-3/boss/phase1/Boss Battle 6 V1.ogg",
       volume: 0.42
     },
     "stage3:boss:phase2": {

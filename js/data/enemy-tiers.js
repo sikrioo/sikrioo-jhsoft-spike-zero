@@ -149,6 +149,36 @@ window.ENEMY_TIERS = {
     glowInner: 0.18,
     numberFontSize: 14
   },
+  lancer: {
+    hitsMin: 4, hitsMax: 7,
+    radius: 17,
+    moveSpeedMin: 2.4, moveSpeedMax: 3.0,
+    damage: 20,
+    scoreBase: 260,
+    xpBase: 7,
+    lineColor: 0xff8a4f,
+    fillColor: 0xff6f3d,
+    glowColor: 0xff7a45,
+    glowDistance: 20,
+    glowOuter: 2.5,
+    glowInner: 0.14,
+    numberFontSize: 13
+  },
+  spin_lancer: {
+    hitsMin: 5, hitsMax: 8,
+    radius: 18,
+    moveSpeedMin: 2.3, moveSpeedMax: 2.9,
+    damage: 22,
+    scoreBase: 310,
+    xpBase: 8,
+    lineColor: 0xffb45c,
+    fillColor: 0xff8d4d,
+    glowColor: 0xff9f52,
+    glowDistance: 22,
+    glowOuter: 2.7,
+    glowInner: 0.16,
+    numberFontSize: 13
+  },
   midboss: {
     hitsMin: 10, hitsMax: 20,
     radius: 30,

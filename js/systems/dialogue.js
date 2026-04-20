@@ -4,6 +4,8 @@ window.DialogueSystem = (() => {
   const END_HOLD_MS = 2600;
 
   let token = 0;
+  let activeCompletion = null;
+  let activeToken = 0;
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,8 +43,11 @@ window.DialogueSystem = (() => {
   async function playLines(lines = [], onComplete = null) {
     const S = GameState;
     const currentToken = ++token;
+    activeToken = currentToken;
+    activeCompletion = onComplete;
     const queue = lines.filter((line) => line && line.text);
     if (!queue.length) {
+      activeCompletion = null;
       if (typeof onComplete === "function") onComplete();
       return false;
     }
@@ -61,6 +66,7 @@ window.DialogueSystem = (() => {
     await sleep(END_HOLD_MS);
     if (currentToken !== token) return false;
     UI.resetDialogueLog();
+    activeCompletion = null;
     if (typeof onComplete === "function") onComplete();
     return true;
   }
@@ -96,12 +102,27 @@ window.DialogueSystem = (() => {
 
   function cancel() {
     token += 1;
+    activeToken = 0;
+    activeCompletion = null;
     if (window.BgmSystem) BgmSystem.clearOverride();
     UI.resetDialogueLog();
   }
 
+  function skip() {
+    if (GameState.progression.waveState !== "dialogue") return false;
+    const onComplete = activeCompletion;
+    token += 1;
+    activeToken = 0;
+    activeCompletion = null;
+    if (window.BgmSystem) BgmSystem.clearOverride();
+    UI.resetDialogueLog();
+    if (typeof onComplete === "function") onComplete();
+    return true;
+  }
+
   return {
     cancel,
+    skip,
     playLines,
     playStageIntro,
     playBossWarning,

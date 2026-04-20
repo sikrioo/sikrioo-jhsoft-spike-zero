@@ -26,6 +26,75 @@ window.Boot = (() => {
     if (loadingOverlay) loadingOverlay.classList.add("hidden");
   }
 
+  function canTogglePause() {
+    return ["running", "paused"].includes(S.progression.waveState);
+  }
+
+  function handlePauseUpgradeAdjust(id, delta) {
+    if (!S.stats.practice || !window.SkillSystem) return false;
+    const upgrade = SkillSystem.getUpgradeById(id);
+    if (!upgrade || typeof upgrade.maxLevel !== "number") return false;
+    const currentLevel = S.upgrades.levels[id] || 0;
+    const nextLevel = Math.max(0, Math.min(upgrade.maxLevel, currentLevel + delta));
+    if (nextLevel === currentLevel) return false;
+    const changed = SkillSystem.setUpgradeLevel(id, nextLevel);
+    if (!changed) return false;
+    UI.renderPauseMenu(handlePauseUpgradeAdjust, resetPauseUpgrades, clearPauseUpgrades);
+    UI.hudUpdate();
+    return true;
+  }
+
+  function resetPauseUpgrades() {
+    if (!S.stats.practice) return false;
+    const starting = (GAME_BALANCE.TEST && GAME_BALANCE.TEST.STARTING_UPGRADES) || [];
+    if (!window.SkillSystem) return false;
+    SkillSystem.rebuildUpgradeState(starting.slice(), {
+      keepTestActives: true,
+      keepExistingSlots: false
+    });
+    S.mouse.down = false;
+    UI.renderPauseMenu(handlePauseUpgradeAdjust, resetPauseUpgrades, clearPauseUpgrades);
+    UI.hudUpdate();
+    return true;
+  }
+
+  function clearPauseUpgrades() {
+    if (!S.stats.practice || !window.SkillSystem) return false;
+    SkillSystem.rebuildUpgradeState([], {
+      keepTestActives: false,
+      keepExistingSlots: false
+    });
+    for (const slot of S.activeSkillState.slots) {
+      slot.skillId = null;
+      slot.cooldown = 0;
+      slot.autoCast = false;
+    }
+    S.activeSkillState.ownedSkillIds = [];
+    S.mouse.down = false;
+    UI.renderPauseMenu(handlePauseUpgradeAdjust, resetPauseUpgrades, clearPauseUpgrades);
+    UI.hudUpdate();
+    return true;
+  }
+
+  function setPauseState(open) {
+    if (!canTogglePause()) return false;
+    const shouldOpen = typeof open === "boolean" ? open : S.progression.waveState !== "paused";
+    if (shouldOpen) {
+      S.progression.waveState = "paused";
+      S.pause.open = true;
+      S.mouse.down = false;
+      UI.renderPauseMenu(handlePauseUpgradeAdjust, resetPauseUpgrades, clearPauseUpgrades);
+      UI.showCard("pause");
+      UI.hudUpdate();
+      return true;
+    }
+    S.progression.waveState = "running";
+    S.pause.open = false;
+    UI.showCard(null);
+    UI.hudUpdate();
+    return true;
+  }
+
   function primeAudioSystems() {
     if (window.SoundSystem) SoundSystem.prime();
     if (window.BgmSystem) BgmSystem.prime();
@@ -73,6 +142,7 @@ window.Boot = (() => {
     if (window.UI) UI.resetDialogueLog();
     if (window.BgmSystem) BgmSystem.stopAll();
     for (const d of S.decoys) S.uiLayer.removeChild(d.spr);
+    for (const mine of S.mines) if (mine.spr && mine.spr.parent) mine.spr.parent.removeChild(mine.spr);
     for (const b of S.bullets) S.fx.removeChild(b.spr);
     for (const b of S.enemyBullets) S.fx.removeChild(b.spr);
     for (const beam of S.beams) S.fx.removeChild(beam.spr);
@@ -84,6 +154,7 @@ window.Boot = (() => {
     for (const p of S.particles) S.fx.removeChild(p.spr);
 
     S.decoys.length = 0;
+    S.mines.length = 0;
     S.bullets.length = 0;
     S.enemyBullets.length = 0;
     S.beams.length = 0;
@@ -101,7 +172,11 @@ window.Boot = (() => {
     S.stats.bulletSpeed = GAME_BALANCE.PLAYER.BULLET_SPEED;
     S.stats.bulletDamage = GAME_BALANCE.PLAYER.BULLET_DAMAGE;
     S.stats.bulletCount = GAME_BALANCE.PLAYER.BULLET_COUNT;
+    S.stats.weaponLevel = 1;
     S.stats.bulletPierce = 0;
+    S.stats.rangeMultiplier = 1;
+    S.stats.hardpointLevel = 0;
+    S.stats.hardpointCooldown = 0;
     S.stats.defense = GAME_BALANCE.PLAYER.DEFENSE;
     S.stats.mp = GAME_BALANCE.PLAYER.MP_MAX;
     S.stats.mpMax = GAME_BALANCE.PLAYER.MP_MAX;
@@ -116,6 +191,16 @@ window.Boot = (() => {
     S.stats.homingMissileDamage = GAME_BALANCE.PLAYER.HOMING_MISSILE_DAMAGE;
     S.stats.homingMissileCd = 0;
     S.stats.homingMissileCdMax = GAME_BALANCE.PLAYER.HOMING_MISSILE_CD_MAX;
+    S.stats.flakLevel = 0;
+    S.stats.flakCooldown = 0;
+    S.stats.arcLevel = 0;
+    S.stats.arcCooldown = 0;
+    S.stats.mineLevel = 0;
+    S.stats.mineCd = 0;
+    S.stats.mineCdMax = 0;
+    S.stats.mineMaxCount = 0;
+    S.stats.mineRadius = 0;
+    S.stats.mineDamage = 0;
     S.stats.practice = !!testMode;
     S.stats.practiceMode = practiceMode;
     S.practiceStageId = practiceStageId;
@@ -141,6 +226,12 @@ window.Boot = (() => {
     S.progression.pendingLevelUps = 0;
     S.progression.deathTimer = 0;
 
+    S.upgrades.levels = {};
+    S.upgrades.pickedIds = [];
+    S.upgrades.categoryCounts.weapon = 0;
+    S.upgrades.categoryCounts.passive = 0;
+    S.upgrades.categoryCounts.active = 0;
+
     S.shake = 0;
     S.activeSkillState.boostDir = 0;
     S.activeSkillState.boostDrag = 0.9;
@@ -158,6 +249,7 @@ window.Boot = (() => {
     // S.player = PlayerFactory.makePlayer();
     S.player = PlayerFactory.makePlayer("power"); // "standard" | "power" | "agility"
     CombatSystem.applyStartingWeaponLoadout(testMode);
+    CombatSystem.syncWeaponStats();
     SkillSystem.applyStartingLoadout(testMode);
     ActiveSkillSystem.assignStartingLoadout(testMode);
 
@@ -170,6 +262,7 @@ window.Boot = (() => {
     }
     if (testMode && practiceMode === "boss" && window.BossSystem) BossSystem.spawnSelectedPracticeBoss();
     if (window.BgmSystem) BgmSystem.refresh();
+    S.pause.open = false;
     UI.hudUpdate();
     UI.showCard(null);
   }
@@ -204,6 +297,23 @@ window.Boot = (() => {
     window.addEventListener("keydown", (e)=>{
       if (window.SoundSystem) SoundSystem.prime();
       if (window.BgmSystem) BgmSystem.prime();
+      if (
+        S.progression.waveState === "dialogue" &&
+        ["Space", "Enter", "NumpadEnter", "Escape"].includes(e.code)
+      ) {
+        if (window.DialogueSystem) DialogueSystem.skip();
+        e.preventDefault();
+        return;
+      }
+      if (["Escape", "KeyP"].includes(e.code) && canTogglePause()) {
+        setPauseState();
+        e.preventDefault();
+        return;
+      }
+      if (S.progression.waveState === "paused") {
+        e.preventDefault();
+        return;
+      }
       S.keys.add(e.code);
       if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
       if (e.code === "Digit1") ActiveSkillSystem.tryUseBoostDirection("forward");
@@ -276,10 +386,9 @@ window.Boot = (() => {
 
     if (p.shieldSpr){
       const ratio = S.stats.shieldMax > 0 ? Helpers.clamp(S.stats.shield / S.stats.shieldMax, 0, 1) : 0;
-      p.shieldSpr.alpha = ratio > 0.01 ? (0.15 + ratio * 0.45) : 0;
-      const pulse = 1 + Math.sin(performance.now() / 160) * 0.04;
-      p.shieldSpr.scale.set(pulse + ratio * 0.06);
-      p.shieldSpr.rotation += 0.01 * dt;
+      p.shieldSpr.alpha = ratio > 0.01 ? (0.07 + ratio * 0.22) : 0;
+      const pulse = 1 + Math.sin(performance.now() / 240) * 0.015;
+      p.shieldSpr.scale.set(pulse + ratio * 0.025);
     }
 
     let ax = 0;
@@ -375,6 +484,55 @@ window.Boot = (() => {
         p.spr.arc(0, 0, radius, p.slashArc.startAngle, p.slashArc.endAngle);
         p.spr.lineStyle(p.slashArc.width, p.slashArc.color, alpha);
         p.spr.arc(0, 0, radius, p.slashArc.startAngle, p.slashArc.endAngle);
+      } else if (p.electricArc){
+        const progress = 1 - (p.life / (p.maxLife || 1));
+        const alpha = Math.max(0, 0.95 - progress * 0.72);
+        const arc = p.electricArc;
+        const dx = arc.x2 - arc.x1;
+        const dy = arc.y2 - arc.y1;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const segments = 6;
+        p.spr.x = arc.x1;
+        p.spr.y = arc.y1;
+        p.spr.clear();
+
+        let prevX = 0;
+        let prevY = 0;
+        p.spr.lineStyle(5, arc.color, alpha * 0.2);
+        p.spr.moveTo(prevX, prevY);
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const offset = i === segments ? 0 : Helpers.rand(-arc.jitter, arc.jitter) * (1 - Math.abs(0.5 - t) * 0.7);
+          const px = dx * t + nx * offset;
+          const py = dy * t + ny * offset;
+          p.spr.lineTo(px, py);
+        }
+
+        prevX = 0;
+        prevY = 0;
+        p.spr.lineStyle(2.2, arc.color, alpha);
+        p.spr.moveTo(prevX, prevY);
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const offset = i === segments ? 0 : Helpers.rand(-arc.jitter, arc.jitter) * (1 - Math.abs(0.5 - t) * 0.7);
+          const px = dx * t + nx * offset;
+          const py = dy * t + ny * offset;
+          p.spr.lineTo(px, py);
+        }
+
+        prevX = 0;
+        prevY = 0;
+        p.spr.lineStyle(1, arc.coreColor, alpha * 0.88);
+        p.spr.moveTo(prevX, prevY);
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const offset = i === segments ? 0 : Helpers.rand(-arc.jitter * 0.45, arc.jitter * 0.45);
+          const px = dx * t + nx * offset;
+          const py = dy * t + ny * offset;
+          p.spr.lineTo(px, py);
+        }
       } else {
         p.spr.x = p.x;
         p.spr.y = p.y;
@@ -470,6 +628,7 @@ window.Boot = (() => {
 
     updateProgress(dt);
     updatePlayer(dt);
+    if (window.DefenseSystem) DefenseSystem.update(dt);
     CombatSystem.tryShoot();
     CombatSystem.tryShootMissiles();
     ActiveSkillSystem.update(dt);
@@ -516,7 +675,7 @@ window.Boot = (() => {
     }
 
     if (window.ResourceLoader) {
-      await ResourceLoader.preloadGroups(["common", "gameBoot"], ({ completed, total, item }) => {
+      await ResourceLoader.preloadGroups(["common", "gameCritical"], ({ completed, total, item }) => {
         updateLoadingUi(completed, total, item);
       });
     }
@@ -526,7 +685,7 @@ window.Boot = (() => {
 
     if (window.ResourceLoader) {
       setTimeout(() => {
-        ResourceLoader.preloadGroups(["gameDeferred"]).catch(() => {});
+        ResourceLoader.preloadGroups(["stage1"]).catch(() => {});
       }, 0);
     }
 
@@ -558,6 +717,18 @@ window.Boot = (() => {
       onDifficultyChange: (difficulty) => {
         S.difficulty = normalizeDifficulty(difficulty);
         UI.hudUpdate();
+      },
+      onPauseToggle: (open) => {
+        setPauseState(open);
+      },
+      onPauseAdjustUpgrade: (id, delta) => {
+        handlePauseUpgradeAdjust(id, delta);
+      },
+      onPauseResetUpgrades: () => {
+        resetPauseUpgrades();
+      },
+      onPauseClearUpgrades: () => {
+        clearPauseUpgrades();
       },
       onApplyStageTest: ({ stageId, durationSec }) => {
         primeAudioSystems();

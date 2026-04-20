@@ -38,14 +38,15 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     type: "support",
     mpCost: 25,
     cooldown: 300,
-    duration: 120,
+    duration: 300,
     manualCast: true,
     autoCast: false,
     slotType: "active",
     effectData: {
-      speedMultiplier: 1.42,
-      fireRateMultiplier: 0.72,
-      bulletSpeedMultiplier: 1.2
+      speedMultiplier: 1.24,
+      damageMultiplier: 1.12,
+      fireRateMultiplier: 0.84,
+      bulletSpeedMultiplier: 1.1
     }
   },
   {
@@ -60,11 +61,11 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     autoCast: false,
     slotType: "active",
     effectData: {
-      radius: 150,
+      radius: 56,
       damage: 8,
       bossDamage: 5,
-      bulletClearRadius: 190,
-      knockback: 26
+      bulletClearRadius: 68,
+      knockback: 18
     }
   },
   {

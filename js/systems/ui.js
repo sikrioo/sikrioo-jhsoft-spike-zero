@@ -12,6 +12,7 @@ window.UI = (() => {
   const $atk = document.getElementById("atk");
   const $def = document.getElementById("def");
   const $fireRate = document.getElementById("fireRate");
+  const $bulletSpeed = document.getElementById("bulletSpeed");
   const $shots = document.getElementById("shots");
   const $pierce = document.getElementById("pierce");
   const $combo = document.getElementById("combo");
@@ -24,10 +25,19 @@ window.UI = (() => {
   const gameOverCard = document.getElementById("gameOverCard");
   const stageClearCard = document.getElementById("stageClearCard");
   const stageStartCard = document.getElementById("stageStartCard");
+  const pauseCard = document.getElementById("pauseCard");
+  const pauseStatsGrid = document.getElementById("pauseStatsGrid");
+  const pauseUpgradeList = document.getElementById("pauseUpgradeList");
+  const pauseFilterBar = document.getElementById("pauseFilterBar");
+  const pauseAdjustActions = document.getElementById("pauseAdjustActions");
+  const pauseClearBtn = document.getElementById("btnPauseClearUpgrades");
+  const pauseResetBtn = document.getElementById("btnPauseResetUpgrades");
   const stageStartTitle = document.getElementById("stageStartTitle");
   const stageStartSubtitle = document.getElementById("stageStartSubtitle");
   const stageClearLabel = document.getElementById("stageClearLabel");
   const nextStageBtn = document.getElementById("btnNextStage");
+  const pauseBtn = document.getElementById("btnPauseMenu");
+  const resumePauseBtn = document.getElementById("btnResumePause");
   const upgradeGrid = document.getElementById("upgradeGrid");
   const finalScoreEl = document.getElementById("finalScore");
   const warningOverlay = document.getElementById("warningOverlay");
@@ -57,6 +67,7 @@ window.UI = (() => {
   let pendingStageStartResolve = null;
   let stageStartTimer = null;
   let stageStartAnimation = null;
+  let pauseMenuFilter = "all";
 
   function getCharacterProfile(characterId) {
     const profiles = window.CHARACTER_PROFILES || {};
@@ -103,10 +114,71 @@ window.UI = (() => {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
 
+  function formatStatWithDelta(baseValue, deltaValue=0, digits=1, sign="+") {
+    const base = Number(baseValue) || 0;
+    const delta = Number(deltaValue) || 0;
+    if (Math.abs(delta) < 0.05) return base.toFixed(digits);
+    return `${base.toFixed(digits)} ${sign} ${Math.abs(delta).toFixed(digits)}`;
+  }
+
+  function formatIntegerStatWithDelta(baseValue, deltaValue=0, sign="+") {
+    const base = Math.round(Number(baseValue) || 0);
+    const delta = Number(deltaValue) || 0;
+    if (Math.abs(delta) < 0.05) return String(base);
+    return `${base} ${sign} ${Math.abs(delta).toFixed(1)}`;
+  }
+
+  function getActiveHudModifiers() {
+    const S = GameState;
+    const modifiers = {
+      speedBonus: 0,
+      attackBonus: 0,
+      defenseBonus: 0,
+      fireRateReduction: 0,
+      bulletSpeedBonus: 0
+    };
+
+    const afterburnerActive = S.activeSkillState && S.activeSkillState.afterburnerT > 0;
+    if (afterburnerActive && window.ActiveSkillSystem) {
+      const skill = ActiveSkillSystem.getDefinition("afterburner");
+      if (skill && skill.effectData) {
+        modifiers.speedBonus = S.stats.speed * ((skill.effectData.speedMultiplier || 1) - 1);
+        modifiers.attackBonus = S.stats.bulletDamage * ((skill.effectData.damageMultiplier || 1) - 1);
+        modifiers.fireRateReduction = S.stats.fireRate - (S.stats.fireRate * (skill.effectData.fireRateMultiplier || 1));
+        modifiers.bulletSpeedBonus = S.stats.bulletSpeed * ((skill.effectData.bulletSpeedMultiplier || 1) - 1);
+      }
+    }
+
+    if (
+      Math.abs(modifiers.speedBonus) < 0.05 &&
+      Math.abs(modifiers.attackBonus) < 0.05 &&
+      Math.abs(modifiers.defenseBonus) < 0.05 &&
+      Math.abs(modifiers.fireRateReduction) < 0.05 &&
+      Math.abs(modifiers.bulletSpeedBonus) < 0.05
+    ) {
+      return null;
+    }
+
+    return modifiers;
+  }
+
   function hudUpdate() {
     const S = GameState;
     const P = S.progression;
     const weaponDef = WEAPON_DEFINITIONS[S.weaponState.current];
+    const hudModifiers = getActiveHudModifiers();
+    const baseSpeed = Math.round(S.stats.speed * 10) / 10;
+    const baseAttack = Math.round(S.stats.bulletDamage * 10) / 10;
+    const baseDefense = Math.round(S.stats.defense * 10) / 10;
+    const baseFireRate = Math.round(S.stats.fireRate * 10) / 10;
+    const baseBulletSpeed = Math.round(S.stats.bulletSpeed * 10) / 10;
+
+    const speedBonus = hudModifiers ? Math.round(hudModifiers.speedBonus * 10) / 10 : 0;
+    const attackBonus = hudModifiers ? Math.round(hudModifiers.attackBonus * 10) / 10 : 0;
+    const defenseBonus = hudModifiers ? Math.round(hudModifiers.defenseBonus * 10) / 10 : 0;
+    const fireRateReduction = hudModifiers ? Math.round(hudModifiers.fireRateReduction * 10) / 10 : 0;
+    const bulletSpeedBonus = hudModifiers ? Math.round(hudModifiers.bulletSpeedBonus * 10) / 10 : 0;
+
     $score.textContent = String(Math.floor(P.score));
     $stage.textContent = String(P.stage || 1);
     $stageTime.textContent = S.stats.practice && S.stats.practiceMode === "boss"
@@ -117,22 +189,19 @@ window.UI = (() => {
     $xp.textContent = `${Math.floor(P.xp)} / ${Math.floor(P.xpToNext)}`;
     $hp.textContent = String(Math.max(0, Math.floor(S.stats.hp)));
     $mp.textContent = `${Math.floor(S.stats.mp)} / ${Math.floor(S.stats.mpMax)}`;
-    $speed.textContent = (Math.round(S.stats.speed * 10) / 10).toFixed(1);
+    $speed.textContent = formatStatWithDelta(baseSpeed, speedBonus, 1, "+");
     $shield.textContent = S.stats.shieldMax > 0
       ? `${Math.max(0, Math.floor(S.stats.shield))} / ${Math.floor(S.stats.shieldMax)}`
       : "-";
-    $atk.textContent = String(S.stats.bulletDamage);
-    $def.textContent = String(S.stats.defense);
-    $fireRate.textContent = String(Math.round(S.stats.fireRate));
-    $shots.textContent = S.weaponState.current === "machinegun"
-      ? String(Math.min(5, Math.max(1, S.stats.bulletCount)))
-      : S.weaponState.current === "shotgun"
-        ? String(4 + Math.min(6, S.stats.bulletCount * 2))
-        : "1";
+    $atk.textContent = formatStatWithDelta(baseAttack, attackBonus, 1, "+");
+    $def.textContent = formatStatWithDelta(baseDefense, defenseBonus, 1, "+");
+    $fireRate.textContent = formatIntegerStatWithDelta(baseFireRate, fireRateReduction, "-");
+    $bulletSpeed.textContent = formatStatWithDelta(baseBulletSpeed, bulletSpeedBonus, 1, "+");
+    $shots.textContent = String(Math.max(1, Math.floor(S.stats.bulletCount || 1)));
     $pierce.textContent = String(S.stats.bulletPierce);
     $combo.textContent = "x" + P.combo.toFixed(1).replace(/\.0$/,"");
     $weaponName.textContent = weaponDef ? weaponDef.name : "-";
-    $weaponLevel.textContent = "Type Shift";
+    $weaponLevel.textContent = `Lv.${Math.max(1, Math.floor(S.stats.weaponLevel || 1))}`;
     for (const radio of weaponRadioEls) radio.checked = radio.value === S.weaponState.current;
     for (const radio of difficultyEls) radio.checked = radio.value === (S.difficulty || "normal");
     weaponHud.style.display = S.stats.practice ? "block" : "none";
@@ -311,12 +380,188 @@ window.UI = (() => {
     gameOverCard.style.display = which === "over" ? "block" : "none";
     if (stageClearCard) stageClearCard.style.display = which === "clear" ? "block" : "none";
     if (stageStartCard) stageStartCard.style.display = "none";
+    if (pauseCard) pauseCard.style.display = which === "pause" ? "block" : "none";
     overlayRoot.style.display = which ? "flex" : "none";
+  }
+
+  function renderPauseMenu(onAdjustUpgrade=null, onResetUpgrades=null, onClearUpgrades=null) {
+    const S = GameState;
+    if (!pauseStatsGrid || !pauseUpgradeList) return;
+
+    const statItems = [
+      { label: "HP", value: `${Math.floor(S.stats.hp)} / ${Math.floor(S.stats.maxHp)}` },
+      { label: "MP", value: `${Math.floor(S.stats.mp)} / ${Math.floor(S.stats.mpMax)}` },
+      { label: "Speed", value: `${S.stats.speed.toFixed(1)}` },
+      { label: "ATK", value: `${S.stats.bulletDamage.toFixed(1)}` },
+      { label: "Weapon Lv", value: `Lv.${Math.max(1, S.stats.weaponLevel || 1)}` },
+      { label: "Range", value: `${Math.round((S.stats.rangeMultiplier || 1) * 100)}%` },
+      { label: "Hardpoints", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
+      { label: "DEF", value: `${S.stats.defense.toFixed(1)}` },
+      { label: "Fire Rate", value: `${S.stats.fireRate.toFixed(1)}` },
+      { label: "Bullet Spd", value: `${S.stats.bulletSpeed.toFixed(1)}` },
+      { label: "Shield", value: S.stats.shieldMax > 0 ? `${Math.floor(S.stats.shield)} / ${Math.floor(S.stats.shieldMax)}` : "-" },
+      { label: "Dash Cd", value: `${Math.floor(S.stats.dashCdMax)}f` },
+      { label: "Level", value: `Lv.${S.progression.level}` }
+    ];
+
+    pauseStatsGrid.innerHTML = statItems.map((item) => `
+      <div class="pauseInfoItem">
+        <div class="pauseInfoLabel">${item.label}</div>
+        <div class="pauseInfoValue">${item.value}</div>
+      </div>
+    `).join("");
+
+    const visibleUpgrades = (window.UPGRADE_DEFINITIONS || [])
+      .map((upgrade) => ({ upgrade, level: S.upgrades.levels[upgrade.id] || 0 }))
+      .filter((entry) => S.stats.practice || entry.level > 0)
+      .filter((entry) => pauseMenuFilter === "all" ? true : entry.upgrade.category === pauseMenuFilter)
+      .sort((a, b) => a.upgrade.name.localeCompare(b.upgrade.name));
+
+    pauseUpgradeList.innerHTML = visibleUpgrades.length
+      ? visibleUpgrades.map(({ upgrade, level }) => {
+          const adjustable = S.stats.practice && typeof upgrade.maxLevel === "number" && upgrade.maxLevel > 1;
+          const displayLevel = upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level;
+          const displayMax = upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel;
+          return `
+          <div class="pauseInfoRow">
+            <div>
+              <div class="pauseAdjustName">${upgrade.name}</div>
+              <div class="pauseInfoMeta">${upgrade.category.toUpperCase()} · Lv.${displayLevel}${displayMax ? ` / ${displayMax}` : ""}</div>
+            </div>
+            ${adjustable ? `
+              <div class="pauseAdjustControls">
+                <button type="button" data-upgrade-id="${upgrade.id}" data-adjust="-1" ${level <= 0 ? "disabled" : ""}>-</button>
+                <div class="pauseAdjustLevel">Lv.${displayLevel}</div>
+                <button type="button" data-upgrade-id="${upgrade.id}" data-adjust="1" ${level >= upgrade.maxLevel ? "disabled" : ""}>+</button>
+              </div>
+            ` : ""}
+          </div>`;
+        }).join("")
+      : `<div class="pauseInfoRow"><div class="pauseInfoMeta">No upgrades picked yet.</div></div>`;
+
+    if (pauseFilterBar) {
+      for (const btn of pauseFilterBar.querySelectorAll("[data-filter]")) {
+        btn.classList.toggle("active", btn.dataset.filter === pauseMenuFilter);
+        btn.onclick = () => {
+          pauseMenuFilter = btn.dataset.filter || "all";
+          renderPauseMenu(onAdjustUpgrade, onResetUpgrades, onClearUpgrades);
+        };
+      }
+    }
+
+    if (pauseAdjustActions) pauseAdjustActions.hidden = !S.stats.practice;
+    if (pauseClearBtn) {
+      pauseClearBtn.onclick = () => onClearUpgrades && onClearUpgrades();
+    }
+    if (pauseResetBtn) {
+      pauseResetBtn.onclick = () => onResetUpgrades && onResetUpgrades();
+    }
+
+    if (!S.stats.practice) return;
+    for (const btn of pauseUpgradeList.querySelectorAll("[data-upgrade-id][data-adjust]")) {
+      btn.onclick = () => {
+        const id = btn.dataset.upgradeId;
+        const delta = Number(btn.dataset.adjust || 0);
+        if (!id || !delta) return;
+        onAdjustUpgrade && onAdjustUpgrade(id, delta);
+      };
+    }
   }
 
   function showGameOver() {
     finalScoreEl.textContent = String(Math.floor(GameState.progression.score));
     showCard("over");
+  }
+
+  function renderPauseMenu(onAdjustUpgrade=null, onResetUpgrades=null, onClearUpgrades=null) {
+    const S = GameState;
+    if (!pauseStatsGrid || !pauseUpgradeList) return;
+
+    const statItems = [
+      { label: "HP", value: `${Math.floor(S.stats.hp)} / ${Math.floor(S.stats.maxHp)}` },
+      { label: "MP", value: `${Math.floor(S.stats.mp)} / ${Math.floor(S.stats.mpMax)}` },
+      { label: "Speed", value: `${S.stats.speed.toFixed(1)}` },
+      { label: "ATK", value: `${S.stats.bulletDamage.toFixed(1)}` },
+      { label: "Weapon Lv", value: `Lv.${Math.max(1, S.stats.weaponLevel || 1)}` },
+      { label: "Range", value: `${Math.round((S.stats.rangeMultiplier || 1) * 100)}%` },
+      { label: "Hardpoints", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
+      { label: "DEF", value: `${S.stats.defense.toFixed(1)}` },
+      { label: "Fire Rate", value: `${S.stats.fireRate.toFixed(1)}` },
+      { label: "Bullet Spd", value: `${S.stats.bulletSpeed.toFixed(1)}` },
+      { label: "Shield", value: S.stats.shieldMax > 0 ? `${Math.floor(S.stats.shield)} / ${Math.floor(S.stats.shieldMax)}` : "-" },
+      { label: "Dash Cd", value: `${Math.floor(S.stats.dashCdMax)}f` },
+      { label: "Level", value: `Lv.${S.progression.level}` }
+    ];
+
+    pauseStatsGrid.innerHTML = statItems.map((item) => `
+      <div class="pauseInfoItem">
+        <div class="pauseInfoLabel">${item.label}</div>
+        <div class="pauseInfoValue">${item.value}</div>
+      </div>
+    `).join("");
+
+    const visibleUpgrades = (window.UPGRADE_DEFINITIONS || [])
+      .map((upgrade) => ({ upgrade, level: S.upgrades.levels[upgrade.id] || 0 }))
+      .filter((entry) => {
+        if (!S.stats.practice) return entry.level > 0;
+        if (entry.level > 0) return true;
+        return typeof entry.upgrade.maxLevel === "number" && entry.upgrade.maxLevel > 1 && entry.upgrade.category !== "active";
+      })
+      .filter((entry) => pauseMenuFilter === "all" ? true : entry.upgrade.category === pauseMenuFilter)
+      .sort((a, b) => {
+        if (S.stats.practice && b.level !== a.level) return b.level - a.level;
+        return a.upgrade.name.localeCompare(b.upgrade.name);
+      });
+
+    pauseUpgradeList.innerHTML = visibleUpgrades.length
+      ? visibleUpgrades.map(({ upgrade, level }) => {
+          const adjustable = S.stats.practice && typeof upgrade.maxLevel === "number" && upgrade.maxLevel > 1;
+          const displayLevel = upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level;
+          const displayMax = upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel;
+          return `
+          <div class="pauseInfoRow">
+            <div>
+              <div class="pauseAdjustName">${upgrade.name}</div>
+              <div class="pauseInfoMeta">${upgrade.category.toUpperCase()} · Lv.${displayLevel}${displayMax ? ` / ${displayMax}` : ""}</div>
+            </div>
+            ${adjustable ? `
+              <div class="pauseAdjustControls">
+                <button type="button" data-upgrade-id="${upgrade.id}" data-adjust="-1" ${level <= 0 ? "disabled" : ""}>-</button>
+                <div class="pauseAdjustLevel">Lv.${displayLevel}</div>
+                <button type="button" data-upgrade-id="${upgrade.id}" data-adjust="1" ${level >= upgrade.maxLevel ? "disabled" : ""}>+</button>
+              </div>
+            ` : ""}
+          </div>`;
+        }).join("")
+      : `<div class="pauseInfoRow"><div class="pauseInfoMeta">No upgrades picked yet.</div></div>`;
+
+    if (pauseFilterBar) {
+      for (const btn of pauseFilterBar.querySelectorAll("[data-filter]")) {
+        btn.classList.toggle("active", btn.dataset.filter === pauseMenuFilter);
+        btn.onclick = () => {
+          pauseMenuFilter = btn.dataset.filter || "all";
+          renderPauseMenu(onAdjustUpgrade, onResetUpgrades, onClearUpgrades);
+        };
+      }
+    }
+
+    if (pauseAdjustActions) pauseAdjustActions.hidden = !S.stats.practice;
+    if (pauseClearBtn) {
+      pauseClearBtn.onclick = () => onClearUpgrades && onClearUpgrades();
+    }
+    if (pauseResetBtn) {
+      pauseResetBtn.onclick = () => onResetUpgrades && onResetUpgrades();
+    }
+
+    if (!S.stats.practice) return;
+    for (const btn of pauseUpgradeList.querySelectorAll("[data-upgrade-id][data-adjust]")) {
+      btn.onclick = () => {
+        const id = btn.dataset.upgradeId;
+        const delta = Number(btn.dataset.adjust || 0);
+        if (!id || !delta) return;
+        onAdjustUpgrade && onAdjustUpgrade(id, delta);
+      };
+    }
   }
 
   function triggerBossWarning(duration = 2800, pulseDuration = 700) {
@@ -455,7 +700,7 @@ window.UI = (() => {
     if (isController) {
       const avatar = document.createElement("img");
       avatar.className = "dialogueAvatar";
-      avatar.src = speaker.avatarSrc || "./resources/avatar-controller.jpg";
+      avatar.src = speaker.avatarSrc || "./assets/images/characters/avatar-controller.jpg";
       avatar.onerror = () => {
         if (speaker.avatarFallbackSrc && avatar.src.indexOf(speaker.avatarFallbackSrc) === -1) {
           avatar.src = speaker.avatarFallbackSrc;
@@ -533,12 +778,14 @@ window.UI = (() => {
     }
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
     document.getElementById("btnRetry").onclick = onRetry;
     document.getElementById("btnBack").onclick = onBack;
+    if (pauseBtn) pauseBtn.onclick = () => onPauseToggle && onPauseToggle();
+    if (resumePauseBtn) resumePauseBtn.onclick = () => onPauseToggle && onPauseToggle(false);
     if (nextStageBtn) nextStageBtn.onclick = resolveStageClear;
     if (bossSelect) bossSelect.onchange = () => onBossChange && onBossChange(bossSelect.value);
     if (spawnBossBtn) spawnBossBtn.onclick = () => onSpawnBoss && onSpawnBoss();
@@ -573,6 +820,7 @@ window.UI = (() => {
         if (radio.checked) CombatSystem.setWeaponType(radio.value);
       };
     }
+    renderPauseMenu(onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades);
   }
 
   return {
@@ -590,6 +838,7 @@ window.UI = (() => {
     closeDialogueOverlay,
     resetDialogueLog,
     renderUpgradeChoices,
+    renderPauseMenu,
     openSkillMapPanel,
     closeSkillMapPanel,
     bindButtons,

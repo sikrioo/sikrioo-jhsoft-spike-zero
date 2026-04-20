@@ -39,10 +39,12 @@
       <div class="pill"><b>ATK</b><span id="atk">1</span></div>
       <div class="pill"><b>DEF</b><span id="def">0</span></div>
       <div class="pill"><b>Fire Rate</b><span id="fireRate">18</span></div>
+      <div class="pill"><b>Bullet Spd</b><span id="bulletSpeed">0</span></div>
       <div class="pill"><b>Shots</b><span id="shots">1</span></div>
       <div class="pill"><b>Pierce</b><span id="pierce">0</span></div>
       <div class="pill"><b>Combo</b><span id="combo">x1</span></div>
       <div class="pill hint">WASD move, mouse aim, click shoot, Shift dash, 1 front slide, 2 left, 3 right, 4 back</div>
+      <button class="pauseQuickBtn" id="btnPauseMenu" type="button">Menu</button>
     </div>
   </div>
 
@@ -84,6 +86,7 @@
 
   <div class="dialogueOverlay" id="dialogueOverlay" hidden>
     <div class="dialogueLog" id="dialogueLog"></div>
+    <div class="dialogueSkipHint" id="dialogueSkipHint">Press Space / Enter / Esc to skip briefing</div>
   </div>
 
   <div class="weaponHud" id="weaponHud">
@@ -183,6 +186,39 @@
       <h1 id="stageStartTitle">Stage 1 Start</h1>
       <p id="stageStartSubtitle">Combat zone opening.</p>
     </div>
+
+    <div class="card pauseCard" id="pauseCard" style="display:none;">
+      <div class="pauseHead">
+        <div>
+          <div class="stageStartEyebrow">MISSION MENU</div>
+          <h1>Pause Menu</h1>
+        </div>
+        <div class="pauseHint">Press <b>Esc</b> or <b>P</b> to resume</div>
+      </div>
+      <div class="pauseLayout">
+        <div class="pauseSection">
+          <h2>Current Stats</h2>
+          <div class="pauseInfoGrid" id="pauseStatsGrid"></div>
+        </div>
+        <div class="pauseSection">
+          <h2>Owned Upgrades</h2>
+          <div class="pauseFilterBar" id="pauseFilterBar">
+            <button class="pauseFilterBtn active" type="button" data-filter="all">All</button>
+            <button class="pauseFilterBtn" type="button" data-filter="weapon">Weapon</button>
+            <button class="pauseFilterBtn" type="button" data-filter="passive">Passive</button>
+            <button class="pauseFilterBtn" type="button" data-filter="active">Active</button>
+          </div>
+          <div class="pauseAdjustActions" id="pauseAdjustActions" hidden>
+            <button class="btn secondary" id="btnPauseClearUpgrades" type="button">Clear All Upgrades</button>
+            <button class="btn secondary" id="btnPauseResetUpgrades" type="button">Reset Test Upgrades</button>
+          </div>
+          <div class="pauseInfoList" id="pauseUpgradeList"></div>
+        </div>
+      </div>
+      <div class="btnRow">
+        <button class="btn" id="btnResumePause" type="button">Resume</button>
+      </div>
+    </div>
   </div>
 
   <div class="warningOverlay" id="warningOverlay">
@@ -194,6 +230,7 @@
 
   <script src="./js/data/game-balance.js"></script>
   <script src="./js/data/enemy-tiers.js"></script>
+  <script src="./js/data/upgrade-balance.js"></script>
   <script src="./js/data/upgrades.js"></script>
   <script src="./js/data/active-skills.js"></script>
   <script src="./js/data/weapon-types.js"></script>
@@ -215,6 +252,7 @@
   <script src="./js/systems/dialogue.js"></script>
   <script src="./js/systems/skill.js"></script>
   <script src="./js/systems/active-skills.js"></script>
+  <script src="./js/systems/defense.js"></script>
   <script src="./js/systems/wave.js"></script>
   <script src="./js/systems/enemy.js"></script>
   <script src="./js/systems/bosses/bossVisuals.js"></script>
