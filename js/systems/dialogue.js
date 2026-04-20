@@ -78,7 +78,7 @@ window.DialogueSystem = (() => {
   }
 
   function playStageIntro(stage = 1, onComplete = null) {
-    if (window.BgmSystem) BgmSystem.setOverride("stageReady:intro");
+    if (window.BgmSystem) BgmSystem.setOverride("stageBriefing:intro");
     return playLines(buildStageIntro(stage), () => {
       if (window.BgmSystem) BgmSystem.clearOverride();
       if (typeof onComplete === "function") onComplete();

@@ -342,6 +342,90 @@
     #transitionMask.show {
       opacity: 1;
     }
+    #prefetchOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background:
+        radial-gradient(circle at 50% 32%, rgba(91, 130, 196, 0.14), transparent 24%),
+        linear-gradient(180deg, rgba(4, 6, 14, 0.84), rgba(2, 4, 10, 0.90));
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.28s ease, visibility 0.28s ease;
+    }
+    #prefetchOverlay.visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    #prefetchCard {
+      width: min(460px, calc(100vw - 32px));
+      padding: 24px 22px 20px;
+      border-radius: 20px;
+      background: rgba(8, 10, 22, 0.88);
+      border: 1px solid rgba(120, 180, 255, 0.16);
+      box-shadow: 0 0 28px rgba(50, 246, 255, 0.10), 0 0 54px rgba(70, 100, 255, 0.08);
+      color: #eef4ff;
+      text-align: left;
+    }
+    #prefetchEyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(158, 216, 255, 0.78);
+    }
+    #prefetchTitle {
+      margin: 10px 0 8px;
+      font-size: clamp(22px, 4vw, 28px);
+      letter-spacing: 0.03em;
+    }
+    #prefetchStatus {
+      margin: 0 0 16px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.74);
+    }
+    #prefetchBar {
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    #prefetchFill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(90, 204, 255, 0.92), rgba(255, 110, 210, 0.90));
+      transition: width 0.16s ease;
+    }
+    #prefetchMeta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.84);
+    }
+    #prefetchAction {
+      margin-top: 14px;
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(186, 222, 255, 0.88);
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    #prefetchAction.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
     @keyframes noiseShift {
       0% { transform: translate(0, 0); }
       25% { transform: translate(-2px, 1px); }
@@ -417,6 +501,19 @@
   </div>
 
   <div id="transitionMask"></div>
+  <div id="prefetchOverlay" class="visible" aria-live="polite">
+    <div id="prefetchCard">
+      <div id="prefetchEyebrow">Mission Prefetch</div>
+      <div id="prefetchTitle">Preparing Game Cache</div>
+      <p id="prefetchStatus">Collecting audio and portrait assets...</p>
+      <div id="prefetchBar"><div id="prefetchFill"></div></div>
+      <div id="prefetchMeta">
+        <span id="prefetchPercent">0%</span>
+        <span id="prefetchCount">0 / 0</span>
+      </div>
+      <div id="prefetchAction">click to continue</div>
+    </div>
+  </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -432,6 +529,12 @@
       const menuCtx = menuStars.getContext("2d");
       const startButton = document.getElementById("startButton");
       const transitionMask = document.getElementById("transitionMask");
+      const prefetchOverlay = document.getElementById("prefetchOverlay");
+      const prefetchStatus = document.getElementById("prefetchStatus");
+      const prefetchFill = document.getElementById("prefetchFill");
+      const prefetchPercent = document.getElementById("prefetchPercent");
+      const prefetchCount = document.getElementById("prefetchCount");
+      const prefetchAction = document.getElementById("prefetchAction");
       const difficultyEls = [...document.querySelectorAll("input[name='menuDifficulty']")];
       const menuDifficultyOptions = [...document.querySelectorAll(".menuDifficultyOption")];
 
@@ -445,6 +548,39 @@
       const uiClickAudio = new Audio("./assets/sfx/kenney_ui-audio/Audio/click3.ogg");
       uiClickAudio.volume = 0.28;
       uiClickAudio.preload = "auto";
+      const prefetchAssets = [
+        "./resources/avatar-controller.jpg",
+        "./resources/avatar-controller2.jpg",
+        "./assets/sfx/kenney_digital-audio/Audio/laser2.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/laser9.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/laser5.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/laser1.ogg",
+        "./assets/sfx/kenney_sci-fi-sounds/Audio/forceField_003.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/powerUp5.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/phaserUp3.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/phaserUp2.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/phaserDown2.ogg",
+        "./assets/sfx/levelup/universfield-level-up-05-326133.mp3",
+        "./assets/sfx/kenney_ui-audio/Audio/rollover2.ogg",
+        "./assets/sfx/alert/red-alert.mp3",
+        "./assets/sfx/kenney_sci-fi-sounds/Audio/lowFrequency_explosion_001.ogg",
+        "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_001.ogg",
+        "./assets/sfx/kenney_digital-audio/Audio/powerUp10.ogg",
+        "./assets/sfx/stage/clear/grumpynora-rock-ending-8-440862.mp3",
+        "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_000.ogg",
+        "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_003.ogg",
+        "./assets/sfx/kenney_impact-sounds/Audio/impactGlass_heavy_003.ogg",
+        "./assets/sfx/kenney_impact-sounds/Audio/impactPlate_heavy_001.ogg",
+        "./assets/bgm/stage-ready/the_mountain-jazz-cafe-music-496552.mp3",
+        "./assets/bgm/stage-1/gameplay/Everything falls apart.ogg",
+        "./assets/bgm/stage-1/boss/usb.mp3",
+        "./assets/bgm/stage-2/gameplay/racing tecno.ogg",
+        "./assets/bgm/stage-2/boss/phase1/racing tecno_v2(slow).ogg",
+        "./assets/bgm/stage-2/boss/phase2/racing tecno_v2.ogg",
+        "./assets/bgm/stage-3/gameplay/ente_evil.ogg",
+        "./assets/bgm/stage-3/boss/phase1/Boss Battle 6 V1.wav",
+        "./assets/bgm/stage-3/boss/phase2/litesaturation-nu-metal-no-solo-109317.mp3"
+      ];
 
       let w = 0;
       let h = 0;
@@ -463,7 +599,57 @@
       let introAnimationStarted = false;
       let introAnimationStart = 0;
       let introRenderQueued = false;
-      let introStartFallbackTimer = null;
+      let cacheWarmupPromise = null;
+      let cacheWarmupDone = false;
+      let introActivatedByUser = false;
+      let introReadyToStart = false;
+      let introPendingUserStart = false;
+
+      function updatePrefetchUi(completed, total, src) {
+        const safeTotal = Math.max(1, total || 1);
+        const percent = Math.round((completed / safeTotal) * 100);
+        if (prefetchFill) prefetchFill.style.width = percent + "%";
+        if (prefetchPercent) prefetchPercent.textContent = percent + "%";
+        if (prefetchCount) prefetchCount.textContent = completed + " / " + total;
+        if (prefetchStatus) {
+          prefetchStatus.textContent = src
+            ? "Caching " + src.split("/").pop()
+            : "Collecting audio and portrait assets...";
+        }
+      }
+
+      function showPrefetchAction(message = "click to continue") {
+        if (prefetchAction) {
+          prefetchAction.textContent = message;
+          prefetchAction.classList.add("visible");
+        }
+      }
+
+      function hidePrefetchAction() {
+        if (prefetchAction) prefetchAction.classList.remove("visible");
+      }
+
+      function warmGameCache() {
+        if (cacheWarmupPromise) return cacheWarmupPromise;
+        let completed = 0;
+        updatePrefetchUi(0, prefetchAssets.length, null);
+        cacheWarmupPromise = Promise.all(prefetchAssets.map((src) =>
+          fetch(src, { cache: "force-cache" })
+            .catch(() => null)
+            .finally(() => {
+              completed += 1;
+              updatePrefetchUi(completed, prefetchAssets.length, src);
+            })
+        )).then((result) => {
+          cacheWarmupDone = true;
+          updatePrefetchUi(prefetchAssets.length, prefetchAssets.length, null);
+          if (prefetchStatus) {
+            prefetchStatus.textContent = "Assets ready. Starting intro...";
+          }
+          return result;
+        });
+        return cacheWarmupPromise;
+      }
 
       function startIntroAnimation() {
         if (introAnimationStarted) return;
@@ -475,24 +661,71 @@
         }
       }
 
-      function tryPlayIntroAudio() {
-        if (audioStarted) return;
-        const playPromise = introAudio.play();
-        if (playPromise && typeof playPromise.then === "function") {
-          playPromise.then(() => {
-            audioStarted = true;
-            audioBlocked = false;
-            if (audioPrompt) audioPrompt.classList.remove("visible");
-            if (introStartFallbackTimer) {
-              clearTimeout(introStartFallbackTimer);
-              introStartFallbackTimer = null;
-            }
-            startIntroAnimation();
-          }).catch(() => {
-            audioBlocked = true;
-            if (audioPrompt && !menuVisible) audioPrompt.classList.add("visible");
-          });
+      function resetIntroVisualSync() {
+        introAnimationStarted = true;
+        introAnimationStart = performance.now();
+        introOn = false;
+        introScreen.classList.remove("on");
+        introHint.style.opacity = "";
+        if (!introRenderQueued) {
+          introRenderQueued = true;
+          requestAnimationFrame(renderIntro);
         }
+      }
+
+      function tryPlayIntroAudio({ resyncAnimation = false } = {}) {
+        if (audioStarted) {
+          if (resyncAnimation) resetIntroVisualSync();
+          else startIntroAnimation();
+          return Promise.resolve(true);
+        }
+        const playPromise = introAudio.play();
+        if (!playPromise || typeof playPromise.then !== "function") {
+          startIntroAnimation();
+          return Promise.resolve(false);
+        }
+        return playPromise.then(() => {
+          audioStarted = true;
+          audioBlocked = false;
+          try {
+            sessionStorage.setItem("spike-zero-audio-activated", "1");
+          } catch (_) {}
+          if (audioPrompt) audioPrompt.classList.remove("visible");
+          if (resyncAnimation) resetIntroVisualSync();
+          else startIntroAnimation();
+          return true;
+        }).catch(() => {
+          audioBlocked = true;
+          if (audioPrompt && !menuVisible) audioPrompt.classList.add("visible");
+          return false;
+        });
+      }
+
+      async function handleIntroActivation() {
+        introActivatedByUser = true;
+        if (audioPrompt && !menuVisible) audioPrompt.classList.remove("visible");
+        await tryPlayIntroAudio({ resyncAnimation: true });
+      }
+
+      async function beginIntroSequence({ userGesture = false } = {}) {
+        if (introReadyToStart) return;
+        if (!cacheWarmupDone) return;
+        if (userGesture) introActivatedByUser = true;
+
+        const played = await tryPlayIntroAudio({ resyncAnimation: true });
+        if (!played && !audioStarted) {
+          introPendingUserStart = true;
+          if (prefetchStatus) {
+            prefetchStatus.textContent = "Audio needs a tap on this screen before the intro can begin.";
+          }
+          showPrefetchAction("click to start");
+          return;
+        }
+
+        introReadyToStart = true;
+        introPendingUserStart = false;
+        hidePrefetchAction();
+        if (prefetchOverlay) prefetchOverlay.classList.remove("visible");
       }
 
       function playMenuHover() {
@@ -1046,23 +1279,66 @@
         setTimeout(finishIntro, 220);
       }
 
-      function enterGame() {
+      async function handleIntroPointerAction() {
+        if (introFinished) return;
+        if (!introReadyToStart) {
+          if (cacheWarmupDone) {
+            await beginIntroSequence({ userGesture: true });
+          }
+          return;
+        }
+        if (!audioStarted) {
+          await handleIntroActivation();
+          return;
+        }
+        skipIntro();
+      }
+
+      async function handleIntroKeyAction(event) {
+        if (event.code !== "Space" && event.code !== "Enter" && event.code !== "Escape") return;
+        event.preventDefault();
+        if (introFinished) return;
+        if (!introReadyToStart) {
+          if (cacheWarmupDone) {
+            await beginIntroSequence({ userGesture: true });
+          }
+          return;
+        }
+        if (!audioStarted && !introActivatedByUser) {
+          await handleIntroActivation();
+          return;
+        }
+        skipIntro();
+      }
+
+      async function enterGame() {
         const selectedDifficulty = (difficultyEls.find((el) => el.checked) || { value: "normal" }).value;
         playMenuClick();
+        try {
+          sessionStorage.setItem("spike-zero-audio-activated", audioStarted ? "1" : "0");
+        } catch (_) {}
+        startButton.disabled = true;
+        startButton.textContent = cacheWarmupDone ? "Entering Mission" : "Syncing Cache";
         menuScreen.classList.add("leaving");
         transitionMask.classList.add("show");
         fadeOutAudio(420);
+        await Promise.race([
+          warmGameCache(),
+          new Promise((resolve) => setTimeout(resolve, 1200))
+        ]);
         setTimeout(() => {
           window.location.href = "./index.html?autostart=play&difficulty=" + encodeURIComponent(selectedDifficulty);
         }, 620);
       }
 
-      introScreen.addEventListener("click", skipIntro);
-      window.addEventListener("keydown", (event) => {
-        if (event.code === "Space" || event.code === "Enter" || event.code === "Escape") {
-          skipIntro();
-        }
-      });
+      introScreen.addEventListener("click", handleIntroPointerAction);
+      if (prefetchOverlay) {
+        prefetchOverlay.addEventListener("click", async () => {
+          if (!cacheWarmupDone) return;
+          await beginIntroSequence({ userGesture: true });
+        });
+      }
+      window.addEventListener("keydown", handleIntroKeyAction);
       startButton.addEventListener("click", enterGame);
       startButton.addEventListener("mouseenter", playMenuHover);
       startButton.addEventListener("focus", playMenuHover);
@@ -1074,18 +1350,6 @@
           if (difficultyEl.checked) playMenuClick();
         });
       }
-      window.addEventListener("pointerdown", () => {
-        tryPlayIntroAudio();
-        if (audioBlocked && audioPrompt && !menuVisible) {
-          audioPrompt.classList.remove("visible");
-        }
-      }, { passive: true });
-      window.addEventListener("keydown", () => {
-        tryPlayIntroAudio();
-        if (audioBlocked && audioPrompt && !menuVisible) {
-          audioPrompt.classList.remove("visible");
-        }
-      }, { passive: true });
       window.addEventListener("resize", () => {
         resizeIntro();
         resizeMenu();
@@ -1094,8 +1358,14 @@
       resizeIntro();
       resizeMenu();
       introAudio.load();
-      introStartFallbackTimer = setTimeout(startIntroAnimation, 650);
-      tryPlayIntroAudio();
+      if (prefetchOverlay) prefetchOverlay.classList.add("visible");
+      hidePrefetchAction();
+      warmGameCache().then(() => {
+        if (prefetchStatus) {
+          prefetchStatus.textContent = "Starting intro sequence...";
+        }
+        beginIntroSequence();
+      });
     });
   </script>
 </body>

@@ -66,12 +66,12 @@ window.SoundSystem = (() => {
       poolSize: 3,
       cooldownMs: 45
     },
-      boss_alarm: {
-        src: "./assets/sfx/alert/red-alert.mp3",
-        volume: 0.46,
-        poolSize: 4,
-        cooldownMs: 1200
-      },
+    boss_alarm: {
+      src: "./assets/sfx/alert/red-alert.mp3",
+      volume: 0.46,
+      poolSize: 4,
+      cooldownMs: 1200
+    },
     low_explosion: {
       src: "./assets/sfx/kenney_sci-fi-sounds/Audio/lowFrequency_explosion_001.ogg",
       volume: 0.3,
@@ -84,22 +84,22 @@ window.SoundSystem = (() => {
       poolSize: 2,
       cooldownMs: 250
     },
-      boss_clear: {
-        src: "./assets/sfx/kenney_digital-audio/Audio/powerUp10.ogg",
-        volume: 0.34,
-        poolSize: 2,
-        cooldownMs: 250
-      },
-      stage_clear: {
-        src: "./assets/sfx/stage/clear/grumpynora-rock-ending-8-440862.mp3",
-        volume: 0.44,
-        poolSize: 2,
-        cooldownMs: 500
-      },
-      player_death: {
-        src: "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_000.ogg",
-        volume: 0.58,
-        poolSize: 2,
+    boss_clear: {
+      src: "./assets/sfx/kenney_digital-audio/Audio/powerUp10.ogg",
+      volume: 0.34,
+      poolSize: 2,
+      cooldownMs: 250
+    },
+    stage_clear: {
+      src: "./assets/sfx/stage/clear/grumpynora-rock-ending-8-440862.mp3",
+      volume: 0.44,
+      poolSize: 2,
+      cooldownMs: 500
+    },
+    player_death: {
+      src: "./assets/sfx/kenney_sci-fi-sounds/Audio/explosionCrunch_000.ogg",
+      volume: 0.58,
+      poolSize: 2,
       cooldownMs: 400
     },
     enemy_destroy: {
@@ -122,28 +122,88 @@ window.SoundSystem = (() => {
     }
   };
 
-  const pools = new Map();
+  const buffers = new Map();
+  const loadingPromises = new Map();
+  const activeSources = new Map();
   const lastPlayAt = new Map();
+  let audioContext = null;
+  let masterGain = null;
   let unlocked = false;
 
-  function ensurePool(id) {
-    if (pools.has(id)) return pools.get(id);
-    const def = SOUND_DEFS[id];
-    if (!def) return null;
-    const pool = [];
-    for (let i = 0; i < (def.poolSize || 1); i++) {
-      const audio = new Audio(def.src);
-      audio.preload = "auto";
-      audio.volume = def.volume != null ? def.volume : 1;
-      pool.push(audio);
-    }
-    pools.set(id, pool);
-    return pool;
+  function ensureContext() {
+    if (audioContext) return audioContext;
+    const ContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!ContextCtor) return null;
+    audioContext = new ContextCtor();
+    masterGain = audioContext.createGain();
+    masterGain.gain.value = 1;
+    masterGain.connect(audioContext.destination);
+    return audioContext;
   }
 
-  function prime() {
+  async function prime() {
+    const context = ensureContext();
+    if (!context) return false;
     unlocked = true;
-    for (const id of Object.keys(SOUND_DEFS)) ensurePool(id);
+    if (context.state === "suspended") {
+      try {
+        await context.resume();
+      } catch (_) {}
+    }
+    return context.state === "running";
+  }
+
+  async function load(id) {
+    const def = SOUND_DEFS[id];
+    if (!def) return null;
+    if (buffers.has(id)) return buffers.get(id);
+    if (loadingPromises.has(id)) return loadingPromises.get(id);
+
+    const context = ensureContext();
+    if (!context) return null;
+
+    const promise = fetch(def.src)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Failed to fetch sound: ${def.src}`);
+        return response.arrayBuffer();
+      })
+      .then((arrayBuffer) => context.decodeAudioData(arrayBuffer.slice(0)))
+      .then((buffer) => {
+        buffers.set(id, buffer);
+        loadingPromises.delete(id);
+        return buffer;
+      })
+      .catch((error) => {
+        loadingPromises.delete(id);
+        console.warn("[SoundSystem] preload failed", id, error);
+        return null;
+      });
+
+    loadingPromises.set(id, promise);
+    return promise;
+  }
+
+  function loadAll(onProgress = null) {
+    const ids = Object.keys(SOUND_DEFS);
+    let completed = 0;
+
+    if (typeof onProgress === "function") onProgress(0, ids.length);
+
+    return Promise.all(ids.map((id) =>
+      load(id).finally(() => {
+        completed += 1;
+        if (typeof onProgress === "function") onProgress(completed, ids.length);
+      })
+    ));
+  }
+
+  function stopOverflowingSource(id, poolSize) {
+    const list = activeSources.get(id);
+    if (!list || list.length < poolSize) return;
+    const source = list.shift();
+    try {
+      source.stop(0);
+    } catch (_) {}
   }
 
   function play(id, options = {}) {
@@ -151,30 +211,59 @@ window.SoundSystem = (() => {
     if (!def) return false;
     if (!unlocked) return false;
 
+    const context = ensureContext();
+    if (!context || context.state !== "running") return false;
+
+    const buffer = buffers.get(id);
+    if (!buffer) {
+      load(id);
+      return false;
+    }
+
     const now = performance.now();
     const cooldownMs = options.cooldownMs != null ? options.cooldownMs : (def.cooldownMs || 0);
     const prev = lastPlayAt.get(id) || 0;
     if (now - prev < cooldownMs) return false;
 
-    const pool = ensurePool(id);
-    if (!pool || !pool.length) return false;
-    const audio = pool.find((item) => item.paused || item.ended) || pool[0];
-    if (!audio) return false;
+    const source = context.createBufferSource();
+    const gainNode = context.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = options.playbackRate != null ? options.playbackRate : 1;
+    gainNode.gain.value = options.volume != null ? options.volume : (def.volume != null ? def.volume : 1);
+    source.connect(gainNode);
+    gainNode.connect(masterGain);
+
+    const list = activeSources.get(id) || [];
+    stopOverflowingSource(id, def.poolSize || 1);
+    list.push(source);
+    activeSources.set(id, list);
+
+    source.onended = () => {
+      const active = activeSources.get(id);
+      if (!active) return;
+      const next = active.filter((item) => item !== source);
+      if (next.length) activeSources.set(id, next);
+      else activeSources.delete(id);
+    };
 
     lastPlayAt.set(id, now);
-    audio.pause();
-    audio.currentTime = 0;
-    audio.volume = options.volume != null ? options.volume : (def.volume != null ? def.volume : 1);
-    audio.playbackRate = options.playbackRate != null ? options.playbackRate : 1;
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {});
-    }
+    source.start(0);
     return true;
+  }
+
+  function getManifestEntries() {
+    return Object.entries(SOUND_DEFS).map(([id, def]) => ({
+      id: `sfx:${id}`,
+      kind: "audio",
+      src: def.src
+    }));
   }
 
   return {
     prime,
-    play
+    load,
+    loadAll,
+    play,
+    getManifestEntries
   };
 })();

@@ -9,6 +9,21 @@
 <body>
   <div id="wrap"></div>
 
+  <div class="loadingOverlay" id="loadingOverlay" aria-live="polite">
+    <div class="loadingCard">
+      <div class="loadingEyebrow">SYSTEM PREFETCH</div>
+      <h1>Loading Mission Assets</h1>
+      <p class="loadingStatus" id="loadingStatus">Preparing resource cache...</p>
+      <div class="loadingBar">
+        <div class="loadingBarFill" id="loadingBarFill"></div>
+      </div>
+      <div class="loadingMeta">
+        <span id="loadingPercent">0%</span>
+        <span id="loadingCount">0 / 0</span>
+      </div>
+    </div>
+  </div>
+
   <div class="hud">
     <div class="row">
       <div class="pill"><b>Score</b><span id="score">0</span></div>
@@ -175,7 +190,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pixi-filters@5.2.1/dist/pixi-filters.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-filters@5.2.1/dist/browser/pixi-filters.js"></script>
 
   <script src="./js/data/game-balance.js"></script>
   <script src="./js/data/enemy-tiers.js"></script>
@@ -194,6 +209,7 @@
 
   <script src="./js/systems/sound.js"></script>
   <script src="./js/systems/bgm.js"></script>
+  <script src="./js/systems/resource-loader.js"></script>
   <script src="./js/systems/ui.js"></script>
   <script src="./js/systems/dialogue.js"></script>
   <script src="./js/systems/skill.js"></script>

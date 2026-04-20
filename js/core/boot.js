@@ -3,9 +3,40 @@ window.Boot = (() => {
 
   function addShake(v){ S.shake = Math.min(24, S.shake + v); }
 
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  const loadingStatus = document.getElementById("loadingStatus");
+  const loadingBarFill = document.getElementById("loadingBarFill");
+  const loadingPercent = document.getElementById("loadingPercent");
+  const loadingCount = document.getElementById("loadingCount");
+
+  function updateLoadingUi(completed, total, item = null) {
+    const safeTotal = Math.max(1, total || 1);
+    const percent = Math.round((completed / safeTotal) * 100);
+    if (loadingBarFill) loadingBarFill.style.width = `${percent}%`;
+    if (loadingPercent) loadingPercent.textContent = `${percent}%`;
+    if (loadingCount) loadingCount.textContent = `${completed} / ${total || 0}`;
+    if (loadingStatus) {
+      loadingStatus.textContent = item
+        ? `Caching ${item.kind}: ${item.src.split("/").pop()}`
+        : "Preparing resource cache...";
+    }
+  }
+
+  function hideLoadingUi() {
+    if (loadingOverlay) loadingOverlay.classList.add("hidden");
+  }
+
   function primeAudioSystems() {
     if (window.SoundSystem) SoundSystem.prime();
     if (window.BgmSystem) BgmSystem.prime();
+  }
+
+  function shouldRestoreAudioPrime() {
+    try {
+      return sessionStorage.getItem("spike-zero-audio-activated") === "1";
+    } catch (_) {
+      return false;
+    }
   }
 
   function normalizePracticeStageId(stageId) {
@@ -452,7 +483,7 @@ window.Boot = (() => {
     UI.hudUpdate();
   }
 
-  function init(){
+  async function init(){
     S.app = new PIXI.Application({
       backgroundAlpha: 0,
       antialias: true,
@@ -479,6 +510,19 @@ window.Boot = (() => {
 
     resize();
     bindInput();
+
+    if (shouldRestoreAudioPrime()) {
+      primeAudioSystems();
+    }
+
+    if (window.ResourceLoader) {
+      await ResourceLoader.preloadAll(({ completed, total, item }) => {
+        updateLoadingUi(completed, total, item);
+      });
+    }
+
+    updateLoadingUi(1, 1, null);
+    hideLoadingUi();
 
     UI.bindButtons({
       onStart: ()=>{ primeAudioSystems(); resetAll({ difficulty:S.difficulty || "normal" }); },

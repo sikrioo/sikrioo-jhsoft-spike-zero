@@ -4,6 +4,71 @@ html,body{
   font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
 }
 #wrap{ position:fixed; inset:0; }
+.loadingOverlay{
+  position:fixed;
+  inset:0;
+  z-index:40;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(91, 130, 196, .12), transparent 24%),
+    linear-gradient(180deg, rgba(4,6,14,.92), rgba(2,4,10,.96));
+  transition:opacity .25s ease, visibility .25s ease;
+}
+.loadingOverlay.hidden{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+.loadingCard{
+  width:min(460px, calc(100vw - 32px));
+  padding:24px 22px 20px;
+  border-radius:20px;
+  background:rgba(8,10,22,.88);
+  border:1px solid rgba(120,180,255,.16);
+  box-shadow:0 0 28px rgba(50,246,255,.10), 0 0 54px rgba(70,100,255,.08);
+  color:#eef4ff;
+}
+.loadingEyebrow{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  color:rgba(158,216,255,.78);
+}
+.loadingCard h1{
+  margin:10px 0 8px;
+  font-size:24px;
+  letter-spacing:.4px;
+}
+.loadingStatus{
+  margin:0 0 16px;
+  opacity:.76;
+  line-height:1.5;
+}
+.loadingBar{
+  height:12px;
+  border-radius:999px;
+  overflow:hidden;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.08);
+}
+.loadingBarFill{
+  width:0%;
+  height:100%;
+  background:linear-gradient(90deg, rgba(90,204,255,.92), rgba(255,110,210,.90));
+  transition:width .16s ease;
+}
+.loadingMeta{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:10px;
+  font-size:12px;
+  opacity:.84;
+}
 
 .hud{
   position:fixed; left:14px; top:12px; z-index:10; color:#eef4ff;

@@ -73,7 +73,8 @@ window.UI = (() => {
       role,
       name: profile && profile.name ? profile.name : (role === "player" ? "Player" : "Controller"),
       shortName: profile && profile.shortName ? profile.shortName : (role === "player" ? "P" : "C"),
-      avatarSrc: profile ? profile.avatarSrc : null
+      avatarSrc: profile ? profile.avatarSrc : null,
+      avatarFallbackSrc: profile ? profile.avatarFallbackSrc : null
     };
   }
 
@@ -454,7 +455,12 @@ window.UI = (() => {
     if (isController) {
       const avatar = document.createElement("img");
       avatar.className = "dialogueAvatar";
-      avatar.src = speaker.avatarSrc || "./resources/avatar-controller.png";
+      avatar.src = speaker.avatarSrc || "./resources/avatar-controller.jpg";
+      avatar.onerror = () => {
+        if (speaker.avatarFallbackSrc && avatar.src.indexOf(speaker.avatarFallbackSrc) === -1) {
+          avatar.src = speaker.avatarFallbackSrc;
+        }
+      };
       avatar.alt = speaker.name;
       card.appendChild(avatar);
     } else {

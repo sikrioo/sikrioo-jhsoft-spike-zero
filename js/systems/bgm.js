@@ -1,6 +1,6 @@
 window.BgmSystem = (() => {
   const TRACKS = {
-    "stageReady:intro": {
+    "stageBriefing:intro": {
       src: "./assets/bgm/stage-ready/the_mountain-jazz-cafe-music-496552.mp3",
       volume: 0.34
     },
@@ -39,9 +39,17 @@ window.BgmSystem = (() => {
   };
 
   const players = new Map();
+  const loadingPromises = new Map();
   let unlocked = false;
   let currentKey = null;
   let overrideKey = null;
+  const TRACK_KEY_ALIASES = {
+    "stageReady:intro": "stageBriefing:intro"
+  };
+
+  function normalizeTrackKey(key) {
+    return TRACK_KEY_ALIASES[key] || key;
+  }
 
   function getStageIndex() {
     return Math.max(1, GameState.progression.stage || 1);
@@ -68,6 +76,7 @@ window.BgmSystem = (() => {
   }
 
   function ensurePlayer(key) {
+    key = normalizeTrackKey(key);
     if (players.has(key)) return players.get(key);
     const def = TRACKS[key];
     if (!def) return null;
@@ -77,6 +86,56 @@ window.BgmSystem = (() => {
     audio.volume = def.volume != null ? def.volume : 0.35;
     players.set(key, audio);
     return audio;
+  }
+
+  function load(key) {
+    key = normalizeTrackKey(key);
+    if (!TRACKS[key]) return Promise.resolve(null);
+    if (loadingPromises.has(key)) return loadingPromises.get(key);
+
+    const audio = ensurePlayer(key);
+    if (!audio) return Promise.resolve(null);
+
+    if (audio.readyState >= 3) return Promise.resolve(audio);
+
+    const promise = new Promise((resolve) => {
+      const cleanup = () => {
+        audio.removeEventListener("canplaythrough", onReady);
+        audio.removeEventListener("loadeddata", onReady);
+        audio.removeEventListener("error", onError);
+        loadingPromises.delete(key);
+      };
+      const onReady = () => {
+        cleanup();
+        resolve(audio);
+      };
+      const onError = () => {
+        cleanup();
+        console.warn("[BgmSystem] preload failed", key, TRACKS[key].src);
+        resolve(null);
+      };
+      audio.addEventListener("canplaythrough", onReady, { once: true });
+      audio.addEventListener("loadeddata", onReady, { once: true });
+      audio.addEventListener("error", onError, { once: true });
+      audio.load();
+    });
+
+    loadingPromises.set(key, promise);
+    return promise;
+  }
+
+  function loadAll(onProgress = null) {
+    const keys = Object.keys(TRACKS);
+    let completed = 0;
+
+    if (typeof onProgress === "function") onProgress(0, keys.length);
+
+    return Promise.all(keys.map((key) =>
+      load(key).finally(() => {
+        completed += 1;
+        if (typeof onProgress === "function") onProgress(completed, keys.length);
+      })
+    ));
   }
 
   function prime() {
@@ -93,6 +152,7 @@ window.BgmSystem = (() => {
   }
 
   function playKey(key) {
+    key = normalizeTrackKey(key);
     if (!unlocked) return false;
     if (!TRACKS[key]) return false;
     if (currentKey === key) return true;
@@ -123,6 +183,7 @@ window.BgmSystem = (() => {
   }
 
   function setOverride(key) {
+    key = normalizeTrackKey(key);
     overrideKey = TRACKS[key] ? key : null;
     return refresh();
   }
@@ -134,9 +195,16 @@ window.BgmSystem = (() => {
 
   return {
     prime,
+    load,
+    loadAll,
     refresh,
     stopAll,
     setOverride,
-    clearOverride
+    clearOverride,
+    getManifestEntries: () => Object.entries(TRACKS).map(([key, def]) => ({
+      id: `bgm:${key}`,
+      kind: "audio",
+      src: def.src
+    }))
   };
 })();
