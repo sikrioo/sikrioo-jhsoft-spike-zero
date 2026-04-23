@@ -117,11 +117,39 @@ window.Boot = (() => {
     return value === "easy" ? "easy" : "normal";
   }
 
+  function normalizePlayerType(value) {
+    return ["standard", "power", "agility"].includes(value) ? value : "standard";
+  }
+
+  function readStoredPlayerType() {
+    try {
+      return normalizePlayerType(localStorage.getItem("spike-zero-player-type") || S.playerType || "standard");
+    } catch (_) {
+      return normalizePlayerType(S.playerType || "standard");
+    }
+  }
+
+  function setPlayerType(value) {
+    S.playerType = normalizePlayerType(value);
+    try {
+      localStorage.setItem("spike-zero-player-type", S.playerType);
+    } catch (_) {}
+    return S.playerType;
+  }
+
+  function applyPlayerTypeStats(playerType) {
+    if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
+      PlayerFactory.applyShipStats(S.stats, normalizePlayerType(playerType));
+    }
+  }
+
   function getLaunchOptions() {
     const params = new URLSearchParams(window.location.search);
+    const playerType = normalizePlayerType(params.get("player") || params.get("ship") || readStoredPlayerType());
     return {
       autostartPlay: params.get("autostart") === "play",
-      difficulty: normalizeDifficulty(params.get("difficulty") || S.difficulty || "normal")
+      difficulty: normalizeDifficulty(params.get("difficulty") || S.difficulty || "normal"),
+      playerType
     };
   }
 
@@ -138,10 +166,15 @@ window.Boot = (() => {
     const difficulty = typeof options === "object" && options
       ? normalizeDifficulty(options.difficulty || S.difficulty || "normal")
       : normalizeDifficulty(S.difficulty || "normal");
+    const playerType = typeof options === "object" && options
+      ? setPlayerType(options.playerType || S.playerType || readStoredPlayerType())
+      : setPlayerType(S.playerType || readStoredPlayerType());
     if (window.DialogueSystem) DialogueSystem.cancel();
     if (window.UI) UI.resetDialogueLog();
     if (window.BgmSystem) BgmSystem.stopAll();
     for (const d of S.decoys) S.uiLayer.removeChild(d.spr);
+    for (const smoke of S.smokeClouds) if (smoke.spr && smoke.spr.parent) smoke.spr.parent.removeChild(smoke.spr);
+    for (const hazard of S.hazards) if (hazard.spr && hazard.spr.parent) hazard.spr.parent.removeChild(hazard.spr);
     for (const mine of S.mines) if (mine.spr && mine.spr.parent) mine.spr.parent.removeChild(mine.spr);
     for (const b of S.bullets) S.fx.removeChild(b.spr);
     for (const b of S.enemyBullets) S.fx.removeChild(b.spr);
@@ -154,6 +187,8 @@ window.Boot = (() => {
     for (const p of S.particles) S.fx.removeChild(p.spr);
 
     S.decoys.length = 0;
+    S.smokeClouds.length = 0;
+    S.hazards.length = 0;
     S.mines.length = 0;
     S.bullets.length = 0;
     S.enemyBullets.length = 0;
@@ -201,6 +236,7 @@ window.Boot = (() => {
     S.stats.mineMaxCount = 0;
     S.stats.mineRadius = 0;
     S.stats.mineDamage = 0;
+    applyPlayerTypeStats(playerType);
     S.stats.practice = !!testMode;
     S.stats.practiceMode = practiceMode;
     S.practiceStageId = practiceStageId;
@@ -233,6 +269,7 @@ window.Boot = (() => {
     S.upgrades.categoryCounts.active = 0;
 
     S.shake = 0;
+    S.hazardTimer = Helpers.randi(360, 560);
     S.activeSkillState.boostDir = 0;
     S.activeSkillState.boostDrag = 0.9;
     S.activeSkillState.boostMitigationT = 0;
@@ -246,8 +283,7 @@ window.Boot = (() => {
     S.weaponState.laserChannel = null;
 
     if (S.player) S.uiLayer.removeChild(S.player.spr);
-    // S.player = PlayerFactory.makePlayer();
-    S.player = PlayerFactory.makePlayer("power"); // "standard" | "power" | "agility"
+    S.player = PlayerFactory.makePlayer(playerType);
     CombatSystem.applyStartingWeaponLoadout(testMode);
     CombatSystem.syncWeaponStats();
     SkillSystem.applyStartingLoadout(testMode);
@@ -632,6 +668,7 @@ window.Boot = (() => {
     CombatSystem.tryShoot();
     CombatSystem.tryShootMissiles();
     ActiveSkillSystem.update(dt);
+    if (window.HazardSystem) HazardSystem.update(dt);
     EnemySystem.updateEnemies(dt);
     EnemySystem.updateEnemyBullets(dt);
     CombatSystem.updateBullets(dt);
@@ -690,12 +727,12 @@ window.Boot = (() => {
     }
 
     UI.bindButtons({
-      onStart: ()=>{ primeAudioSystems(); resetAll({ difficulty:S.difficulty || "normal" }); },
-      onPracticeBoss: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"boss" }); },
-      onPracticeStage: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"stage", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180 }); },
+      onStart: ()=>{ primeAudioSystems(); resetAll({ difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }); },
+      onPracticeBoss: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"boss", playerType:S.playerType || readStoredPlayerType() }); },
+      onPracticeStage: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"stage", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, playerType:S.playerType || readStoredPlayerType() }); },
       onRetry: ()=>{ primeAudioSystems(); resetAll(S.stats.practice
-        ? { testMode:true, practiceMode:S.stats.practiceMode || "boss", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, difficulty:S.difficulty || "normal" }
-        : { difficulty:S.difficulty || "normal" }); },
+        ? { testMode:true, practiceMode:S.stats.practiceMode || "boss", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }
+        : { difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }); },
       onBack: ()=>{
         if (window.DialogueSystem) DialogueSystem.cancel();
         UI.resetDialogueLog();
@@ -711,12 +748,15 @@ window.Boot = (() => {
       },
       onPracticeTypeChange: (mode) => {
         primeAudioSystems();
-        if (mode === "boss") resetAll({ testMode:true, practiceMode:"boss" });
-        if (mode === "stage") resetAll({ testMode:true, practiceMode:"stage", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180 });
+        if (mode === "boss") resetAll({ testMode:true, practiceMode:"boss", playerType:S.playerType || readStoredPlayerType() });
+        if (mode === "stage") resetAll({ testMode:true, practiceMode:"stage", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, playerType:S.playerType || readStoredPlayerType() });
       },
       onDifficultyChange: (difficulty) => {
         S.difficulty = normalizeDifficulty(difficulty);
         UI.hudUpdate();
+      },
+      onPlayerTypeChange: (playerType) => {
+        setPlayerType(playerType);
       },
       onPauseToggle: (open) => {
         setPauseState(open);
@@ -736,19 +776,28 @@ window.Boot = (() => {
           testMode: true,
           practiceMode: "stage",
           practiceStageId: normalizePracticeStageId(stageId),
-          practiceStageDurationSec: Math.max(10, durationSec || 180)
+          practiceStageDurationSec: Math.max(10, durationSec || 180),
+          playerType:S.playerType || readStoredPlayerType()
         });
       }
     });
 
     const launchOptions = getLaunchOptions();
+    S.difficulty = launchOptions.difficulty;
+    setPlayerType(launchOptions.playerType);
+    for (const radio of document.querySelectorAll("input[name='difficulty']")) {
+      radio.checked = radio.value === S.difficulty;
+    }
+    for (const radio of document.querySelectorAll("input[name='playerType']")) {
+      radio.checked = radio.value === S.playerType;
+    }
     UI.populateBossOptions();
     ActiveSkillSystem.assignStartingLoadout(false);
     UI.hudUpdate();
 
     if (launchOptions.autostartPlay) {
       S.difficulty = launchOptions.difficulty;
-      resetAll({ difficulty: launchOptions.difficulty });
+      resetAll({ difficulty: launchOptions.difficulty, playerType: launchOptions.playerType });
     } else {
       UI.showCard("start");
     }

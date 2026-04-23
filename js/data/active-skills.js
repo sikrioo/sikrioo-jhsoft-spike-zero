@@ -69,6 +69,44 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     }
   },
   {
+    id: "crossfire_missiles",
+    name: "Crossfire Missiles",
+    desc: "Launch a short-range curved missile barrage from both sides toward the aimed area.",
+    type: "offense",
+    mpCost: 34,
+    cooldown: 260,
+    duration: 1,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      count: 10,
+      range: 280,
+      damageMultiplier: 2.1,
+      blastRadius: 76,
+      cadence: 4
+    }
+  },
+  {
+    id: "omni_burst",
+    name: "Omni Burst",
+    desc: "Detonate a 360-degree short-range burst that scatters explosive shots around you.",
+    type: "offense",
+    mpCost: 32,
+    cooldown: 230,
+    duration: 1,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      count: 16,
+      range: 170,
+      damageMultiplier: 2.15,
+      blastRadius: 68,
+      cadence: 1.25
+    }
+  },
+  {
     id: "stealth_field",
     name: "Stealth Field",
     desc: "Vanish for a short time. Normal enemies lose your position until you attack.",
@@ -83,4 +121,26 @@ window.ACTIVE_SKILL_DEFINITIONS = [
       alpha: 0.42
     }
   }
+  // Smoke Screen prototype is intentionally disabled for now.
+  // The large blurred smoke field uses many translucent Graphics + BlurFilter
+  // instances, which can cause heavy frame drops during gameplay. Re-enable
+  // after replacing it with cached textures or a cheaper particle/mesh effect.
+  // {
+  //   id: "smoke_screen",
+  //   name: "Smoke Screen",
+  //   desc: "Vent a dense smoke cloud that blocks sight and slows enemies inside it.",
+  //   type: "utility",
+  //   mpCost: 26,
+  //   cooldown: 240,
+  //   duration: 260,
+  //   manualCast: true,
+  //   autoCast: false,
+  //   slotType: "active",
+  //   effectData: {
+  //     radius: 354,
+  //     slowMul: 0.42,
+  //     bossSlowMul: 0.82,
+  //     puffs: 24
+  //   }
+  // }
 ];

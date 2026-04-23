@@ -99,6 +99,11 @@ window.SkillSystem = (() => {
     S.stats.mineMaxCount = 0;
     S.stats.mineRadius = 0;
     S.stats.mineDamage = 0;
+    if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
+      PlayerFactory.applyShipStats(S.stats, S.playerType || "standard");
+    }
+    for (const smoke of S.smokeClouds) if (smoke.spr && smoke.spr.parent) smoke.spr.parent.removeChild(smoke.spr);
+    S.smokeClouds.length = 0;
 
     CombatSystem.applyStartingWeaponLoadout(S.stats.practice);
     CombatSystem.syncWeaponStats();

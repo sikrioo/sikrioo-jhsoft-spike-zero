@@ -332,5 +332,25 @@ window.PlayerFactory = (() => {
     };
   }
 
-  return { makePlayer };
+  function applyShipStats(stats, shipType = "standard") {
+    if (shipType === "power") {
+      stats.maxHp += 25;
+      stats.hp = stats.maxHp;
+      stats.bulletDamage *= 1.16;
+      stats.defense += 1;
+      stats.speed *= 0.9;
+      stats.dashCdMax = Math.ceil(stats.dashCdMax * 1.12);
+      return;
+    }
+    if (shipType === "agility") {
+      stats.maxHp -= 15;
+      stats.hp = stats.maxHp;
+      stats.speed *= 1.14;
+      stats.fireRate = Math.max(GAME_BALANCE.PLAYER.FIRE_RATE_MIN, Math.floor(stats.fireRate * 0.9));
+      stats.dashCdMax = Math.max(20, Math.floor(stats.dashCdMax * 0.82));
+      stats.bulletDamage *= 0.94;
+    }
+  }
+
+  return { makePlayer, applyShipStats };
 })();

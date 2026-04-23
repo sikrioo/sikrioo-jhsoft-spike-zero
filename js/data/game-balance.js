@@ -21,6 +21,21 @@ window.GAME_BALANCE = {
     GROWTH: 1.48
   },
 
+  SHIPS: {
+    standard: {
+      starterActiveSkills: ["boost"],
+      particleTint: 0x7df9ff
+    },
+    power: {
+      starterActiveSkills: ["omni_burst"],
+      particleTint: 0xff7a47
+    },
+    agility: {
+      starterActiveSkills: ["afterburner"],
+      particleTint: 0xc084fc
+    }
+  },
+
   TEST: {
     STARTING_UPGRADES: [
       "shield",
@@ -41,7 +56,11 @@ window.GAME_BALANCE = {
       "boost",
       "afterburner",
       "nova_pulse",
+      "crossfire_missiles",
+      "omni_burst",
       "stealth_field"
+      // Smoke Screen is disabled until its visual effect is optimized.
+      // "smoke_screen"
     ]
   }
 };

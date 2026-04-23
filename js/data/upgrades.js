@@ -113,6 +113,38 @@
       }
     }),
     defineUpgrade({
+      id: "active_crossfire_missiles_unlock",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "dps",
+      maxLevel: 1,
+      baseWeight: 3,
+      minLevel: 4,
+      tags: ["offense", "missile", "unlock", "rare"],
+      name: "Unlock Crossfire Missiles",
+      desc: "Gain Crossfire Missiles, a short-range side barrage that curves into the aimed area.",
+      requires: (S) => !S.activeSkillState.ownedSkillIds.includes("crossfire_missiles"),
+      apply: () => {
+        ActiveSkillSystem.unlockSkill("crossfire_missiles");
+      }
+    }),
+    defineUpgrade({
+      id: "active_omni_burst_unlock",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "dps",
+      maxLevel: 1,
+      baseWeight: 3,
+      minLevel: 4,
+      tags: ["offense", "aoe", "unlock", "rare"],
+      name: "Unlock Omni Burst",
+      desc: "Gain Omni Burst, a 360-degree short-range explosive scatter.",
+      requires: (S) => !S.activeSkillState.ownedSkillIds.includes("omni_burst"),
+      apply: () => {
+        ActiveSkillSystem.unlockSkill("omni_burst");
+      }
+    }),
+    defineUpgrade({
       id: "active_stealth_unlock",
       category: "active",
       upgradeType: "active",
@@ -128,6 +160,25 @@
         ActiveSkillSystem.unlockSkill("stealth_field");
       }
     }),
+    // Smoke Screen unlock is disabled with the skill prototype.
+    // The current visual implementation causes large frame drops because it
+    // renders a wide blurred translucent smoke field in real time.
+    // defineUpgrade({
+    //   id: "active_smoke_screen_unlock",
+    //   category: "active",
+    //   upgradeType: "active",
+    //   subCategory: "survival",
+    //   maxLevel: 1,
+    //   baseWeight: 3,
+    //   minLevel: 3,
+    //   tags: ["survival", "control", "unlock", "rare"],
+    //   name: "Unlock Smoke Screen",
+    //   desc: "Gain Smoke Screen, a sight-blocking cloud that slows enemies inside it.",
+    //   requires: (S) => !S.activeSkillState.ownedSkillIds.includes("smoke_screen"),
+    //   apply: () => {
+    //     ActiveSkillSystem.unlockSkill("smoke_screen");
+    //   }
+    // }),
     defineUpgrade({
       id: "weapon_machinegun",
       category: "weapon",

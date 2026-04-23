@@ -1,0 +1,241 @@
+window.HazardSystem = (() => {
+  const STAGE_INTERVALS = {
+    1: { min: 520, max: 760, damage: 14, speed: 24, radius: 24 },
+    2: { min: 430, max: 650, damage: 18, speed: 27, radius: 28 },
+    3: { min: 360, max: 560, damage: 22, speed: 30, radius: 32 }
+  };
+
+  function getSpec(){
+    const stage = Math.max(1, GameState.progression.stage || 1);
+    return STAGE_INTERVALS[stage] || STAGE_INTERVALS[3];
+  }
+
+  function scheduleNext(){
+    const spec = getSpec();
+    GameState.hazardTimer = Helpers.randi(spec.min, spec.max);
+  }
+
+  function makeCometVisual(radius, color){
+    const c = new PIXI.Container();
+
+    const outerTail = new PIXI.Graphics();
+    outerTail.beginFill(0xd89b6a, 0.12);
+    outerTail.drawPolygon([
+      radius * 0.1, -radius * 0.32,
+      -radius * 14.0, -radius * 1.05,
+      -radius * 10.5, 0,
+      -radius * 14.0, radius * 1.05,
+      radius * 0.1, radius * 0.32
+    ]);
+    outerTail.endFill();
+    outerTail.filters = [new PIXI.filters.BlurFilter(20)];
+
+    const innerTail = new PIXI.Graphics();
+    innerTail.beginFill(0xf0d0a0, 0.22);
+    innerTail.drawPolygon([
+      radius * 0.08, -radius * 0.18,
+      -radius * 9.2, -radius * 0.42,
+      -radius * 7.4, 0,
+      -radius * 9.2, radius * 0.42,
+      radius * 0.08, radius * 0.18
+    ]);
+    innerTail.endFill();
+    innerTail.filters = [new PIXI.filters.BlurFilter(10)];
+
+    const body = new PIXI.Graphics();
+    body.beginFill(color, 0.82);
+    body.drawPolygon([
+      radius * 1.28, 0,
+      radius * 0.22, -radius * 0.54,
+      -radius * 0.88, -radius * 0.18,
+      -radius * 1.04, 0,
+      -radius * 0.88, radius * 0.18,
+      radius * 0.22, radius * 0.54
+    ]);
+    body.endFill();
+    body.filters = [new PIXI.filters.BlurFilter(1.2)];
+
+    const core = new PIXI.Graphics();
+    core.beginFill(0xfff0d0, 0.62);
+    core.drawPolygon([
+      radius * 0.82, 0,
+      radius * 0.08, -radius * 0.24,
+      -radius * 0.34, -radius * 0.07,
+      -radius * 0.42, 0,
+      -radius * 0.34, radius * 0.07,
+      radius * 0.08, radius * 0.24
+    ]);
+    core.endFill();
+
+    const ember = new PIXI.Graphics();
+    ember.beginFill(0xd8b07d, 0.26);
+    ember.drawCircle(-radius * 2.2, -radius * 0.2, radius * 0.09);
+    ember.drawCircle(-radius * 3.8, radius * 0.18, radius * 0.07);
+    ember.drawCircle(-radius * 5.6, -radius * 0.08, radius * 0.05);
+    ember.endFill();
+    ember.filters = [new PIXI.filters.BlurFilter(4)];
+
+    c.addChild(outerTail, innerTail, body, core, ember);
+    return c;
+  }
+
+  function spawnComet(){
+    const S = GameState;
+    const spec = getSpec();
+    const w = S.app.renderer.width;
+    const h = S.app.renderer.height;
+    const radius = spec.radius + Helpers.rand(-4, 5);
+    const margin = Math.max(120, radius * 5);
+    const side = Helpers.randi(0, 3);
+    let startX;
+    let startY;
+    let endX;
+    let endY;
+
+    if (side === 0) {
+      startX = -margin;
+      startY = Helpers.rand(h * 0.08, h * 0.92);
+      endX = w + margin;
+      endY = startY + Helpers.rand(-h * 0.35, h * 0.35);
+    } else if (side === 1) {
+      startX = w + margin;
+      startY = Helpers.rand(h * 0.08, h * 0.92);
+      endX = -margin;
+      endY = startY + Helpers.rand(-h * 0.35, h * 0.35);
+    } else if (side === 2) {
+      startX = Helpers.rand(w * 0.08, w * 0.92);
+      startY = -margin;
+      endX = startX + Helpers.rand(-w * 0.35, w * 0.35);
+      endY = h + margin;
+    } else {
+      startX = Helpers.rand(w * 0.08, w * 0.92);
+      startY = h + margin;
+      endX = startX + Helpers.rand(-w * 0.35, w * 0.35);
+      endY = -margin;
+    }
+
+    const ang = Math.atan2(endY - startY, endX - startX);
+    const speed = spec.speed + Helpers.rand(-1.8, 2.4);
+    const color = 0xc98855;
+    const spr = makeCometVisual(radius, color);
+    spr.x = startX;
+    spr.y = startY;
+    spr.rotation = ang;
+    S.fx.addChild(spr);
+
+    S.hazards.push({
+      spr,
+      type: "comet",
+      x: startX,
+      y: startY,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      r: radius,
+      damage: spec.damage,
+      color,
+      wakeT: 0,
+      hit: false,
+      life: Math.ceil((Math.hypot(endX - startX, endY - startY) / speed) + 80),
+      armTime: 40
+    });
+  }
+
+  function damagePlayer(hazard){
+    const S = GameState;
+    const p = S.player;
+    if (!p || p.inv > 0 || hazard.hit) return false;
+
+    let damage = Math.max(1, Math.ceil(hazard.damage - S.stats.defense));
+    if (S.activeSkillState.boostMitigationT > 0) {
+      damage = Math.max(1, Math.ceil(damage * S.activeSkillState.boostMitigationMul));
+    }
+    if (S.stats.shield > 0) {
+      const absorbed = Math.min(S.stats.shield, damage);
+      S.stats.shield -= absorbed;
+      damage -= absorbed;
+      S.stats.shieldRegenDelay = S.stats.shieldRegenDelayMax;
+      Effects.emitParticle(p.spr.x, p.spr.y, 0x7fe7ff, 18, 1.2);
+    }
+    if (damage > 0) S.stats.hp -= damage;
+
+    const dx = p.spr.x - hazard.x;
+    const dy = p.spr.y - hazard.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    p.vx += (dx / dist) * 8;
+    p.vy += (dy / dist) * 8;
+    p.inv = 34;
+    hazard.hit = true;
+
+    Effects.emitParticle(p.spr.x, p.spr.y, hazard.color, 24, 1.8);
+    Effects.emitPulse(p.spr.x, p.spr.y, hazard.color, 74, 14);
+    S.shake = Math.min(24, S.shake + 12);
+    if (window.SoundSystem) SoundSystem.play("player_hit", { playbackRate: 0.86, volume: 0.75 });
+    if (S.stats.hp <= 0) {
+      S.stats.hp = 0;
+      Boot.gameOver();
+    }
+    return true;
+  }
+
+  function updateComet(hazard, dt){
+    const S = GameState;
+    hazard.armTime -= dt;
+    hazard.x += hazard.vx * dt;
+    hazard.y += hazard.vy * dt;
+    hazard.life -= dt;
+    hazard.wakeT -= dt;
+    hazard.spr.x = hazard.x;
+    hazard.spr.y = hazard.y;
+
+    if (hazard.wakeT <= 0) {
+      hazard.wakeT = 2.5;
+      const trail = Effects.makeTrailSprite(
+        hazard.x - hazard.vx * 1.4 + Helpers.rand(-4, 4),
+        hazard.y - hazard.vy * 1.4 + Helpers.rand(-4, 4),
+        hazard.color,
+        Helpers.rand(0.32, 0.58),
+        0.24
+      );
+      S.fx.addChild(trail);
+      S.particles.push({ spr: trail, x: trail.x, y: trail.y, vx: -hazard.vx * 0.02, vy: -hazard.vy * 0.02, drag: 0.88, life: Helpers.randi(16, 26) });
+    }
+
+    const p = S.player;
+    if (hazard.armTime <= 0 && p) {
+      const rr = hazard.r + p.r;
+      if (Helpers.dist2(hazard.x, hazard.y, p.spr.x, p.spr.y) <= rr * rr) damagePlayer(hazard);
+    }
+  }
+
+  function update(dt){
+    const S = GameState;
+    if (!S.app || !S.player) return;
+    if (S.progression.stageState === "combat" || S.progression.stageState === "boss") {
+      S.hazardTimer -= dt;
+      if (S.hazardTimer <= 0) {
+        spawnComet();
+        scheduleNext();
+      }
+    }
+
+    const w = S.app.renderer.width;
+    const h = S.app.renderer.height;
+    const margin = 260;
+    for (let i=S.hazards.length-1; i>=0; i--){
+      const hazard = S.hazards[i];
+      if (hazard.type === "comet") updateComet(hazard, dt);
+      if (
+        hazard.life <= 0 ||
+        hazard.x < -margin ||
+        hazard.x > w + margin ||
+        hazard.y < -margin ||
+        hazard.y > h + margin
+      ) {
+        if (hazard.spr && hazard.spr.parent) hazard.spr.parent.removeChild(hazard.spr);
+        S.hazards.splice(i, 1);
+      }
+    }
+  }
+
+  return { update, spawnComet };
+})();

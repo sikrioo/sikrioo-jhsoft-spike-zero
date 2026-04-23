@@ -14,6 +14,8 @@ window.GameState = {
 
   player: null,
   decoys: [],
+  smokeClouds: [],
+  hazards: [],
   mines: [],
   bullets: [],
   enemyBullets: [],
@@ -22,6 +24,8 @@ window.GameState = {
   enemies: [],
   particles: [],
   textureCache: {},
+  hazardTimer: 360,
+  playerType: "standard",
   practiceBossId: "basic",
   practiceStageId: 1,
   practiceStageDurationSec: 180,

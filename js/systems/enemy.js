@@ -19,6 +19,19 @@ window.EnemySystem = (() => {
         hidden: true
       };
     }
+    for (const smoke of S.smokeClouds || []){
+      const rr = smoke.radius + S.player.r;
+      if (Helpers.dist2(S.player.spr.x, S.player.spr.y, smoke.x, smoke.y) <= rr * rr){
+        const angle = Math.atan2(S.player.spr.y - smoke.y, S.player.spr.x - smoke.x) + Math.PI + Math.sin(performance.now() / 420) * 0.8;
+        const hiddenDist = smoke.radius * 0.55;
+        return {
+          x: smoke.x + Math.cos(angle) * hiddenDist,
+          y: smoke.y + Math.sin(angle) * hiddenDist,
+          r: S.player.r,
+          obscured: true
+        };
+      }
+    }
     return { x: S.player.spr.x, y: S.player.spr.y, r: S.player.r, player: S.player };
   }
 

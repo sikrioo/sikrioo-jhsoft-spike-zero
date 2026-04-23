@@ -45,6 +45,7 @@ window.UI = (() => {
   const weaponRadioEls = [...document.querySelectorAll("input[name='weaponType']")];
   const practiceTypeEls = [...document.querySelectorAll("input[name='practiceType']")];
   const difficultyEls = [...document.querySelectorAll("input[name='difficulty']")];
+  const playerTypeEls = [...document.querySelectorAll("input[name='playerType']")];
   const weaponHud = document.getElementById("weaponHud");
   const bossSelect = document.getElementById("bossSelect");
   const spawnBossBtn = document.getElementById("btnSpawnBoss");
@@ -388,6 +389,13 @@ window.UI = (() => {
     const S = GameState;
     if (!pauseStatsGrid || !pauseUpgradeList) return;
 
+    const escapeHtml = (value) => String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
     const statItems = [
       { label: "HP", value: `${Math.floor(S.stats.hp)} / ${Math.floor(S.stats.maxHp)}` },
       { label: "MP", value: `${Math.floor(S.stats.mp)} / ${Math.floor(S.stats.mpMax)}` },
@@ -439,6 +447,38 @@ window.UI = (() => {
         }).join("")
       : `<div class="pauseInfoRow"><div class="pauseInfoMeta">No upgrades picked yet.</div></div>`;
 
+    if (visibleUpgrades.length) {
+      const rows = [...pauseUpgradeList.querySelectorAll(".pauseInfoRow")];
+      rows.forEach((row, index) => {
+        const entry = visibleUpgrades[index];
+        if (!entry || !entry.upgrade) return;
+        const upgrade = entry.upgrade;
+        const desc = upgrade.desc || "No detailed description.";
+        row.classList.add("pauseSkillRow");
+        row.title = desc;
+
+        const detail = document.createElement("div");
+        detail.className = "pauseSkillDetail";
+
+        const text = document.createElement("p");
+        text.textContent = desc;
+        detail.appendChild(text);
+
+        if (Array.isArray(upgrade.tags) && upgrade.tags.length) {
+          const tags = document.createElement("div");
+          tags.className = "pauseSkillTags";
+          for (const tag of upgrade.tags) {
+            const chip = document.createElement("span");
+            chip.textContent = tag;
+            tags.appendChild(chip);
+          }
+          detail.appendChild(tags);
+        }
+
+        row.appendChild(detail);
+      });
+    }
+
     if (pauseFilterBar) {
       for (const btn of pauseFilterBar.querySelectorAll("[data-filter]")) {
         btn.classList.toggle("active", btn.dataset.filter === pauseMenuFilter);
@@ -476,6 +516,13 @@ window.UI = (() => {
   function renderPauseMenu(onAdjustUpgrade=null, onResetUpgrades=null, onClearUpgrades=null) {
     const S = GameState;
     if (!pauseStatsGrid || !pauseUpgradeList) return;
+
+    const escapeHtml = (value) => String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
 
     const statItems = [
       { label: "HP", value: `${Math.floor(S.stats.hp)} / ${Math.floor(S.stats.maxHp)}` },
@@ -518,6 +565,10 @@ window.UI = (() => {
           const adjustable = S.stats.practice && typeof upgrade.maxLevel === "number" && upgrade.maxLevel > 1;
           const displayLevel = upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level;
           const displayMax = upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel;
+          const desc = escapeHtml(upgrade.desc || "No detailed description.");
+          const tags = Array.isArray(upgrade.tags) && upgrade.tags.length
+            ? `<div class="pauseSkillTags">${upgrade.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>`
+            : "";
           return `
           <div class="pauseInfoRow">
             <div>
@@ -534,6 +585,38 @@ window.UI = (() => {
           </div>`;
         }).join("")
       : `<div class="pauseInfoRow"><div class="pauseInfoMeta">No upgrades picked yet.</div></div>`;
+
+    if (visibleUpgrades.length) {
+      const rows = [...pauseUpgradeList.querySelectorAll(".pauseInfoRow")];
+      rows.forEach((row, index) => {
+        const entry = visibleUpgrades[index];
+        if (!entry || !entry.upgrade) return;
+        const upgrade = entry.upgrade;
+        const desc = upgrade.desc || "No detailed description.";
+        row.classList.add("pauseSkillRow");
+        row.title = desc;
+
+        const detail = document.createElement("div");
+        detail.className = "pauseSkillDetail";
+
+        const text = document.createElement("p");
+        text.textContent = desc;
+        detail.appendChild(text);
+
+        if (Array.isArray(upgrade.tags) && upgrade.tags.length) {
+          const tags = document.createElement("div");
+          tags.className = "pauseSkillTags";
+          for (const tag of upgrade.tags) {
+            const chip = document.createElement("span");
+            chip.textContent = tag;
+            tags.appendChild(chip);
+          }
+          detail.appendChild(tags);
+        }
+
+        row.appendChild(detail);
+      });
+    }
 
     if (pauseFilterBar) {
       for (const btn of pauseFilterBar.querySelectorAll("[data-filter]")) {
@@ -778,7 +861,7 @@ window.UI = (() => {
     }
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
@@ -801,6 +884,11 @@ window.UI = (() => {
     for (const radio of difficultyEls){
       radio.onchange = () => {
         if (radio.checked && onDifficultyChange) onDifficultyChange(radio.value);
+      };
+    }
+    for (const radio of playerTypeEls){
+      radio.onchange = () => {
+        if (radio.checked && onPlayerTypeChange) onPlayerTypeChange(radio.value);
       };
     }
     if (closeSkillMapBtn) closeSkillMapBtn.onclick = closeSkillMapPanel;

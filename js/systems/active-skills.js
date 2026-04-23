@@ -88,6 +88,10 @@ window.ActiveSkillSystem = (() => {
     }
     GameState.activeSkillState.ownedSkillIds = [];
 
+    const shipConfig = GAME_BALANCE.SHIPS && GAME_BALANCE.SHIPS[GameState.playerType || "standard"];
+    const shipLoadout = (shipConfig && shipConfig.starterActiveSkills) || [];
+    for (const skillId of shipLoadout) unlockSkill(skillId, { autoAssign: true });
+
     const loadout = testMode ? ((GAME_BALANCE.TEST && GAME_BALANCE.TEST.STARTING_ACTIVE_SKILLS) || []) : [];
     for (const skillId of loadout) unlockSkill(skillId, { autoAssign: true });
 
@@ -128,7 +132,12 @@ window.ActiveSkillSystem = (() => {
     if (skill.id === "boost") casted = castBoost(skill, context);
     if (skill.id === "afterburner") casted = castAfterburner(skill);
     if (skill.id === "nova_pulse") casted = castNovaPulse(skill);
+    if (skill.id === "crossfire_missiles") casted = castCrossfireMissiles(skill);
+    if (skill.id === "omni_burst") casted = castOmniBurst(skill);
     if (skill.id === "stealth_field") casted = castStealthField(skill);
+    // Smoke Screen is disabled in data because the current blurred smoke
+    // visual is too expensive. Keep the implementation below for later tuning.
+    if (skill.id === "smoke_screen") casted = castSmokeScreen(skill);
     if (!casted) return false;
 
     GameState.stats.mp = Math.max(0, GameState.stats.mp - skill.mpCost);
@@ -283,6 +292,16 @@ window.ActiveSkillSystem = (() => {
     return true;
   }
 
+  function castCrossfireMissiles(skill){
+    if (!window.CombatSystem || typeof CombatSystem.launchCrossfireMissiles !== "function") return false;
+    return CombatSystem.launchCrossfireMissiles(skill.effectData || {});
+  }
+
+  function castOmniBurst(skill){
+    if (!window.CombatSystem || typeof CombatSystem.launchOmniBurst !== "function") return false;
+    return CombatSystem.launchOmniBurst(skill.effectData || {});
+  }
+
   function castStealthField(skill){
     const S = GameState;
     S.activeSkillState.stealthT = Math.max(S.activeSkillState.stealthT, skill.duration);
@@ -292,6 +311,65 @@ window.ActiveSkillSystem = (() => {
     Effects.emitParticle(S.player.spr.x, S.player.spr.y, 0x6cf5ff, 8, 0.55);
     Effects.emitParticle(S.player.spr.x, S.player.spr.y, 0xc595ff, 4, 0.45);
     UI.hudUpdate();
+    return true;
+  }
+
+  function makeSmokePuff(x, y, radius, alpha, color){
+    const puff = new PIXI.Graphics();
+    puff.beginFill(color, alpha);
+    puff.drawCircle(0, 0, radius);
+    puff.endFill();
+    puff.filters = [new PIXI.filters.BlurFilter(12)];
+    puff.x = x;
+    puff.y = y;
+    return puff;
+  }
+
+  function castSmokeScreen(skill){
+    const S = GameState;
+    const px = S.player.spr.x;
+    const py = S.player.spr.y;
+    const data = skill.effectData || {};
+    const radius = data.radius || 118;
+    const c = new PIXI.Container();
+    c.x = px;
+    c.y = py;
+
+    const puffs = data.puffs || 11;
+    for (let i=0; i<puffs; i++){
+      const angle = Helpers.rand(0, Math.PI * 2);
+      const dist = i === 0 ? 0 : Helpers.rand(10, radius * 0.48);
+      const puffRadius = Helpers.rand(radius * 0.34, radius * 0.58);
+      const color = Math.random() < 0.45 ? 0x8f9aa8 : 0x566170;
+      c.addChild(makeSmokePuff(Math.cos(angle) * dist, Math.sin(angle) * dist, puffRadius, Helpers.rand(0.18, 0.28), color));
+    }
+
+    const veil = new PIXI.Graphics();
+    veil.beginFill(0x10141b, 0.16);
+    veil.drawCircle(0, 0, radius);
+    veil.endFill();
+    veil.filters = [new PIXI.filters.BlurFilter(18)];
+    c.addChild(veil);
+    S.fx.addChild(c);
+
+    S.smokeClouds.push({
+      spr: c,
+      x: px,
+      y: py,
+      radius,
+      life: skill.duration,
+      maxLife: skill.duration,
+      slowMul: data.slowMul || 0.42,
+      bossSlowMul: data.bossSlowMul || 0.82,
+      hiddenX: px,
+      hiddenY: py,
+      driftX: Helpers.rand(-0.08, 0.08),
+      driftY: Helpers.rand(-0.08, 0.08),
+      swirl: Helpers.rand(-0.004, 0.004)
+    });
+
+    Effects.emitParticle(px, py, 0x9aa5ad, 18, 0.8);
+    if (window.SoundSystem) SoundSystem.play("radio_out", { playbackRate: 0.78 });
     return true;
   }
 
@@ -316,6 +394,33 @@ window.ActiveSkillSystem = (() => {
         Effects.emitParticle(d.x, d.y, 0xffd27a, 14, 1.0);
         S.uiLayer.removeChild(d.spr);
         S.decoys.splice(i, 1);
+      }
+    }
+  }
+
+  function updateSmokeClouds(dt){
+    const S = GameState;
+    for (let i=S.smokeClouds.length-1; i>=0; i--){
+      const smoke = S.smokeClouds[i];
+      smoke.life -= dt;
+      smoke.x += smoke.driftX * dt;
+      smoke.y += smoke.driftY * dt;
+      smoke.spr.x = smoke.x;
+      smoke.spr.y = smoke.y;
+      smoke.spr.rotation += smoke.swirl * dt;
+      smoke.spr.alpha = Math.max(0, Math.min(0.96, smoke.life / Math.max(1, smoke.maxLife) * 1.12));
+
+      const radiusSq = smoke.radius * smoke.radius;
+      for (const enemy of S.enemies){
+        if (Helpers.dist2(enemy.x, enemy.y, smoke.x, smoke.y) > radiusSq) continue;
+        const slow = enemy.tier === "boss" ? smoke.bossSlowMul : smoke.slowMul;
+        enemy.slowMul = Math.min(enemy.slowMul || 1, slow);
+        enemy.slowT = Math.max(enemy.slowT || 0, 8);
+      }
+
+      if (smoke.life <= 0){
+        S.fx.removeChild(smoke.spr);
+        S.smokeClouds.splice(i, 1);
       }
     }
   }
@@ -383,6 +488,7 @@ window.ActiveSkillSystem = (() => {
     }
 
     updateDecoys(dt);
+    updateSmokeClouds(dt);
   }
 
   return {

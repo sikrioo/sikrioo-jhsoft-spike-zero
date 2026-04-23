@@ -435,6 +435,11 @@ html,body{
   gap:8px;
   margin-top:14px;
 }
+.shipSelectPanel{
+  display:grid;
+  gap:8px;
+  margin-top:14px;
+}
 .difficultyLabel{
   font-size:11px;
   font-weight:800;
@@ -442,7 +447,8 @@ html,body{
   text-transform:uppercase;
   opacity:.72;
 }
-.difficultyOption{
+.difficultyOption,
+.shipOption{
   display:grid;
   grid-template-columns:auto 1fr auto;
   align-items:center;
@@ -453,20 +459,34 @@ html,body{
   border:1px solid rgba(255,255,255,.08);
   cursor:pointer;
 }
-.difficultyOption:hover{
+.shipOptions{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:8px;
+}
+.difficultyOption:hover,
+.shipOption:hover{
   border-color:rgba(50,246,255,.24);
   background:rgba(50,246,255,.05);
 }
-.difficultyOption input{
+.difficultyOption input,
+.shipOption input{
   margin:0;
 }
-.difficultyOption span{
+.difficultyOption span,
+.shipOption span{
   font-size:14px;
   font-weight:700;
 }
-.difficultyOption small{
+.difficultyOption small,
+.shipOption small{
   font-size:11px;
   opacity:.72;
+}
+@media (max-width: 620px){
+  .shipOptions{
+    grid-template-columns:1fr;
+  }
 }
 .stageStartCard{
   width:min(520px, calc(100vw - 48px));
@@ -598,9 +618,47 @@ html,body{
   gap:12px;
   padding:10px 12px;
 }
+.pauseSkillRow{
+  flex-wrap:wrap;
+  align-items:flex-start;
+}
 .pauseInfoMeta{
   font-size:12px;
   opacity:.72;
+}
+.pauseSkillDetail{
+  width:100%;
+  max-height:0;
+  overflow:hidden;
+  opacity:0;
+  transition:max-height .18s ease, opacity .18s ease, margin-top .18s ease;
+}
+.pauseSkillRow:hover .pauseSkillDetail,
+.pauseSkillRow:focus-within .pauseSkillDetail{
+  max-height:110px;
+  margin-top:6px;
+  opacity:1;
+}
+.pauseSkillDetail p{
+  margin:0;
+  font-size:12px;
+  line-height:1.45;
+  color:rgba(235,242,255,.84);
+}
+.pauseSkillTags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:7px;
+}
+.pauseSkillTags span{
+  padding:3px 6px;
+  border-radius:999px;
+  background:rgba(50,246,255,.08);
+  border:1px solid rgba(50,246,255,.14);
+  color:rgba(232,246,255,.82);
+  font-size:10px;
+  font-weight:700;
 }
 .pauseAdjustName{
   font-size:13px;

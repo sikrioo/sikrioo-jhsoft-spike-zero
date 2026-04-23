@@ -179,6 +179,75 @@ window.CombatSystem = (() => {
     };
   }
 
+  function makeCrossfireMissile(startX, startY, targetPoint, side, index, effectData, bonusDamageMul=1){
+    const S = GameState;
+    const angle = Math.atan2(targetPoint.y - startY, targetPoint.x - startX);
+    const sideSign = side === "left" ? -1 : 1;
+    const spr = Effects.makeBulletSprite(startX, startY, angle + Math.PI / 2, sideSign < 0 ? 0xffb347 : 0x7df9ff);
+    spr.scale.set(1.1, 1.45);
+    S.fx.addChild(spr);
+
+    const curveAngle = angle + sideSign * Helpers.rand(Math.PI / 2.75, Math.PI / 1.95);
+    const speed = Helpers.rand(4.9, 6.7) + Math.min(1.4, index * 0.08);
+    return {
+      type:"missile",
+      pattern:"crossfire",
+      spr,
+      x:startX,
+      y:startY,
+      vx:Math.cos(curveAngle) * speed,
+      vy:Math.sin(curveAngle) * speed,
+      r:11,
+      dmg:Math.max(2, S.stats.bulletDamage * (effectData.damageMultiplier || 2.1) * bonusDamageMul),
+      color: sideSign < 0 ? 0xffb347 : 0x7df9ff,
+      target:null,
+      targetPoint,
+      life:Helpers.rand(62, 78),
+      delay:index * (effectData.cadence || 4) + Helpers.rand(0, 2.5),
+      age:0,
+      baseSpeed:Helpers.rand(7.5, 9.2),
+      steer:Helpers.rand(0.072, 0.103),
+      wobblePhase:Helpers.rand(0, Math.PI * 2),
+      wobbleAmp:Helpers.rand(0.10, 0.28),
+      blastRadius:(effectData.blastRadius || 76) + Helpers.rand(-10, 8),
+      trailEvery:2,
+      launched:false
+    };
+  }
+
+  function makeOmniBurstShot(x, y, angle, index, effectData, bonusDamageMul=1){
+    const S = GameState;
+    const color = index % 2 === 0 ? 0xffd27a : 0xff7a47;
+    const spr = Effects.makeBulletSprite(x, y, angle + Math.PI / 2, color);
+    spr.scale.set(0.95, 1.25);
+    S.fx.addChild(spr);
+
+    const speed = Helpers.rand(6.4, 8.4);
+    const range = (effectData.range || 170) + Helpers.rand(-18, 24);
+    return {
+      type:"missile",
+      pattern:"omni_burst",
+      spr,
+      x,
+      y,
+      vx:Math.cos(angle) * speed,
+      vy:Math.sin(angle) * speed,
+      r:10,
+      dmg:Math.max(1.5, S.stats.bulletDamage * (effectData.damageMultiplier || 2.15) * bonusDamageMul),
+      color,
+      target:null,
+      originX:x,
+      originY:y,
+      maxDistance:range,
+      life:Helpers.rand(22, 32),
+      delay:index * (effectData.cadence || 1.25) + Helpers.rand(0, 1.5),
+      age:0,
+      blastRadius:(effectData.blastRadius || 68) + Helpers.rand(-8, 8),
+      spin:Helpers.rand(-0.045, 0.045),
+      launched:false
+    };
+  }
+
   function destroyProjectile(list, index){
     const S = GameState;
     const projectile = list[index];
@@ -268,6 +337,11 @@ window.CombatSystem = (() => {
     };
   }
 
+  function getShipParticleTint(fallback){
+    const shipConfig = GAME_BALANCE.SHIPS && GAME_BALANCE.SHIPS[GameState.playerType || "standard"];
+    return (shipConfig && shipConfig.particleTint) || fallback;
+  }
+
   function getHardpointBarrels(ang) {
     const S = GameState;
     const level = Math.max(0, Math.min(3, S.stats.hardpointLevel || 0));
@@ -334,7 +408,7 @@ window.CombatSystem = (() => {
         }
       );
       S.bullets.push(bullet);
-      Effects.emitParticle(barrel.muzzleX, barrel.muzzleY, 0x7fd9ff, 4, 0.55);
+      Effects.emitParticle(barrel.muzzleX, barrel.muzzleY, getShipParticleTint(0x7fd9ff), 4, 0.55);
     }
 
     S.stats.hardpointCooldown = Math.max(8, S.stats.fireRate * 1.08);
@@ -396,7 +470,7 @@ window.CombatSystem = (() => {
       S.bullets.push(bullet);
     }
 
-    Effects.emitParticle(px + Math.cos(ang) * 18, py + Math.sin(ang) * 18, 0x32f6ff, 6 + count, 0.9);
+    Effects.emitParticle(px + Math.cos(ang) * 18, py + Math.sin(ang) * 18, getShipParticleTint(0x32f6ff), 6 + count, 0.9);
     if (window.SoundSystem) SoundSystem.play("player_fire", { playbackRate: 1 + Helpers.rand(-0.04, 0.04) });
   }
 
@@ -411,7 +485,7 @@ window.CombatSystem = (() => {
     const originY = S.player.spr.y + Math.sin(ang) * 18;
     const laserRange = (def.range || 520) * getRangeMultiplier();
     const beam = makeBeam(originX, originY, ang, laserRange, width, color);
-    Effects.emitParticle(originX, originY, color, 12, 1.1);
+    Effects.emitParticle(originX, originY, getShipParticleTint(color), 12, 1.1);
     if (window.SoundSystem) SoundSystem.play("laser_fire", { playbackRate: 1 + Helpers.rand(-0.03, 0.03) });
     S.weaponState.laserChannel = {
       beam,
@@ -491,7 +565,7 @@ window.CombatSystem = (() => {
       S.bullets.push(bullet);
     }
 
-    Effects.emitParticle(px + Math.cos(ang) * 18, py + Math.sin(ang) * 18, 0xffbf7a, 15, 1.2);
+    Effects.emitParticle(px + Math.cos(ang) * 18, py + Math.sin(ang) * 18, getShipParticleTint(0xffbf7a), 15, 1.2);
     if (window.SoundSystem) SoundSystem.play("shotgun_fire", { playbackRate: 0.96 + Helpers.rand(-0.03, 0.03) });
   }
 
@@ -511,7 +585,7 @@ window.CombatSystem = (() => {
       taken.add(target);
       const missile = makeMissile(S.player.spr.x, S.player.spr.y - 12, target, damageMul);
       S.missiles.push(missile);
-      Effects.emitParticle(missile.x, missile.y, 0xffb347, 6, 0.8);
+      Effects.emitParticle(missile.x, missile.y, getShipParticleTint(0xffb347), 6, 0.8);
     }
 
     if (spawnCount > 0 && window.SoundSystem) {
@@ -534,6 +608,99 @@ window.CombatSystem = (() => {
       S.missiles.push(missile);
     }
     return true;
+  }
+
+  function launchCrossfireMissiles(effectData={}){
+    const S = GameState;
+    const p = S.player;
+    const range = effectData.range || 280;
+    const count = effectData.count || 10;
+    const px = p.spr.x;
+    const py = p.spr.y;
+    const aimAngle = Math.atan2(S.mouse.y - py, S.mouse.x - px);
+    const aimDist = Math.min(range, Math.max(80, Math.hypot(S.mouse.x - px, S.mouse.y - py) || range));
+    const centerPoint = {
+      x: px + Math.cos(aimAngle) * aimDist,
+      y: py + Math.sin(aimAngle) * aimDist
+    };
+    const { damageMul } = getAfterburnerMultipliers();
+    const sideOffset = 30;
+    const backOffset = -10;
+    const impactSpread = effectData.impactSpread || 58;
+    const lengthSpread = effectData.lengthSpread || 30;
+
+    for (let i=0; i<count; i++){
+      const sideSign = i % 2 === 0 ? -1 : 1;
+      const side = sideSign < 0 ? "left" : "right";
+      const laneOffset = sideOffset + Helpers.rand(-12, 18) + Math.floor(i / 2) * Helpers.rand(1.5, 4.5);
+      const forwardJitter = backOffset + Helpers.rand(-18, 18);
+      const targetForwardJitter = Helpers.rand(-lengthSpread, lengthSpread);
+      const targetSideJitter = Helpers.rand(-impactSpread, impactSpread);
+      const targetPoint = {
+        x: centerPoint.x + Math.cos(aimAngle) * targetForwardJitter - Math.sin(aimAngle) * targetSideJitter,
+        y: centerPoint.y + Math.sin(aimAngle) * targetForwardJitter + Math.cos(aimAngle) * targetSideJitter
+      };
+      const startX = px + Math.cos(aimAngle) * forwardJitter - Math.sin(aimAngle) * laneOffset * sideSign;
+      const startY = py + Math.sin(aimAngle) * forwardJitter + Math.cos(aimAngle) * laneOffset * sideSign;
+      const missile = makeCrossfireMissile(startX, startY, targetPoint, side, i, effectData, damageMul);
+      S.missiles.push(missile);
+    }
+
+    Effects.emitPulse(centerPoint.x, centerPoint.y, 0xffb347, 58, 10);
+    Effects.emitParticle(px, py, 0xffb347, 8, 0.75);
+    Effects.emitParticle(px, py, 0x7df9ff, 8, 0.75);
+    if (window.SoundSystem) SoundSystem.play("missile_launch", { playbackRate: 1.16 });
+    return true;
+  }
+
+  function launchOmniBurst(effectData={}){
+    const S = GameState;
+    const px = S.player.spr.x;
+    const py = S.player.spr.y;
+    const count = effectData.count || 16;
+    const { damageMul } = getAfterburnerMultipliers();
+    const baseAngle = Helpers.rand(0, Math.PI * 2);
+
+    for (let i=0; i<count; i++){
+      const angle = baseAngle + (Math.PI * 2 * i) / count + Helpers.rand(-0.08, 0.08);
+      const spawnOffset = Helpers.rand(8, 20);
+      const shot = makeOmniBurstShot(
+        px + Math.cos(angle) * spawnOffset,
+        py + Math.sin(angle) * spawnOffset,
+        angle,
+        i,
+        effectData,
+        damageMul
+      );
+      S.missiles.push(shot);
+    }
+
+    S.shake = Math.min(24, S.shake + 3);
+    if (window.SoundSystem) SoundSystem.play("missile_launch", { playbackRate: 0.88 });
+    return true;
+  }
+
+  function explodeMissile(m, index, options={}){
+    const S = GameState;
+    const blastRadius = options.blastRadius || m.blastRadius || 0;
+    const splashMultiplier = options.splashMultiplier || 0.55;
+
+    if (blastRadius > 0){
+      const radiusSq = blastRadius * blastRadius;
+      for (const enemy of [...S.enemies]){
+        const hitCircle = getEnemyHitCircles(enemy).find((circle) => {
+          const rr = blastRadius + circle.radius;
+          return Helpers.dist2(m.x, m.y, circle.x, circle.y) < rr * rr;
+        });
+        if (!hitCircle) continue;
+        const directMul = enemy === options.directTarget ? 1 : splashMultiplier;
+        damageEnemy(enemy, Math.max(1, m.dmg * directMul), m.color || 0xffb347, enemy.tier === "boss" ? 18 : 10, 1.05, hitCircle);
+      }
+      Effects.emitPulse(m.x, m.y, m.color || 0xffb347, blastRadius, options.pulseLife || 20);
+    }
+
+    Effects.emitParticle(m.x, m.y, m.color || 0xffb347, options.heavy ? 22 : 14, options.heavy ? 1.8 : 1.25);
+    destroyProjectile(S.missiles, index);
   }
 
   function updateBullets(dt){
@@ -639,6 +806,108 @@ window.CombatSystem = (() => {
 
     for (let i=S.missiles.length-1; i>=0; i--){
       const m = S.missiles[i];
+      if (m.delay && m.delay > 0){
+        m.delay -= dt;
+        if (m.delay > 0){
+          m.spr.visible = false;
+          continue;
+        }
+        m.spr.visible = true;
+        if (!m.launched){
+          m.launched = true;
+          Effects.emitParticle(m.x, m.y, m.color || 0xffb347, 5, 0.55);
+          if (window.SoundSystem) SoundSystem.play("missile_launch", { playbackRate: 1.22 + Helpers.rand(-0.04, 0.04) });
+        }
+        continue;
+      }
+      m.spr.visible = true;
+
+      if (m.pattern === "crossfire"){
+        const dx = m.targetPoint.x - m.x;
+        const dy = m.targetPoint.y - m.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const nx = -dy / d;
+        const ny = dx / d;
+        const wobble = Math.sin((m.age || 0) * 0.22 + m.wobblePhase) * (m.wobbleAmp || 0);
+        const desiredX = (dx / d) * (m.baseSpeed || 8.4);
+        const desiredY = (dy / d) * (m.baseSpeed || 8.4);
+        m.vx = Helpers.lerp(m.vx, desiredX, m.steer || 0.085);
+        m.vy = Helpers.lerp(m.vy, desiredY, m.steer || 0.085);
+        m.vx += nx * wobble;
+        m.vy += ny * wobble;
+
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+        m.life -= dt;
+        m.age = (m.age || 0) + dt;
+        m.spr.x = m.x;
+        m.spr.y = m.y;
+        m.spr.rotation = Math.atan2(m.vy, m.vx) + Math.PI / 2;
+
+        for (let j=S.enemies.length-1; j>=0; j--){
+          const target = S.enemies[j];
+          const hitCircle = getEnemyHitCircles(target).find((circle) => {
+            const rr = m.r + circle.radius;
+            return Helpers.dist2(m.x, m.y, circle.x, circle.y) < rr * rr;
+          });
+          if (hitCircle){
+            explodeMissile(m, i, { directTarget: target, blastRadius: m.blastRadius });
+            break;
+          }
+        }
+        if (S.missiles[i] !== m) continue;
+
+        if (d < 18 || m.life <= 0){
+          explodeMissile(m, i, { blastRadius: m.blastRadius });
+          continue;
+        }
+
+        if ((performance.now() | 0) % (m.trailEvery || 2) === 0){
+          const t = Effects.makeTrailSprite(m.x - m.vx * 0.3, m.y - m.vy * 0.3, m.color || 0xffb347, Helpers.rand(0.16, 0.26), 0.2);
+          S.fx.addChild(t);
+          S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:12 });
+        }
+        continue;
+      }
+
+      if (m.pattern === "omni_burst"){
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+        m.life -= dt;
+        m.age = (m.age || 0) + dt;
+        m.vx *= Math.pow(0.985, dt);
+        m.vy *= Math.pow(0.985, dt);
+        m.spr.x = m.x;
+        m.spr.y = m.y;
+        m.spr.rotation = Math.atan2(m.vy, m.vx) + Math.PI / 2 + (m.spin || 0) * m.age;
+
+        for (let j=S.enemies.length-1; j>=0; j--){
+          const target = S.enemies[j];
+          const hitCircle = getEnemyHitCircles(target).find((circle) => {
+            const rr = m.r + circle.radius;
+            return Helpers.dist2(m.x, m.y, circle.x, circle.y) < rr * rr;
+          });
+          if (hitCircle){
+            explodeMissile(m, i, { directTarget: target, blastRadius: m.blastRadius, splashMultiplier: 0.58, pulseLife: 24 });
+            break;
+          }
+        }
+        if (S.missiles[i] !== m) continue;
+
+        const traveled = Math.hypot(m.x - m.originX, m.y - m.originY);
+        if (traveled >= m.maxDistance || m.life <= 0){
+          explodeMissile(m, i, { blastRadius: m.blastRadius, splashMultiplier: 0.58, pulseLife: 24 });
+          continue;
+        }
+
+        if ((performance.now() | 0) % 2 === 0){
+          const t = Effects.makeTrailSprite(m.x - m.vx * 0.35, m.y - m.vy * 0.35, m.color || 0xffd27a, Helpers.rand(0.14, 0.24), 0.18);
+          S.fx.addChild(t);
+          S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:10 });
+        }
+        continue;
+      }
+
       if (!m.target || S.enemies.indexOf(m.target) < 0){
         m.target = findNearestEnemy(m.x, m.y);
       }
@@ -697,6 +966,8 @@ window.CombatSystem = (() => {
     tryShoot,
     tryShootMissiles,
     launchMissileVolley,
+    launchCrossfireMissiles,
+    launchOmniBurst,
     setWeaponType,
     syncWeaponStats,
     applyStartingWeaponLoadout,
