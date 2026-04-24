@@ -18,7 +18,7 @@ window.GAME_BALANCE = {
 
   XP: {
     BASE_TO_NEXT: 16,
-    GROWTH: 1.48
+    GROWTH: 1.384
   },
 
   SHIPS: {

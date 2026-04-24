@@ -76,6 +76,10 @@ window.BossSystem = (() => {
     return Math.atan2(target.y - y, target.x - x);
   }
 
+  function getCombatView() {
+    return Helpers.getViewBounds();
+  }
+
   // ─── 웨이브 판단 ────────────────────────────────────────────────────────────
 
   function isBossWave(wave = GameState.progression.wave) {
@@ -151,8 +155,9 @@ window.BossSystem = (() => {
    */
   function createBaseBoss(def, options = {}) {
     const root = new PIXI.Container();
-    root.x = GameState.app.renderer.width * 0.5;
-    root.y = 120;
+    const view = getCombatView();
+    root.x = view.centerX;
+    root.y = view.top + 120;
     GameState.uiLayer.addChild(root);
 
     const boss = {
@@ -255,7 +260,7 @@ window.BossSystem = (() => {
     }
 
     boss.updateBoss = (dt) => {
-      const w = GameState.app.renderer.width;
+      const view = getCombatView();
       if (boss.hp <= boss.maxHp * 0.3) boss.phase = 2;
       if (boss.phase === 2 && !boss.phaseShiftPlayed) {
         boss.phaseShiftPlayed = true;
@@ -266,8 +271,8 @@ window.BossSystem = (() => {
         boss.fireCd = Math.min(boss.fireCd, 22);
       }
       boss.orbitT += dt * 0.012;
-      boss.x = Helpers.lerp(boss.x, w * 0.5 + Math.cos(boss.orbitT) * 150, 0.05 * dt);
-      boss.y = Helpers.lerp(boss.y, 118 + Math.sin(boss.orbitT * 2) * 28,  0.05 * dt);
+      boss.x = Helpers.lerp(boss.x, view.centerX + Math.cos(boss.orbitT) * 150, 0.05 * dt);
+      boss.y = Helpers.lerp(boss.y, view.top + 118 + Math.sin(boss.orbitT * 2) * 28,  0.05 * dt);
       boss.spr.x = boss.x;
       boss.spr.y = boss.y;
 
@@ -279,8 +284,8 @@ window.BossSystem = (() => {
       if (pattern !== 0 && !boss.pendingBlast && boss.fireCd <= 48) {
         const player = getStealthAwarePlayerTarget();
         const radius = 50;
-        const tx = Helpers.clamp(player.x + player.vx * 5, 44, GameState.app.renderer.width - 44);
-        const ty = Helpers.clamp(player.y + player.vy * 5, 64, GameState.app.renderer.height - 44);
+        const tx = Helpers.clamp(player.x + player.vx * 5, view.left + 44, view.right - 44);
+        const ty = Helpers.clamp(player.y + player.vy * 5, view.top + 64, view.bottom - 44);
         boss.pendingBlast = { x: tx, y: ty, radius, damage: 11, color: 0xff6b6b };
         Effects.emitGroundTelegraph(tx, ty, radius, 0xff6b6b, 48);
       }
@@ -387,8 +392,9 @@ window.BossSystem = (() => {
       Effects.emitGroundTelegraph(preX, preY, 72, 0xff6bb5, 14);
       boss.scheduler.schedule(14, () => {
         const angle = Math.atan2(player.y - boss.y, player.x - boss.x) + Math.PI / 2;
-        boss.x = Helpers.clamp(player.x + Math.cos(angle) * 250, 42, GameState.app.renderer.width - 42);
-        boss.y = Helpers.clamp(player.y + Math.sin(angle) * 156,  54, GameState.app.renderer.height * 0.52);
+        const view = getCombatView();
+        boss.x = Helpers.clamp(player.x + Math.cos(angle) * 250, view.left + 42, view.right - 42);
+        boss.y = Helpers.clamp(player.y + Math.sin(angle) * 156,  view.top + 54, view.top + view.height * 0.52);
         boss.spr.x = boss.x;
         boss.spr.y = boss.y;
         Effects.emitPulse(boss.x, boss.y, 0xff6bb5, 62, 10);
@@ -411,17 +417,19 @@ window.BossSystem = (() => {
       checkPhaseTransition();
 
       if (boss.phase === 1) {
+        const view = getCombatView();
         boss.orbitT += dt * 0.014;
-        const targetX = GameState.app.renderer.width * 0.5 + Math.cos(boss.orbitT) * 110;
-        const targetY = 112 + Math.sin(boss.orbitT * 2) * 24;
+        const targetX = view.centerX + Math.cos(boss.orbitT) * 110;
+        const targetY = view.top + 112 + Math.sin(boss.orbitT * 2) * 24;
         boss.x = Helpers.lerp(boss.x, targetX, 0.06 * dt);
         boss.y = Helpers.lerp(boss.y, targetY, 0.06 * dt);
       } else {
         const player  = getStealthAwarePlayerTarget();
+        const view = getCombatView();
         boss.orbitT  += dt * 0.01;
         const desired = Math.atan2(player.y - boss.y, player.x - boss.x) + Math.PI / 2;
         const targetX = player.x + Math.cos(desired) * 290;
-        const targetY = Helpers.clamp(player.y + Math.sin(desired) * 172, 88, GameState.app.renderer.height * 0.48);
+        const targetY = Helpers.clamp(player.y + Math.sin(desired) * 172, view.top + 88, view.top + view.height * 0.48);
         boss.x = Helpers.lerp(boss.x, targetX, 0.03 * dt);
         boss.y = Helpers.lerp(boss.y, targetY, 0.03 * dt);
       }
@@ -647,10 +655,11 @@ window.BossSystem = (() => {
     boss.updateBoss = (dt) => {
       const player = getStealthAwarePlayerTarget();
       boss.phaseT += dt * 0.015;
+      const view = getCombatView();
 
       if (boss.phase === 1) {
-        boss.x = Helpers.lerp(boss.x, GameState.app.renderer.width * 0.5 + Math.cos(boss.phaseT) * 90, 0.045 * dt);
-        boss.y = Helpers.lerp(boss.y, 110 + Math.sin(boss.phaseT * 2) * 24, 0.045 * dt);
+        boss.x = Helpers.lerp(boss.x, view.centerX + Math.cos(boss.phaseT) * 90, 0.045 * dt);
+        boss.y = Helpers.lerp(boss.y, view.top + 110 + Math.sin(boss.phaseT * 2) * 24, 0.045 * dt);
         boss.spr.x = boss.x;
         boss.spr.y = boss.y;
 
@@ -680,8 +689,8 @@ window.BossSystem = (() => {
           child.pulse += dt * 0.018;
 
           if (child.role === "blue") {
-            child.targetX = GameState.app.renderer.width * 0.36 + Math.cos(child.pulse) * 70;
-            child.targetY = 148 + Math.sin(child.pulse * 2) * 30;
+            child.targetX = view.left + view.width * 0.36 + Math.cos(child.pulse) * 70;
+            child.targetY = view.top + 148 + Math.sin(child.pulse * 2) * 30;
             child.x = Helpers.lerp(child.x, child.targetX, 0.06 * dt);
             child.y = Helpers.lerp(child.y, child.targetY, 0.06 * dt);
 
@@ -868,9 +877,10 @@ window.BossSystem = (() => {
     boss.updateBoss = (dt) => {
       const player = getStealthAwarePlayerTarget();
       boss.orbitT += dt * (boss.phase === 1 ? 0.011 : 0.016);
+      const view = getCombatView();
 
-      const targetX = GameState.app.renderer.width * 0.5 + Math.cos(boss.orbitT) * (boss.phase === 1 ? 84 : 132);
-      const targetY = 110 + Math.sin(boss.orbitT * 2) * (boss.phase === 1 ? 20 : 30);
+      const targetX = view.centerX + Math.cos(boss.orbitT) * (boss.phase === 1 ? 84 : 132);
+      const targetY = view.top + 110 + Math.sin(boss.orbitT * 2) * (boss.phase === 1 ? 20 : 30);
       boss.x = Helpers.lerp(boss.x, targetX, 0.05 * dt);
       boss.y = Helpers.lerp(boss.y, targetY, 0.05 * dt);
       boss.spr.x = boss.x;
@@ -1112,8 +1122,9 @@ window.BossSystem = (() => {
         if (boss.stateTime >= boss.stateDuration) setState("APPROACH", boss.phase === 1 ? 28 : 20);
       }
 
-      boss.x = Helpers.clamp(boss.x, 28, GameState.app.renderer.width - 28);
-      boss.y = Helpers.clamp(boss.y, 44, GameState.app.renderer.height - 40);
+      const view = getCombatView();
+      boss.x = Helpers.clamp(boss.x, view.left + 28, view.right - 28);
+      boss.y = Helpers.clamp(boss.y, view.top + 44, view.bottom - 40);
       boss.spr.x = boss.x;
       boss.spr.y = boss.y;
 

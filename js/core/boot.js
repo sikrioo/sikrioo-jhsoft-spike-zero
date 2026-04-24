@@ -1,5 +1,6 @@
 window.Boot = (() => {
   const S = GameState;
+  let resizeRaf = 0;
 
   function addShake(v){ S.shake = Math.min(24, S.shake + v); }
 
@@ -125,6 +126,12 @@ window.Boot = (() => {
     return value === "high" ? "high" : "standard";
   }
 
+  function normalizeAutoFire(value) {
+    return value === false || value === "false" || value === "manual" || value === "off"
+      ? false
+      : true;
+  }
+
   function readStoredPlayerType() {
     try {
       return normalizePlayerType(localStorage.getItem("spike-zero-player-type") || S.playerType || "standard");
@@ -157,6 +164,22 @@ window.Boot = (() => {
     return S.effectQuality;
   }
 
+  function readStoredAutoFire() {
+    try {
+      return normalizeAutoFire(localStorage.getItem("spike-zero-auto-fire"));
+    } catch (_) {
+      return normalizeAutoFire(S.autoFire);
+    }
+  }
+
+  function setAutoFire(value) {
+    S.autoFire = normalizeAutoFire(value);
+    try {
+      localStorage.setItem("spike-zero-auto-fire", S.autoFire ? "true" : "false");
+    } catch (_) {}
+    return S.autoFire;
+  }
+
   function applyPlayerTypeStats(playerType) {
     if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
       PlayerFactory.applyShipStats(S.stats, normalizePlayerType(playerType));
@@ -170,8 +193,58 @@ window.Boot = (() => {
       autostartPlay: params.get("autostart") === "play",
       difficulty: normalizeDifficulty(params.get("difficulty") || S.difficulty || "normal"),
       playerType,
-      effectQuality: normalizeEffectQuality(params.get("effects") || params.get("quality") || readStoredEffectQuality())
+      effectQuality: normalizeEffectQuality(params.get("effects") || params.get("quality") || readStoredEffectQuality()),
+      autoFire: normalizeAutoFire(params.get("autofire") || readStoredAutoFire())
     };
+  }
+
+  function initializeArena() {
+    const w = S.app.renderer.width;
+    const h = S.app.renderer.height;
+    const arenaWidth = Math.max(Math.round(w * 1.35), w + 280);
+    const arenaHeight = Math.max(Math.round(h * 1.3), h + 220);
+    S.arena.width = arenaWidth;
+    S.arena.height = arenaHeight;
+    S.arena.left = Math.round((w - arenaWidth) * 0.5);
+    S.arena.top = Math.round((h - arenaHeight) * 0.5);
+    if (!S.camera) S.camera = { x: w * 0.5, y: h * 0.5 };
+    S.camera.x = w * 0.5;
+    S.camera.y = h * 0.5;
+  }
+
+  function updateMouseWorldCoordinates() {
+    const screenX = S.mouse.screenX != null ? S.mouse.screenX : (S.app.renderer.width * 0.5);
+    const screenY = S.mouse.screenY != null ? S.mouse.screenY : (S.app.renderer.height * 0.5);
+    const worldPoint = Helpers.screenToWorld(screenX, screenY);
+    S.mouse.x = worldPoint.x;
+    S.mouse.y = worldPoint.y;
+  }
+
+  function updateCameraTransform(dt = 1) {
+    const w = S.app.renderer.width;
+    const h = S.app.renderer.height;
+    const player = S.player;
+    const arena = Helpers.getArenaBounds();
+    if (!player) {
+      S.world.x = 0;
+      S.world.y = 0;
+      return;
+    }
+
+    const minCameraX = arena.left + w * 0.5;
+    const maxCameraX = arena.right - w * 0.5;
+    const minCameraY = arena.top + h * 0.5;
+    const maxCameraY = arena.bottom - h * 0.5;
+    const desiredX = Helpers.clamp(player.spr.x, minCameraX, maxCameraX);
+    const desiredY = Helpers.clamp(player.spr.y, minCameraY, maxCameraY);
+
+    S.camera.x = Helpers.lerp(S.camera.x || desiredX, desiredX, Math.min(1, 0.1 * dt));
+    S.camera.y = Helpers.lerp(S.camera.y || desiredY, desiredY, Math.min(1, 0.1 * dt));
+
+    const shakeX = S.shake > 0.01 ? Helpers.rand(-S.shake, S.shake) : 0;
+    const shakeY = S.shake > 0.01 ? Helpers.rand(-S.shake, S.shake) : 0;
+    S.world.x = Math.round((w * 0.5) - S.camera.x + shakeX);
+    S.world.y = Math.round((h * 0.5) - S.camera.y + shakeY);
   }
 
   function resetAll(options=false){
@@ -290,7 +363,11 @@ window.Boot = (() => {
     S.upgrades.categoryCounts.active = 0;
 
     S.shake = 0;
-    S.hazardTimer = Helpers.randi(360, 560);
+    if (window.HazardSystem && HazardSystem.resetTimer) {
+      HazardSystem.resetTimer();
+    } else {
+      S.hazardTimer = Helpers.randi(360, 560);
+    }
     S.activeSkillState.boostDir = 0;
     S.activeSkillState.boostDrag = 0.9;
     S.activeSkillState.boostMitigationT = 0;
@@ -302,9 +379,16 @@ window.Boot = (() => {
     S.activeSkillState.stealthLastKnownX = 0;
     S.activeSkillState.stealthLastKnownY = 0;
     S.weaponState.laserChannel = null;
+    initializeArena();
 
     if (S.player) S.uiLayer.removeChild(S.player.spr);
     S.player = PlayerFactory.makePlayer(playerType);
+    if (S.player && S.player.spr) {
+      S.player.spr.x = S.app.renderer.width * 0.5;
+      S.player.spr.y = S.app.renderer.height * 0.5;
+    }
+    updateMouseWorldCoordinates();
+    updateCameraTransform();
     CombatSystem.applyStartingWeaponLoadout(testMode);
     CombatSystem.syncWeaponStats();
     SkillSystem.applyStartingLoadout(testMode);
@@ -384,8 +468,9 @@ window.Boot = (() => {
 
     S.app.view.addEventListener("pointermove", (e)=>{
       const rect = S.app.view.getBoundingClientRect();
-      S.mouse.x = (e.clientX - rect.left) * (S.app.renderer.width / rect.width);
-      S.mouse.y = (e.clientY - rect.top) * (S.app.renderer.height / rect.height);
+      S.mouse.screenX = (e.clientX - rect.left) * (S.app.renderer.width / rect.width);
+      S.mouse.screenY = (e.clientY - rect.top) * (S.app.renderer.height / rect.height);
+      updateMouseWorldCoordinates();
     });
 
     S.app.view.addEventListener("pointerdown", ()=>{
@@ -397,8 +482,34 @@ window.Boot = (() => {
   }
 
   function resize(){
+    if (!S.app || !S.app.renderer) return;
     S.app.renderer.resize(window.innerWidth, window.innerHeight);
+    if (S.app.view) {
+      S.app.view.style.width = "100%";
+      S.app.view.style.height = "100%";
+      S.app.view.style.display = "block";
+    }
+    initializeArena();
+    if (S.player && S.player.spr) {
+      const arena = Helpers.getArenaBounds();
+      S.player.spr.x = Helpers.clamp(S.player.spr.x, arena.left + 20, arena.right - 20);
+      S.player.spr.y = Helpers.clamp(S.player.spr.y, arena.top + 20, arena.bottom - 20);
+    }
+    updateMouseWorldCoordinates();
+    updateCameraTransform();
     BackgroundRenderer.drawBackground();
+  }
+
+  function scheduleResizeRefresh() {
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    resize();
+    resizeRaf = requestAnimationFrame(() => {
+      resize();
+      resizeRaf = requestAnimationFrame(() => {
+        resize();
+        resizeRaf = 0;
+      });
+    });
   }
 
   function doDash(){
@@ -478,10 +589,9 @@ window.Boot = (() => {
     p.spr.x += p.vx * dt;
     p.spr.y += p.vy * dt;
 
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
-    p.spr.x = Helpers.clamp(p.spr.x, 20, w - 20);
-    p.spr.y = Helpers.clamp(p.spr.y, 20, h - 20);
+    const arena = Helpers.getArenaBounds();
+    p.spr.x = Helpers.clamp(p.spr.x, arena.left + 20, arena.right - 20);
+    p.spr.y = Helpers.clamp(p.spr.y, arena.top + 20, arena.bottom - 20);
 
     const ang = Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
     p.spr.rotation = ang + Math.PI / 2;
@@ -691,13 +801,11 @@ window.Boot = (() => {
   function tick(dt){
     if (S.shake > 0.01){
       S.shake *= 0.87;
-      S.world.x = Helpers.rand(-S.shake, S.shake);
-      S.world.y = Helpers.rand(-S.shake, S.shake);
     } else {
-      S.world.x = 0;
-      S.world.y = 0;
       S.shake = 0;
     }
+    updateMouseWorldCoordinates();
+    updateCameraTransform(dt);
 
     if (S.progression.waveState === "dying"){
       updateParticles(dt);
@@ -714,6 +822,7 @@ window.Boot = (() => {
 
     updateProgress(dt);
     updatePlayer(dt);
+    updateCameraTransform(dt);
     if (window.DefenseSystem) DefenseSystem.update(dt);
     CombatSystem.tryShoot();
     CombatSystem.tryShootMissiles();
@@ -738,6 +847,9 @@ window.Boot = (() => {
     });
 
     document.getElementById("wrap").appendChild(S.app.view);
+    S.app.view.style.width = "100%";
+    S.app.view.style.height = "100%";
+    S.app.view.style.display = "block";
 
     S.stage = S.app.stage;
     S.bgLayer = new PIXI.Container();
@@ -749,6 +861,9 @@ window.Boot = (() => {
     S.uiLayer = new PIXI.Container();
     S.bgLayer.addChild(S.bg);
     S.world.addChild(S.fx, S.uiLayer);
+    S.mouse.screenX = window.innerWidth * 0.5;
+    S.mouse.screenY = window.innerHeight * 0.5;
+    initializeArena();
 
     S.bgGfx = new PIXI.Graphics();
     S.bgDecor = new PIXI.Container();
@@ -812,6 +927,10 @@ window.Boot = (() => {
         setEffectQuality(effectQuality);
         UI.hudUpdate();
       },
+      onAutoFireChange: (autoFire) => {
+        setAutoFire(autoFire);
+        UI.hudUpdate();
+      },
       onPauseToggle: (open) => {
         setPauseState(open);
       },
@@ -840,6 +959,7 @@ window.Boot = (() => {
     S.difficulty = launchOptions.difficulty;
     setPlayerType(launchOptions.playerType);
     setEffectQuality(launchOptions.effectQuality);
+    setAutoFire(launchOptions.autoFire);
     for (const radio of document.querySelectorAll("input[name='difficulty']")) {
       radio.checked = radio.value === S.difficulty;
     }
@@ -848,6 +968,9 @@ window.Boot = (() => {
     }
     for (const radio of document.querySelectorAll("input[name='effectQuality']")) {
       radio.checked = radio.value === S.effectQuality;
+    }
+    for (const radio of document.querySelectorAll("input[name='autoFire']")) {
+      radio.checked = String(S.autoFire) === radio.value;
     }
     UI.populateBossOptions();
     ActiveSkillSystem.assignStartingLoadout(false);
@@ -861,7 +984,8 @@ window.Boot = (() => {
     }
 
     S.app.ticker.add(tick);
-    window.addEventListener("resize", resize);
+    window.addEventListener("resize", scheduleResizeRefresh);
+    window.addEventListener("fullscreenchange", scheduleResizeRefresh);
   }
 
   init();

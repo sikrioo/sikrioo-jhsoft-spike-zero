@@ -47,6 +47,7 @@ window.UI = (() => {
   const difficultyEls = [...document.querySelectorAll("input[name='difficulty']")];
   const playerTypeEls = [...document.querySelectorAll("input[name='playerType']")];
   const effectQualityEls = [...document.querySelectorAll("input[name='effectQuality']")];
+  const autoFireEls = [...document.querySelectorAll("input[name='autoFire']")];
   const weaponHud = document.getElementById("weaponHud");
   const bossSelect = document.getElementById("bossSelect");
   const spawnBossBtn = document.getElementById("btnSpawnBoss");
@@ -207,6 +208,7 @@ window.UI = (() => {
     for (const radio of weaponRadioEls) radio.checked = radio.value === S.weaponState.current;
     for (const radio of difficultyEls) radio.checked = radio.value === (S.difficulty || "normal");
     for (const radio of effectQualityEls) radio.checked = radio.value === (S.effectQuality || "standard");
+    for (const radio of autoFireEls) radio.checked = String(S.autoFire !== false) === radio.value;
     weaponHud.style.display = S.stats.practice ? "block" : "none";
     const isBossTest = S.stats.practice && S.stats.practiceMode === "boss";
     const isStageTest = S.stats.practice && S.stats.practiceMode === "stage";
@@ -901,6 +903,7 @@ window.UI = (() => {
     const channel = document.createElement("div");
     channel.className = "dialogueChannel";
     channel.textContent = isController ? "COMMUNICATION LINK" : "PILOT FEED";
+    channel.hidden = true;
 
     const text = document.createElement("div");
     text.className = "dialogueText";
@@ -961,7 +964,7 @@ window.UI = (() => {
     }
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
@@ -994,6 +997,11 @@ window.UI = (() => {
     for (const radio of effectQualityEls){
       radio.onchange = () => {
         if (radio.checked && onEffectQualityChange) onEffectQualityChange(radio.value);
+      };
+    }
+    for (const radio of autoFireEls){
+      radio.onchange = () => {
+        if (radio.checked && onAutoFireChange) onAutoFireChange(radio.value === "true");
       };
     }
     if (closeSkillMapBtn) closeSkillMapBtn.onclick = closeSkillMapPanel;

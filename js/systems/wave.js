@@ -55,6 +55,9 @@ window.WaveSystem = (() => {
     P.stageState = "combat";
     P.bossFinishTimer = 0;
     P.wave = 1;
+    if (window.HazardSystem && HazardSystem.resetTimer) {
+      HazardSystem.resetTimer();
+    }
     const shouldSkipDialogue = options.skipDialogue || (GameState.stats.practice && GameState.stats.practiceMode === "boss");
     if (shouldSkipDialogue || !window.DialogueSystem) {
       beginStageCombat(P.stage);

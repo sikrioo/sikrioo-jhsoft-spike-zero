@@ -43,7 +43,7 @@
       <div class="pill"><b>Shots</b><span id="shots">1</span></div>
       <div class="pill"><b>Pierce</b><span id="pierce">0</span></div>
       <div class="pill"><b>Combo</b><span id="combo">x1</span></div>
-      <div class="pill hint">WASD move, mouse aim, click shoot, Shift dash, 1 front slide, 2 left, 3 right, 4 back</div>
+      <div class="pill hint">WASD move, mouse aim, auto fire, Shift dash, 1 front slide, 2 left, 3 right, 4 back</div>
       <button class="pauseQuickBtn" id="btnPauseMenu" type="button">Menu</button>
     </div>
   </div>
@@ -180,6 +180,19 @@
           <input type="radio" name="effectQuality" value="high" />
           <span>High</span>
           <small>More trails and glow</small>
+        </label>
+      </div>
+      <div class="difficultyPanel">
+        <div class="difficultyLabel">Fire Mode</div>
+        <label class="difficultyOption">
+          <input type="radio" name="autoFire" value="true" checked />
+          <span>Auto</span>
+          <small>Recommended default</small>
+        </label>
+        <label class="difficultyOption">
+          <input type="radio" name="autoFire" value="false" />
+          <span>Manual</span>
+          <small>Hold click or Space</small>
         </label>
       </div>
       <div class="btnRow">

@@ -31,6 +31,17 @@ window.GameState = {
   practiceStageDurationSec: 180,
   difficulty: "normal",
   effectQuality: "standard",
+  autoFire: true,
+  camera: {
+    x: 0,
+    y: 0
+  },
+  arena: {
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0
+  },
 
   stats: {
     maxHp: 100,

@@ -1025,17 +1025,16 @@ window.EnemySystem = (() => {
   function makeEnemy(tierKey="normal"){
     const S = GameState;
     const tier = ENEMY_TIERS[tierKey];
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
+    const view = Helpers.getViewBounds();
 
     const side = Helpers.randi(0,3);
     let x = 0;
     let y = 0;
     const pad = 60;
-    if (side === 0){ x = -pad; y = Helpers.rand(0, h); }
-    if (side === 1){ x = w + pad; y = Helpers.rand(0, h); }
-    if (side === 2){ x = Helpers.rand(0, w); y = -pad; }
-    if (side === 3){ x = Helpers.rand(0, w); y = h + pad; }
+    if (side === 0){ x = view.left - pad; y = Helpers.rand(view.top, view.bottom); }
+    if (side === 1){ x = view.right + pad; y = Helpers.rand(view.top, view.bottom); }
+    if (side === 2){ x = Helpers.rand(view.left, view.right); y = view.top - pad; }
+    if (side === 3){ x = Helpers.rand(view.left, view.right); y = view.bottom + pad; }
 
     const r = tier.radius;
     const hits = Helpers.randi(tier.hitsMin, tier.hitsMax);
@@ -1456,9 +1455,10 @@ window.EnemySystem = (() => {
         S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:6, drag:0.9 });
       }
 
+      const view = Helpers.getViewBounds();
       const out = b.life <= 0
-        || b.x < -40 || b.x > S.app.renderer.width + 40
-        || b.y < -40 || b.y > S.app.renderer.height + 40;
+        || b.x < view.left - 40 || b.x > view.right + 40
+        || b.y < view.top - 40 || b.y > view.bottom + 40;
       if (out){
         S.fx.removeChild(b.spr);
         S.enemyBullets.splice(i, 1);

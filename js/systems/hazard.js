@@ -1,8 +1,8 @@
 window.HazardSystem = (() => {
   const STAGE_INTERVALS = {
-    1: { min: 520, max: 760, damage: 14, speed: 24, radius: 24 },
-    2: { min: 430, max: 650, damage: 18, speed: 27, radius: 28 },
-    3: { min: 360, max: 560, damage: 22, speed: 30, radius: 32 }
+    1: { introMin: 3300, introMax: 4500, min: 1080, max: 1440, damage: 12, speed: 22, radius: 22 },
+    2: { introMin: 1380, introMax: 1920, min: 620, max: 920, damage: 17, speed: 26, radius: 27 },
+    3: { introMin: 840, introMax: 1320, min: 460, max: 720, damage: 21, speed: 30, radius: 31 }
   };
 
   function getSpec(){
@@ -10,9 +10,16 @@ window.HazardSystem = (() => {
     return STAGE_INTERVALS[stage] || STAGE_INTERVALS[3];
   }
 
-  function scheduleNext(){
+  function scheduleNext(options = {}){
     const spec = getSpec();
-    GameState.hazardTimer = Helpers.randi(spec.min, spec.max);
+    const initial = !!options.initial;
+    const min = initial ? spec.introMin : spec.min;
+    const max = initial ? spec.introMax : spec.max;
+    GameState.hazardTimer = Helpers.randi(min, max);
+  }
+
+  function resetTimer(){
+    scheduleNext({ initial: true });
   }
 
   function makeCometVisual(radius, color){
@@ -82,8 +89,9 @@ window.HazardSystem = (() => {
   function spawnComet(){
     const S = GameState;
     const spec = getSpec();
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
+    const view = Helpers.getViewBounds();
+    const w = view.width;
+    const h = view.height;
     const radius = spec.radius + Helpers.rand(-4, 5);
     const margin = Math.max(120, radius * 5);
     const side = Helpers.randi(0, 3);
@@ -93,25 +101,25 @@ window.HazardSystem = (() => {
     let endY;
 
     if (side === 0) {
-      startX = -margin;
-      startY = Helpers.rand(h * 0.08, h * 0.92);
-      endX = w + margin;
+      startX = view.left - margin;
+      startY = Helpers.rand(view.top + h * 0.08, view.top + h * 0.92);
+      endX = view.right + margin;
       endY = startY + Helpers.rand(-h * 0.35, h * 0.35);
     } else if (side === 1) {
-      startX = w + margin;
-      startY = Helpers.rand(h * 0.08, h * 0.92);
-      endX = -margin;
+      startX = view.right + margin;
+      startY = Helpers.rand(view.top + h * 0.08, view.top + h * 0.92);
+      endX = view.left - margin;
       endY = startY + Helpers.rand(-h * 0.35, h * 0.35);
     } else if (side === 2) {
-      startX = Helpers.rand(w * 0.08, w * 0.92);
-      startY = -margin;
+      startX = Helpers.rand(view.left + w * 0.08, view.left + w * 0.92);
+      startY = view.top - margin;
       endX = startX + Helpers.rand(-w * 0.35, w * 0.35);
-      endY = h + margin;
+      endY = view.bottom + margin;
     } else {
-      startX = Helpers.rand(w * 0.08, w * 0.92);
-      startY = h + margin;
+      startX = Helpers.rand(view.left + w * 0.08, view.left + w * 0.92);
+      startY = view.bottom + margin;
       endX = startX + Helpers.rand(-w * 0.35, w * 0.35);
-      endY = -margin;
+      endY = view.top - margin;
     }
 
     const ang = Math.atan2(endY - startY, endX - startX);
@@ -210,7 +218,7 @@ window.HazardSystem = (() => {
   function update(dt){
     const S = GameState;
     if (!S.app || !S.player) return;
-    if (S.progression.stageState === "combat" || S.progression.stageState === "boss") {
+    if (S.progression.stageState === "combat") {
       S.hazardTimer -= dt;
       if (S.hazardTimer <= 0) {
         spawnComet();
@@ -218,18 +226,17 @@ window.HazardSystem = (() => {
       }
     }
 
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
+    const view = Helpers.getViewBounds();
     const margin = 260;
     for (let i=S.hazards.length-1; i>=0; i--){
       const hazard = S.hazards[i];
       if (hazard.type === "comet") updateComet(hazard, dt);
       if (
         hazard.life <= 0 ||
-        hazard.x < -margin ||
-        hazard.x > w + margin ||
-        hazard.y < -margin ||
-        hazard.y > h + margin
+        hazard.x < view.left - margin ||
+        hazard.x > view.right + margin ||
+        hazard.y < view.top - margin ||
+        hazard.y > view.bottom + margin
       ) {
         if (hazard.spr && hazard.spr.parent) hazard.spr.parent.removeChild(hazard.spr);
         S.hazards.splice(i, 1);
@@ -237,5 +244,5 @@ window.HazardSystem = (() => {
     }
   }
 
-  return { update, spawnComet };
+  return { update, spawnComet, resetTimer };
 })();

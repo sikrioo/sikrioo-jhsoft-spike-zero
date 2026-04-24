@@ -438,7 +438,8 @@ window.CombatSystem = (() => {
     const player = S.player;
     if (S.stats.hardpointCooldown > 0) S.stats.hardpointCooldown -= 1;
     if (player.fireCd > 0) return;
-    if (!(S.mouse.down || S.keys.has("Space"))) return;
+    const wantsFire = S.autoFire || S.mouse.down || S.keys.has("Space");
+    if (!wantsFire) return;
     if (S.activeSkillState.stealthT > 0 && window.ActiveSkillSystem) {
       ActiveSkillSystem.breakStealth("attack");
     }
@@ -724,8 +725,7 @@ window.CombatSystem = (() => {
 
   function updateBullets(dt){
     const S = GameState;
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
+    const view = Helpers.getViewBounds();
 
     for (let i=S.bullets.length-1; i>=0; i--){
       const b = S.bullets[i];
@@ -735,7 +735,7 @@ window.CombatSystem = (() => {
       b.spr.x = b.x;
       b.spr.y = b.y;
 
-      if (b.life <= 0 || b.x < -80 || b.x > w + 80 || b.y < -80 || b.y > h + 80){
+      if (b.life <= 0 || b.x < view.left - 80 || b.x > view.right + 80 || b.y < view.top - 80 || b.y > view.bottom + 80){
         destroyProjectile(S.bullets, i);
         continue;
       }
@@ -786,7 +786,8 @@ window.CombatSystem = (() => {
     const S = GameState;
     const channel = S.weaponState.laserChannel;
     if (channel){
-      if (!(S.mouse.down || S.keys.has("Space")) || channel.remaining <= 0){
+      const wantsFire = S.autoFire || S.mouse.down || S.keys.has("Space");
+      if (!wantsFire || channel.remaining <= 0){
         finishLaserChannel(channel.remaining > 0 ? true : false);
       } else {
         const ang = Math.atan2(S.mouse.y - S.player.spr.y, S.mouse.x - S.player.spr.x);

@@ -311,13 +311,26 @@ window.BackgroundRenderer = (() => {
 
   function drawBackground() {
     const S = GameState;
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
+    const viewW = Math.max(
+      S.app.renderer.width,
+      window.innerWidth || 0,
+      document.documentElement ? document.documentElement.clientWidth : 0
+    );
+    const viewH = Math.max(
+      S.app.renderer.height,
+      window.innerHeight || 0,
+      document.documentElement ? document.documentElement.clientHeight : 0
+    );
+    const overscan = 320;
+    const w = viewW + overscan * 2;
+    const h = viewH + overscan * 2;
     const stage = Math.max(1, S.progression.stage || 1);
     const theme = getStageTheme(stage, w, h);
 
     S.bg.cacheAsBitmap = false;
     S.bg.removeChildren();
+    S.bg.x = -overscan;
+    S.bg.y = -overscan;
     S.bgGfx = new PIXI.Graphics();
     S.bgDecor = new PIXI.Container();
     S.bg.addChild(S.bgGfx, S.bgDecor);
