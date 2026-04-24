@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>SPIKE-ZERO</title>
   <link rel="stylesheet" href="./css/style.css" />
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var host = window.location.hostname || "";
+      var protocol = window.location.protocol || "";
+      var isLocal = protocol === "file:" || host === "localhost" || host === "127.0.0.1" || host === "::1";
+      var allowDirect = params.get("fromIntro") === "1" || params.get("autostart") === "play" || params.get("direct") === "1";
+      if (!isLocal && !allowDirect) {
+        window.location.replace("./intro.html");
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="wrap"></div>
