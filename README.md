@@ -48,7 +48,7 @@
 index.html
 ```
 
-브라우저에서 `index.html`을 열면 게임이 시작됩니다.  
+브라우저에서 `index.html`을 열면 인트로 화면이 시작되고, 게임 본편은 `game.html`에서 실행됩니다.  
 PixiJS와 필터 라이브러리는 CDN을 사용하므로 인터넷 연결이 필요합니다.
 
 ## 조작
@@ -81,6 +81,6 @@ js/entities/            플레이어 등 게임 오브젝트
 js/render/              배경과 시각 효과
 js/systems/             전투, 웨이브, UI, 스킬, 사운드, 보스 시스템
 lab/                    실험용 프로토타입
-index.html              메인 게임
-intro.html              인트로 화면
+index.html              공개 진입 인트로
+game.html               메인 게임
 ```

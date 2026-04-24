@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>SPIKE-ZERO</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="wrap"></div>
+
+  <div class="loadingOverlay" id="loadingOverlay" aria-live="polite">
+    <div class="loadingCard">
+      <div class="loadingEyebrow">SYSTEM PREFETCH</div>
+      <h1>Loading Mission Assets</h1>
+      <p class="loadingStatus" id="loadingStatus">Preparing resource cache...</p>
+      <div class="loadingBar">
+        <div class="loadingBarFill" id="loadingBarFill"></div>
+      </div>
+      <div class="loadingMeta">
+        <span id="loadingPercent">0%</span>
+        <span id="loadingCount">0 / 0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="row">
+      <div class="pill"><b>Score</b><span id="score">0</span></div>
+      <div class="pill"><b>Stage</b><span id="stage">1</span></div>
+      <div class="pill"><b>Time</b><span id="stageTime">03:00</span></div>
+      <div class="pill"><b>Wave</b><span id="wave">1</span></div>
+      <div class="pill"><b>Lv</b><span id="level">1</span></div>
+      <div class="pill"><b>XP</b><span id="xp">0 / 10</span></div>
+      <div class="pill"><b>HP</b><span id="hp">100</span></div>
+      <div class="pill"><b>MP</b><span id="mp">100 / 100</span></div>
+      <div class="pill"><b>Speed</b><span id="speed">0</span></div>
+      <div class="pill"><b>Shield</b><span id="shield">-</span></div>
+      <div class="pill"><b>ATK</b><span id="atk">1</span></div>
+      <div class="pill"><b>DEF</b><span id="def">0</span></div>
+      <div class="pill"><b>Fire Rate</b><span id="fireRate">18</span></div>
+      <div class="pill"><b>Bullet Spd</b><span id="bulletSpeed">0</span></div>
+      <div class="pill"><b>Shots</b><span id="shots">1</span></div>
+      <div class="pill"><b>Pierce</b><span id="pierce">0</span></div>
+      <div class="pill"><b>Combo</b><span id="combo">x1</span></div>
+      <div class="pill hint">WASD move, mouse aim, auto fire, Shift dash, 1 front slide, 2 left, 3 right, 4 back</div>
+      <button class="pauseQuickBtn" id="btnPauseMenu" type="button">Menu</button>
+    </div>
+  </div>
+
+  <div class="bossHud" id="bossHud">
+    <div class="bossHudName" id="bossHudName">-</div>
+    <div class="bossHudMeta" id="bossHudMeta">No Active Boss</div>
+    <div class="bossHudBar">
+      <div class="bossHudFill" id="bossHudFill"></div>
+    </div>
+  </div>
+
+  <div class="activeHud" id="activeHud">
+    <div class="activeSlot" data-key="KeyQ">
+      <div class="slotTop"><span class="slotKey">Q</span><span class="slotCd">READY</span></div>
+      <button class="slotName slotNameBtn" type="button">Empty</button>
+      <div class="slotMeta"><span class="slotType">-</span><span class="slotCost">0 MP</span></div>
+    </div>
+    <div class="activeSlot" data-key="KeyE">
+      <div class="slotTop"><span class="slotKey">E</span><span class="slotCd">READY</span></div>
+      <button class="slotName slotNameBtn" type="button">Empty</button>
+      <div class="slotMeta"><span class="slotType">-</span><span class="slotCost">0 MP</span></div>
+    </div>
+    <div class="activeSlot" data-key="KeyR">
+      <div class="slotTop"><span class="slotKey">R</span><span class="slotCd">READY</span></div>
+      <button class="slotName slotNameBtn" type="button">Empty</button>
+      <div class="slotMeta"><span class="slotType">-</span><span class="slotCost">0 MP</span></div>
+    </div>
+  </div>
+
+  <div class="skillMapPanel" id="skillMapPanel" hidden>
+    <div class="skillMapCard">
+      <div class="skillMapHead">
+        <div class="skillMapTitle" id="skillMapTitle">Map Active Skill</div>
+        <button class="skillMapClose" id="btnCloseSkillMap" type="button">Close</button>
+      </div>
+      <div class="skillMapList" id="skillMapList"></div>
+    </div>
+  </div>
+
+  <div class="dialogueOverlay" id="dialogueOverlay" hidden>
+    <div class="dialogueLog" id="dialogueLog"></div>
+    <div class="dialogueSkipHint" id="dialogueSkipHint">Press Space / Enter / Esc to skip briefing</div>
+  </div>
+
+  <div class="weaponHud" id="weaponHud">
+    <div class="weaponHead">Test Mode</div>
+    <label class="weaponOption">
+      <input type="radio" name="practiceType" value="boss" checked />
+      <span>Test Boss</span>
+    </label>
+    <label class="weaponOption">
+      <input type="radio" name="practiceType" value="stage" />
+      <span>Test Stage</span>
+    </label>
+    <div class="weaponHead bossHead">Weapon Test</div>
+    <label class="weaponOption">
+      <input type="radio" name="weaponType" value="machinegun" checked />
+      <span>Machinegun</span>
+    </label>
+    <label class="weaponOption">
+      <input type="radio" name="weaponType" value="laser" />
+      <span>Laser</span>
+    </label>
+    <label class="weaponOption">
+      <input type="radio" name="weaponType" value="shotgun" />
+      <span>Shotgun</span>
+    </label>
+    <div class="weaponState">Current Weapon: <b id="weaponName">Machinegun</b> <span id="weaponLevel">Lv.MAX</span></div>
+    <div class="weaponHead bossHead">Boss Test</div>
+    <label class="bossLabel" for="bossSelect">Target Boss</label>
+    <select id="bossSelect" class="bossSelect"></select>
+    <button class="btn bossBtn" id="btnSpawnBoss" type="button">Spawn Boss</button>
+    <div class="stageTestPanel" id="stageTestPanel">
+      <div class="weaponHead bossHead">Stage Test</div>
+      <label class="bossLabel" for="stageSelect">Target Stage</label>
+      <select id="stageSelect" class="bossSelect">
+        <option value="1">Stage 1</option>
+        <option value="2">Stage 2</option>
+        <option value="3">Stage 3</option>
+      </select>
+      <label class="bossLabel" for="stageDurationInput">Boss Timer Sec</label>
+      <input id="stageDurationInput" class="bossSelect" type="number" min="10" step="5" value="180" />
+      <button class="btn bossBtn" id="btnApplyStageTest" type="button">Apply Stage</button>
+    </div>
+  </div>
+
+  <div class="centerOverlay" id="overlayRoot">
+    <div class="card" id="startCard">
+      <h1>SPIKE-ZERO</h1>
+      <p>시작 모드를 선택하세요. 플레이 모드는 일반 웨이브 진행, 테스트 모드는 무기와 보스를 바로 확인하는 연습 모드입니다.</p>
+      <p class="hint">테스트 모드에서는 시작 직후 선택한 보스가 등장하고 무기 변경 UI가 활성화됩니다.</p>
+      <div class="shipSelectPanel">
+        <div class="difficultyLabel">Ship Type</div>
+        <div class="shipOptions">
+          <label class="shipOption">
+            <input type="radio" name="playerType" value="standard" checked />
+            <span>Standard</span>
+            <small>Boost starter</small>
+          </label>
+          <label class="shipOption">
+            <input type="radio" name="playerType" value="power" />
+            <span>Power</span>
+            <small>Omni Burst starter</small>
+          </label>
+          <label class="shipOption">
+            <input type="radio" name="playerType" value="agility" />
+            <span>Agility</span>
+            <small>Afterburner starter</small>
+          </label>
+        </div>
+      </div>
+      <div class="difficultyPanel">
+        <div class="difficultyLabel">Difficulty</div>
+        <label class="difficultyOption">
+          <input type="radio" name="difficulty" value="easy" />
+          <span>Easy</span>
+          <small>Enemy count -25%</small>
+        </label>
+        <label class="difficultyOption">
+          <input type="radio" name="difficulty" value="normal" checked />
+          <span>Normal</span>
+          <small>Default balance</small>
+        </label>
+      </div>
+      <div class="difficultyPanel">
+        <div class="difficultyLabel">Effects</div>
+        <label class="difficultyOption">
+          <input type="radio" name="effectQuality" value="standard" checked />
+          <span>Standard</span>
+          <small>Recommended balance</small>
+        </label>
+        <label class="difficultyOption">
+          <input type="radio" name="effectQuality" value="high" />
+          <span>High</span>
+          <small>More trails and glow</small>
+        </label>
+      </div>
+      <div class="difficultyPanel">
+        <div class="difficultyLabel">Fire Mode</div>
+        <label class="difficultyOption">
+          <input type="radio" name="autoFire" value="true" checked />
+          <span>Auto</span>
+          <small>Recommended default</small>
+        </label>
+        <label class="difficultyOption">
+          <input type="radio" name="autoFire" value="false" />
+          <span>Manual</span>
+          <small>Hold click or Space</small>
+        </label>
+      </div>
+      <div class="btnRow">
+        <button class="btn" id="btnStart">Play Mode</button>
+        <button class="btn secondary" id="btnPracticeBoss">Test Boss</button>
+        <button class="btn secondary" id="btnPracticeStage">Test Stage</button>
+      </div>
+    </div>
+
+    <div class="card" id="upgradeCard" style="display:none;">
+      <h1>Level Up</h1>
+      <p>Choose one upgrade.</p>
+      <div class="upgradeGrid" id="upgradeGrid"></div>
+      <p class="hint">The game resumes as soon as you pick.</p>
+    </div>
+
+    <div class="card" id="gameOverCard" style="display:none;">
+      <h1>Game Over</h1>
+      <p>Final Score: <b id="finalScore">0</b></p>
+      <div class="btnRow">
+        <button class="btn" id="btnRetry">Retry</button>
+        <button class="btn secondary" id="btnBack">Back</button>
+      </div>
+    </div>
+
+    <div class="card" id="stageClearCard" style="display:none;">
+      <h1>Stage Clear</h1>
+      <p id="stageClearLabel">Stage 1 secured.</p>
+      <p class="hint">Proceed when you're ready for the next combat zone.</p>
+      <div class="btnRow">
+        <button class="btn" id="btnNextStage" type="button">Next Stage</button>
+      </div>
+    </div>
+
+    <div class="card stageStartCard" id="stageStartCard" style="display:none;">
+      <div class="stageStartEyebrow">MISSION DEPLOY</div>
+      <h1 id="stageStartTitle">Stage 1 Start</h1>
+      <p id="stageStartSubtitle">Combat zone opening.</p>
+    </div>
+
+    <div class="card pauseCard" id="pauseCard" style="display:none;">
+      <div class="pauseHead">
+        <div>
+          <div class="stageStartEyebrow">MISSION MENU</div>
+          <h1>Pause Menu</h1>
+        </div>
+        <div class="pauseHint">Press <b>Esc</b> or <b>P</b> to resume</div>
+      </div>
+      <div class="pauseLayout">
+        <div class="pauseSection">
+          <h2>Current Stats</h2>
+          <div class="pauseInfoGrid" id="pauseStatsGrid"></div>
+        </div>
+        <div class="pauseSection">
+          <h2>Owned Upgrades</h2>
+          <div class="pauseFilterBar" id="pauseFilterBar">
+            <button class="pauseFilterBtn active" type="button" data-filter="all">All</button>
+            <button class="pauseFilterBtn" type="button" data-filter="weapon">Weapon</button>
+            <button class="pauseFilterBtn" type="button" data-filter="passive">Passive</button>
+            <button class="pauseFilterBtn" type="button" data-filter="active">Active</button>
+          </div>
+          <div class="pauseAdjustActions" id="pauseAdjustActions" hidden>
+            <button class="btn secondary" id="btnPauseClearUpgrades" type="button">Clear All Upgrades</button>
+            <button class="btn secondary" id="btnPauseResetUpgrades" type="button">Reset Test Upgrades</button>
+          </div>
+          <div class="pauseInfoList" id="pauseUpgradeList"></div>
+        </div>
+      </div>
+      <div class="btnRow">
+        <button class="btn" id="btnResumePause" type="button">Resume</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="warningOverlay" id="warningOverlay">
+    <div class="warningText">WARNING</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-filters@5.2.1/dist/browser/pixi-filters.js"></script>
+
+  <script src="./js/data/game-balance.js"></script>
+  <script src="./js/data/enemy-tiers.js"></script>
+  <script src="./js/data/upgrade-balance.js"></script>
+  <script src="./js/data/upgrades.js"></script>
+  <script src="./js/data/active-skills.js"></script>
+  <script src="./js/data/weapon-types.js"></script>
+  <script src="./js/data/boss-types.js"></script>
+  <script src="./js/data/character-profiles.js"></script>
+  <script src="./js/data/dialogue.js"></script>
+  <script src="./js/data/resource-manifest.js"></script>
+
+  <script src="./js/core/utils.js"></script>
+  <script src="./js/core/state.js"></script>
+
+  <script src="./js/render/background.js"></script>
+  <script src="./js/render/effects.js"></script>
+
+  <script src="./js/systems/sound.js"></script>
+  <script src="./js/systems/bgm.js"></script>
+  <script src="./js/systems/resource-loader.js"></script>
+  <script src="./js/systems/ui.js"></script>
+  <script src="./js/systems/dialogue.js"></script>
+  <script src="./js/systems/skill.js"></script>
+  <script src="./js/systems/active-skills.js"></script>
+  <script src="./js/systems/defense.js"></script>
+  <script src="./js/systems/wave.js"></script>
+  <script src="./js/systems/enemy.js"></script>
+  <script src="./js/systems/bosses/bossVisuals.js"></script>
+  <script src="./js/systems/bosses/bossBullets.js"></script>
+  <script src="./js/systems/bosses/bossScheduler.js"></script>
+  <script src="./js/systems/bosses/bossSystem.js"></script>      
+  <script src="./js/systems/combat.js"></script>
+  <script src="./js/systems/hazard.js"></script>
+
+  <script src="./js/entities/player.js"></script>
+
+  <script src="./js/core/boot.js"></script>
+</body>
+</html>
