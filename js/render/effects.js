@@ -11,7 +11,16 @@ window.Effects = (() => {
 
   function makeGlowFilter({color=0x32f6ff, distance=18, outerStrength=2.2, innerStrength=0.4, quality=0.25} = {}){
     const Glow = getGlowFilterClass();
-    if (Glow) return new Glow({ distance, outerStrength, innerStrength, color, quality });
+    if (Glow) {
+      const highQuality = GameState.effectQuality === "high";
+      return new Glow({
+        distance: highQuality ? distance : Math.max(4, distance * 0.72),
+        outerStrength: highQuality ? outerStrength : outerStrength * 0.72,
+        innerStrength: highQuality ? innerStrength : innerStrength * 0.8,
+        color,
+        quality: highQuality ? quality : Math.max(0.1, quality * 0.72)
+      });
+    }
     return null;
   }
 
@@ -21,6 +30,14 @@ window.Effects = (() => {
 
   function getRenderer(){
     return GameState.app && GameState.app.renderer;
+  }
+
+  function getEffectQuality(){
+    return GameState.effectQuality === "high" ? "high" : "standard";
+  }
+
+  function isHighQuality(){
+    return getEffectQuality() === "high";
   }
 
   function makeTexture(cacheKey, draw){
@@ -67,13 +84,123 @@ window.Effects = (() => {
     });
   }
 
-  function getBulletTexture(){
-    return makeTexture("bullet.base", ()=>{
+  function getLinearTrailTexture(){
+    return makeTexture("particle.trail.linear", ()=>{
+      const c = new PIXI.Container();
+      const aura = new PIXI.Graphics();
+      const body = new PIXI.Graphics();
+      const core = new PIXI.Graphics();
+      aura.beginFill(0xffffff, 0.08);
+      aura.drawRoundedRect(0, 8, 54, 16, 8);
+      aura.endFill();
+      body.beginFill(0xffffff, 0.22);
+      body.drawRoundedRect(4, 10, 42, 12, 6);
+      body.endFill();
+      core.beginFill(0xffffff, 0.92);
+      core.drawRoundedRect(20, 12, 18, 8, 4);
+      core.endFill();
+      c.addChild(aura, body, core);
+      return c;
+    });
+  }
+
+  function getPulseTexture(){
+    return makeTexture("pulse.ring", ()=>{
       const g = new PIXI.Graphics();
-      g.beginFill(0xffffff, 0.95);
-      g.drawRoundedRect(13, 0, 6, 20, 3);
-      g.endFill();
+      g.lineStyle(8, 0xffffff, 0.08);
+      g.drawCircle(32, 32, 20);
+      g.lineStyle(3, 0xffffff, 0.34);
+      g.drawCircle(32, 32, 20);
       return g;
+    });
+  }
+
+  function getBulletTexture(kind="default"){
+    return makeTexture(`bullet.${kind}`, ()=>{
+      const g = new PIXI.Graphics();
+      const c = new PIXI.Container();
+      const shell = new PIXI.Graphics();
+      const core = new PIXI.Graphics();
+      const accent = new PIXI.Graphics();
+
+      if (kind === "shotgun") {
+        shell.beginFill(0xffffff, 0.08);
+        shell.drawCircle(16, 16, 14);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.22);
+        shell.drawCircle(16, 16, 12);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.96);
+        shell.drawCircle(16, 16, 7);
+        shell.endFill();
+
+        core.beginFill(0xffffff, 0.95);
+        core.drawCircle(16, 16, 4);
+        core.endFill();
+
+        accent.lineStyle(2, 0xffffff, 0.75);
+        accent.drawCircle(16, 16, 9);
+      } else if (kind === "hardpoint") {
+        shell.beginFill(0xffffff, 0.06);
+        shell.drawRoundedRect(8, 1, 16, 26, 7);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.14);
+        shell.drawRoundedRect(10, 3, 12, 22, 5);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.92);
+        shell.drawRoundedRect(12, 5, 8, 18, 4);
+        shell.endFill();
+
+        core.beginFill(0xffffff, 0.95);
+        core.drawRoundedRect(14, 3, 4, 8, 2);
+        core.endFill();
+      } else if (kind === "missile" || kind === "missileHeavy") {
+        shell.beginFill(0xffffff, 0.08);
+        shell.drawRoundedRect(8, -1, 16, 32, 8);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.18);
+        shell.drawRoundedRect(11, 1, 10, 28, 5);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.94);
+        shell.drawPolygon([ 16,0, 22,10, 20,24, 16,30, 12,24, 10,10 ]);
+        shell.endFill();
+
+        core.beginFill(0xffffff, 0.95);
+        core.drawRoundedRect(14, 6, 4, 14, 2);
+        core.endFill();
+
+        accent.lineStyle(1.8, 0xffffff, 0.62);
+        accent.moveTo(12, 20);
+        accent.lineTo(8, 25);
+        accent.moveTo(20, 20);
+        accent.lineTo(24, 25);
+
+        if (kind === "missileHeavy") {
+          accent.lineStyle(2.5, 0xffffff, 0.38);
+          accent.drawCircle(16, 15, 12);
+        }
+      } else {
+        shell.beginFill(0xffffff, 0.06);
+        shell.drawRoundedRect(8, -1, 16, 32, 8);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.14);
+        shell.drawRoundedRect(10, 1, 12, 28, 6);
+        shell.endFill();
+        shell.beginFill(0xffffff, 0.96);
+        shell.drawRoundedRect(12, 4, 8, 22, 4);
+        shell.endFill();
+
+        core.beginFill(0xffffff, 0.95);
+        core.drawRoundedRect(14, 2, 4, 9, 2);
+        core.endFill();
+
+        accent.lineStyle(1.4, 0xffffff, 0.44);
+        accent.moveTo(12, 14);
+        accent.lineTo(20, 14);
+      }
+
+      c.addChild(shell, accent, core);
+      return c;
     });
   }
 
@@ -145,13 +272,29 @@ window.Effects = (() => {
     return makeCenteredSprite(getParticleTexture(), x, y, color, alpha, size);
   }
 
-  function makeTrailSprite(x, y, color=0x32f6ff, size=1, alpha=0.2){
-    return makeCenteredSprite(getTrailTexture(), x, y, color, alpha, size);
+  function makeTrailSprite(x, y, color=0x32f6ff, size=1, alpha=0.2, options={}){
+    const kind = options.kind || "default";
+    const texture = kind === "linear" ? getLinearTrailTexture() : getTrailTexture();
+    const spr = makeCenteredSprite(texture, x, y, color, alpha, size);
+    if (kind === "linear") spr.anchor.set(0.14, 0.5);
+    return spr;
   }
 
-  function makeBulletSprite(x, y, ang, color=0x32f6ff){
-    const spr = makeCenteredSprite(getBulletTexture(), x, y, color, 0.95, 1);
+  function makeBulletSprite(x, y, ang, color=0x32f6ff, options={}){
+    const kind = options.kind || "default";
+    const spr = makeCenteredSprite(getBulletTexture(kind), x, y, color, options.alpha || 0.95, options.scale || 1);
     spr.rotation = ang + Math.PI / 2;
+    if (options.useFilterGlow) {
+      spr.filters = asFilters(
+        makeGlowFilter({
+          color,
+          distance: options.glowDistance || (kind === "missileHeavy" ? 18 : 12),
+          outerStrength: options.outerStrength || (kind === "missileHeavy" ? 2.4 : 1.6),
+          innerStrength: options.innerStrength || 0.25,
+          quality: 0.2
+        })
+      );
+    }
     return spr;
   }
 
@@ -161,18 +304,14 @@ window.Effects = (() => {
 
   function emitPulse(x, y, color=0xffffff, radius=120, life=20){
     const S = GameState;
-    const ring = new PIXI.Graphics();
-    ring.lineStyle(3, color, 0.9);
-    ring.drawCircle(0, 0, 1);
-    ring.x = x;
-    ring.y = y;
-    ring.scale.set(1);
+    const ring = makeCenteredSprite(getPulseTexture(), x, y, color, 0.95, 1);
     S.fx.addChild(ring);
     S.particles.push({
       spr: ring,
       x, y,
       vx: 0,
       vy: 0,
+      color,
       life,
       maxLife: life,
       pulseRadius: radius,
@@ -302,6 +441,8 @@ window.Effects = (() => {
   return {
     makeGlowFilter,
     asFilters,
+    getEffectQuality,
+    isHighQuality,
     emitParticle,
     emitPulse,
     emitLineTelegraph,

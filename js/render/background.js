@@ -97,6 +97,41 @@ window.BackgroundRenderer = (() => {
     target.addChild(grid);
   }
 
+  function addOrbitalGuide(target, w, h, options = {}) {
+    const guide = new PIXI.Graphics();
+    const cx = options.x == null ? w * 0.5 : options.x;
+    const cy = options.y == null ? h * 0.5 : options.y;
+    const rings = options.rings || [0.18, 0.32, 0.46];
+    const radiusBase = Math.min(w, h);
+
+    guide.lineStyle(1, options.color || 0x73b6ff, options.alpha == null ? 0.07 : options.alpha);
+    for (const ring of rings) {
+      guide.drawCircle(cx, cy, radiusBase * ring);
+    }
+
+    const spokes = options.spokes || 10;
+    guide.lineStyle(1, options.color || 0x73b6ff, (options.alpha == null ? 0.07 : options.alpha) * 0.55);
+    for (let i = 0; i < spokes; i++) {
+      const angle = (Math.PI * 2 * i) / spokes + (options.rotation || 0);
+      const inner = radiusBase * (options.inner || 0.12);
+      const outer = radiusBase * (options.outer || 0.52);
+      guide.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+      guide.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+    }
+
+    if (options.arcCount) {
+      guide.lineStyle(2, options.accentColor || 0x8e79ff, (options.alpha == null ? 0.07 : options.alpha) * 0.8);
+      for (let i = 0; i < options.arcCount; i++) {
+        const ring = rings[i % rings.length] * radiusBase;
+        const start = (options.rotation || 0) + i * 0.9;
+        guide.arc(cx, cy, ring, start, start + 0.26);
+      }
+    }
+
+    guide.filters = [new PIXI.filters.BlurFilter(options.blur || 0.8)];
+    target.addChild(guide);
+  }
+
   function addVignette(target, w, h, alpha = 0.32) {
     const vign = new PIXI.Graphics();
     vign.beginFill(0x000000, alpha);
@@ -163,15 +198,22 @@ window.BackgroundRenderer = (() => {
           shadow: { color: 0x081026, alpha: 0.55, x: 12, y: 6, rx: 52, ry: 64 }
         },
         {
-          x: w * 0.18,
-          y: h * 0.74,
-          radius: 48,
-          bodyColor: 0x6a2b73,
-          ring: { color: 0xffc86b, alpha: 0.55, width: 4, rx: 76, ry: 22, rotation: -0.35, blur: 1 }
+          x: w * 0.08,
+          y: h * 0.82,
+          radius: 92,
+          bodyColor: 0x3f3529,
+          bodyAlpha: 0.92,
+          glowColor: 0x9b7b58,
+          glowAlpha: 0.08,
+          glowRadius: 128,
+          glowBlur: 26,
+          shadow: { color: 0x09080a, alpha: 0.48, x: 18, y: 8, rx: 66, ry: 86 },
+          ring: { color: 0x8a765f, alpha: 0.34, width: 10, rx: 168, ry: 42, rotation: -0.28, blur: 2.8 }
         }
       ],
       stars: { count: 140, color: 0xffffff, alphaMin: 0.55, alphaMax: 0.9 },
       grid: { color: 0x5aa2ff, alpha: 0.04, step: 72, blur: 1.2 },
+      orbitalGuide: { x: w * 0.62, y: h * 0.42, rings: [0.16, 0.28, 0.41], spokes: 9, inner: 0.1, outer: 0.48, color: 0x72a8ff, alpha: 0.05, arcCount: 6, accentColor: 0x8f74ff, blur: 0.6 },
       vignetteAlpha: 0.32
     };
 
@@ -207,6 +249,7 @@ window.BackgroundRenderer = (() => {
         ],
         stars: { count: 120, color: 0xfff1f6, alphaMin: 0.42, alphaMax: 0.82, mediumBlur: 0.9, largeBlur: 1.4 },
         grid: { color: 0xff648b, alpha: 0.02, step: 88, blur: 1.8 },
+        orbitalGuide: { x: w * 0.58, y: h * 0.44, rings: [0.18, 0.34, 0.49], spokes: 11, inner: 0.14, outer: 0.54, color: 0xff8bb6, alpha: 0.04, arcCount: 7, accentColor: 0xffc970, blur: 0.8, rotation: -0.18 },
         vignetteAlpha: 0.36,
         dustBands: [
           { x: w * 0.42, y: h * 0.52, length: Math.max(w, h) * 0.44, width: 42, color: 0xff9a62, alpha: 0.08, rotation: -0.42, blur: 28 },
@@ -251,6 +294,7 @@ window.BackgroundRenderer = (() => {
         ],
         stars: { count: 90, color: 0xd8ddff, alphaMin: 0.24, alphaMax: 0.72, mediumBlur: 1.1, largeBlur: 1.6 },
         grid: { color: 0x6d78d6, alpha: 0.012, step: 96, blur: 2.2 },
+        orbitalGuide: { x: w * 0.6, y: h * 0.38, rings: [0.2, 0.36, 0.52], spokes: 12, inner: 0.12, outer: 0.58, color: 0x8390ff, alpha: 0.035, arcCount: 8, accentColor: 0xd86bff, blur: 0.9, rotation: 0.22 },
         vignetteAlpha: 0.46,
         dustBands: [
           { x: w * 0.54, y: h * 0.4, length: Math.max(w, h) * 0.28, width: 18, color: 0x6a4dba, alpha: 0.05, rotation: -0.66, blur: 20 },
@@ -300,6 +344,7 @@ window.BackgroundRenderer = (() => {
 
     addStarfield(S.bgDecor, w, h, theme.stars);
     addGrid(S.bgDecor, w, h, theme.grid);
+    if (theme.orbitalGuide) addOrbitalGuide(S.bgDecor, w, h, theme.orbitalGuide);
     addVignette(S.bgDecor, w, h, theme.vignetteAlpha);
 
     // Freeze the background into a bitmap so gameplay updates don't keep

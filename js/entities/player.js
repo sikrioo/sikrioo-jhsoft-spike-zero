@@ -15,11 +15,14 @@ window.PlayerFactory = (() => {
 
   function makeCore(cy = 2, color = 0xff3edb) {
     const core = new PIXI.Graphics();
+    core.beginFill(color, 0.18);
+    core.drawCircle(0, cy, 6.5);
+    core.endFill();
     core.beginFill(color, 1);
     core.drawCircle(0, cy, 3);
     core.endFill();
     core.filters = Effects.asFilters(
-      Effects.makeGlowFilter({ color, distance: 20, outerStrength: 3.0, innerStrength: 0.7, quality: 0.3 })
+      Effects.makeGlowFilter({ color, distance: 12, outerStrength: 1.7, innerStrength: 0.35, quality: 0.18 })
     );
     return core;
   }
@@ -29,15 +32,46 @@ window.PlayerFactory = (() => {
     ring.lineStyle(1, color, 0.45);
     ring.drawCircle(0, cy, 8);
     ring.filters = Effects.asFilters(
-      Effects.makeGlowFilter({ color, distance: 9, outerStrength: 1.1, innerStrength: 0.1, quality: 0.2 })
+      Effects.makeGlowFilter({ color, distance: 6, outerStrength: 0.7, innerStrength: 0.08, quality: 0.16 })
     );
     return ring;
   }
 
   function makeContainerGlow(c, color, distance = 20, outer = 2.6) {
     c.filters = Effects.asFilters(
-      Effects.makeGlowFilter({ color, distance, outerStrength: outer, innerStrength: 0.45, quality: 0.28 })
+      Effects.makeGlowFilter({ color, distance: Math.max(10, distance * 0.65), outerStrength: outer * 0.5, innerStrength: 0.2, quality: 0.16 })
     );
+  }
+
+  function makeShipHalo(color, radiusX = 18, radiusY = 26, alpha = 0.1) {
+    const halo = new PIXI.Graphics();
+    halo.beginFill(color, alpha);
+    halo.drawEllipse(0, 4, radiusX, radiusY);
+    halo.endFill();
+    halo.filters = Effects.asFilters(
+      Effects.makeGlowFilter({ color, distance: 16, outerStrength: 1.1, innerStrength: 0.12, quality: 0.16 })
+    );
+    return halo;
+  }
+
+  function makeEngineFlare(y, width, height, color, alpha = 0.86) {
+    const flare = new PIXI.Graphics();
+    flare.beginFill(color, alpha);
+    flare.drawPolygon([ 0, y, -width, y + height, 0, y + height * 0.4, width, y + height ]);
+    flare.endFill();
+    flare.filters = Effects.asFilters(
+      Effects.makeGlowFilter({ color, distance: 12, outerStrength: 1.4, innerStrength: 0.14, quality: 0.16 })
+    );
+    return flare;
+  }
+
+  function makeTargetRing(radius, color, alpha = 0.32) {
+    const ring = new PIXI.Graphics();
+    ring.lineStyle(1, color, alpha);
+    ring.drawCircle(0, 0, radius);
+    ring.lineStyle(1, color, alpha * 0.4);
+    ring.drawCircle(0, 0, radius + 7);
+    return ring;
   }
 
   // ══════════════════════════════════════════════════════════
@@ -46,6 +80,8 @@ window.PlayerFactory = (() => {
   // ══════════════════════════════════════════════════════════
   function buildStandard(c) {
     const C = 0x32f6ff;
+    const halo = makeShipHalo(0x144976, 20, 28, 0.08);
+    const targetRing = makeTargetRing(22, 0x274d7f, 0.28);
 
     // 좌우 대칭 날개 (동일 좌표, x 부호만 반전)
     const wings = new PIXI.Graphics();
@@ -106,14 +142,15 @@ window.PlayerFactory = (() => {
     nozzleCore.drawEllipse(0, 17, 2, 1.2);
     nozzleCore.endFill();
     nozzleCore.filters = Effects.asFilters(
-      Effects.makeGlowFilter({ color: 0xff3edb, distance: 9, outerStrength: 1.8, innerStrength: 0.3, quality: 0.2 })
+      Effects.makeGlowFilter({ color: 0xff3edb, distance: 6, outerStrength: 1.0, innerStrength: 0.16, quality: 0.16 })
     );
+    const engineFlare = makeEngineFlare(16, 4.8, 13, 0xff7a47, 0.82);
 
     const shield     = makeShield();
     const accentRing = makeAccentRing(0, 0x38bdf8);
     const core       = makeCore(0, C);
 
-    c.addChild(shield, wings, tail, body, nozzle, nozzleCore, accentRing, core);
+    c.addChild(targetRing, halo, shield, engineFlare, wings, tail, body, nozzle, nozzleCore, accentRing, core);
     makeContainerGlow(c, C, 20, 2.6);
 
     return { shield, collisionR: 14 };
@@ -126,6 +163,8 @@ window.PlayerFactory = (() => {
   function buildPower(c) {
     const C  = 0xff6a1a;
     const C2 = 0xffaa60;
+    const halo = makeShipHalo(0x5c1f06, 22, 30, 0.09);
+    const targetRing = makeTargetRing(24, 0x7d3b10, 0.26);
 
     // 좌우 날개 — 넓고 두꺼운 델타
     const wings = new PIXI.Graphics();
@@ -180,7 +219,7 @@ window.PlayerFactory = (() => {
       flame.drawEllipse(ex, ey, 3, 1.6);
       flame.endFill();
       flame.filters = Effects.asFilters(
-        Effects.makeGlowFilter({ color: col, distance: 10, outerStrength: 2.0, innerStrength: 0.4, quality: 0.2 })
+        Effects.makeGlowFilter({ color: col, distance: 7, outerStrength: 1.0, innerStrength: 0.2, quality: 0.16 })
       );
       return [pod, flame];
     }
@@ -188,12 +227,13 @@ window.PlayerFactory = (() => {
     const [podL, flameL] = makeEngPod(-12, 19, 0xff5500);
     const [podR, flameR] = makeEngPod( 12, 19, 0xff5500);
     const [podC, flameC] = makeEngPod(  0, 19, 0xff7700);
+    const engineFlare = makeEngineFlare(17, 7, 15, 0xff7a1a, 0.8);
 
     const shield     = makeShield();
     const accentRing = makeAccentRing(2, 0xff8c40);
     const core       = makeCore(2, C);
 
-    c.addChild(shield, wings, body, podL, flameL, podR, flameR, podC, flameC, accentRing, core);
+    c.addChild(targetRing, halo, shield, engineFlare, wings, body, podL, flameL, podR, flameR, podC, flameC, accentRing, core);
     makeContainerGlow(c, C, 22, 2.8);
 
     return { shield, collisionR: 16 };
@@ -206,6 +246,8 @@ window.PlayerFactory = (() => {
   function buildAgility(c) {
     const C  = 0xc084fc;
     const C2 = 0xe879f9;
+    const halo = makeShipHalo(0x35125a, 17, 28, 0.1);
+    const targetRing = makeTargetRing(20, 0x5b31a2, 0.3);
 
     // 유선형 날개 — 짧고 앞뒤로 둥글게 퍼짐 (돌고래 가슴지느러미 느낌)
     const wings = new PIXI.Graphics();
@@ -286,14 +328,15 @@ window.PlayerFactory = (() => {
     nozzleCore.drawEllipse(0, 17, 1.6, 1);
     nozzleCore.endFill();
     nozzleCore.filters = Effects.asFilters(
-      Effects.makeGlowFilter({ color: C2, distance: 10, outerStrength: 2.2, innerStrength: 0.5, quality: 0.2 })
+      Effects.makeGlowFilter({ color: C2, distance: 7, outerStrength: 1.1, innerStrength: 0.2, quality: 0.16 })
     );
+    const engineFlare = makeEngineFlare(15.5, 3.8, 12, 0xf18fff, 0.84);
 
     const shield     = makeShield();
     const accentRing = makeAccentRing(-2, C);
     const core       = makeCore(-2, C2);
 
-    c.addChild(shield, wings, fin, body, nozzle, nozzleCore, accentRing, core);
+    c.addChild(targetRing, halo, shield, engineFlare, wings, fin, body, nozzle, nozzleCore, accentRing, core);
     makeContainerGlow(c, C, 18, 2.4);
 
     return { shield, collisionR: 12 };

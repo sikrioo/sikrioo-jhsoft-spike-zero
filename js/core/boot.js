@@ -121,6 +121,10 @@ window.Boot = (() => {
     return ["standard", "power", "agility"].includes(value) ? value : "standard";
   }
 
+  function normalizeEffectQuality(value) {
+    return value === "high" ? "high" : "standard";
+  }
+
   function readStoredPlayerType() {
     try {
       return normalizePlayerType(localStorage.getItem("spike-zero-player-type") || S.playerType || "standard");
@@ -137,6 +141,22 @@ window.Boot = (() => {
     return S.playerType;
   }
 
+  function readStoredEffectQuality() {
+    try {
+      return normalizeEffectQuality(localStorage.getItem("spike-zero-effect-quality") || S.effectQuality || "standard");
+    } catch (_) {
+      return normalizeEffectQuality(S.effectQuality || "standard");
+    }
+  }
+
+  function setEffectQuality(value) {
+    S.effectQuality = normalizeEffectQuality(value);
+    try {
+      localStorage.setItem("spike-zero-effect-quality", S.effectQuality);
+    } catch (_) {}
+    return S.effectQuality;
+  }
+
   function applyPlayerTypeStats(playerType) {
     if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
       PlayerFactory.applyShipStats(S.stats, normalizePlayerType(playerType));
@@ -149,7 +169,8 @@ window.Boot = (() => {
     return {
       autostartPlay: params.get("autostart") === "play",
       difficulty: normalizeDifficulty(params.get("difficulty") || S.difficulty || "normal"),
-      playerType
+      playerType,
+      effectQuality: normalizeEffectQuality(params.get("effects") || params.get("quality") || readStoredEffectQuality())
     };
   }
 
@@ -483,32 +504,59 @@ window.Boot = (() => {
         p.spr.x = p.x;
         p.spr.y = p.y;
         const progress = 1 - (p.life / (p.maxLife || 1));
-        const scale = 1 + progress * p.pulseRadius;
+        const pulseBaseRadius = 20;
+        const targetRadius = Math.max(1, 1 + progress * p.pulseRadius);
+        const scale = targetRadius / pulseBaseRadius;
+        if (typeof p.spr.clear === "function") {
+          p.spr.clear();
+          p.spr.lineStyle(8, p.color || 0xffffff, (1 - progress) * 0.05);
+          p.spr.drawCircle(0, 0, 1);
+          p.spr.lineStyle(3, p.color || 0xffffff, (1 - progress) * 0.32);
+          p.spr.drawCircle(0, 0, 1);
+        }
         p.spr.scale.set(scale);
         p.spr.alpha = Math.max(0, 1 - progress);
       } else if (p.telegraphLine){
         const progress = 1 - (p.life / (p.maxLife || 1));
-        const alpha = Math.max(0, 0.8 - progress * 0.7);
+        const alpha = Math.max(0, 0.84 - progress * 0.72);
+        const dx = p.telegraphLine.x2 - p.telegraphLine.x1;
+        const dy = p.telegraphLine.y2 - p.telegraphLine.y1;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const flicker = Math.sin(performance.now() * 0.024) * 0.5 + 0.5;
         p.spr.x = p.telegraphLine.x1;
         p.spr.y = p.telegraphLine.y1;
         p.spr.clear();
-        p.spr.lineStyle(p.telegraphLine.width + 6, p.telegraphLine.color, alpha * 0.12);
+        p.spr.lineStyle(p.telegraphLine.width + 10, p.telegraphLine.color, alpha * 0.06);
         p.spr.moveTo(0, 0);
-        p.spr.lineTo(p.telegraphLine.x2 - p.telegraphLine.x1, p.telegraphLine.y2 - p.telegraphLine.y1);
-        p.spr.lineStyle(p.telegraphLine.width, p.telegraphLine.color, alpha);
+        p.spr.lineTo(dx, dy);
+        p.spr.lineStyle(p.telegraphLine.width + 3, p.telegraphLine.color, alpha * 0.18);
+        p.spr.moveTo(nx * 2, ny * 2);
+        p.spr.lineTo(dx + nx * 2, dy + ny * 2);
+        p.spr.moveTo(-nx * 2, -ny * 2);
+        p.spr.lineTo(dx - nx * 2, dy - ny * 2);
+        p.spr.lineStyle(p.telegraphLine.width, p.telegraphLine.color, alpha * (0.72 + flicker * 0.18));
         p.spr.moveTo(0, 0);
-        p.spr.lineTo(p.telegraphLine.x2 - p.telegraphLine.x1, p.telegraphLine.y2 - p.telegraphLine.y1);
+        p.spr.lineTo(dx, dy);
+        p.spr.lineStyle(Math.max(1.25, p.telegraphLine.width * 0.22), 0xffffff, alpha * 0.92);
+        p.spr.moveTo(0, 0);
+        p.spr.lineTo(dx, dy);
       } else if (p.telegraphRing){
         const progress = 1 - (p.life / (p.maxLife || 1));
-        const alpha = Math.max(0, 0.75 - progress * 0.6);
-        const scale = 0.85 + progress * 0.2;
+        const alpha = Math.max(0, 0.78 - progress * 0.62);
+        const scale = 0.9 + progress * 0.16;
         p.spr.x = p.telegraphRing.x;
         p.spr.y = p.telegraphRing.y;
         p.spr.clear();
-        p.spr.lineStyle(3, p.telegraphRing.color, alpha);
+        p.spr.lineStyle(8, p.telegraphRing.color, alpha * 0.06);
+        p.spr.drawCircle(0, 0, p.telegraphRing.radius * scale);
+        p.spr.lineStyle(3, p.telegraphRing.color, alpha * 0.68);
         p.spr.beginFill(p.telegraphRing.color, alpha * 0.08);
         p.spr.drawCircle(0, 0, p.telegraphRing.radius * scale);
         p.spr.endFill();
+        p.spr.lineStyle(1.5, 0xffffff, alpha * 0.75);
+        p.spr.drawCircle(0, 0, p.telegraphRing.radius * scale * 0.96);
       } else if (p.slashArc){
         const progress = 1 - (p.life / (p.maxLife || 1));
         const alpha = Math.max(0, 0.8 - progress * 0.7);
@@ -516,9 +564,11 @@ window.Boot = (() => {
         p.spr.x = p.slashArc.x;
         p.spr.y = p.slashArc.y;
         p.spr.clear();
-        p.spr.lineStyle(p.slashArc.width + 6, p.slashArc.color, alpha * 0.14);
+        p.spr.lineStyle(p.slashArc.width + 8, p.slashArc.color, alpha * 0.08);
         p.spr.arc(0, 0, radius, p.slashArc.startAngle, p.slashArc.endAngle);
-        p.spr.lineStyle(p.slashArc.width, p.slashArc.color, alpha);
+        p.spr.lineStyle(p.slashArc.width + 1, p.slashArc.color, alpha * 0.82);
+        p.spr.arc(0, 0, radius, p.slashArc.startAngle, p.slashArc.endAngle);
+        p.spr.lineStyle(Math.max(1.2, p.slashArc.width * 0.24), 0xffffff, alpha * 0.92);
         p.spr.arc(0, 0, radius, p.slashArc.startAngle, p.slashArc.endAngle);
       } else if (p.electricArc){
         const progress = 1 - (p.life / (p.maxLife || 1));
@@ -758,6 +808,10 @@ window.Boot = (() => {
       onPlayerTypeChange: (playerType) => {
         setPlayerType(playerType);
       },
+      onEffectQualityChange: (effectQuality) => {
+        setEffectQuality(effectQuality);
+        UI.hudUpdate();
+      },
       onPauseToggle: (open) => {
         setPauseState(open);
       },
@@ -785,11 +839,15 @@ window.Boot = (() => {
     const launchOptions = getLaunchOptions();
     S.difficulty = launchOptions.difficulty;
     setPlayerType(launchOptions.playerType);
+    setEffectQuality(launchOptions.effectQuality);
     for (const radio of document.querySelectorAll("input[name='difficulty']")) {
       radio.checked = radio.value === S.difficulty;
     }
     for (const radio of document.querySelectorAll("input[name='playerType']")) {
       radio.checked = radio.value === S.playerType;
+    }
+    for (const radio of document.querySelectorAll("input[name='effectQuality']")) {
+      radio.checked = radio.value === S.effectQuality;
     }
     UI.populateBossOptions();
     ActiveSkillSystem.assignStartingLoadout(false);

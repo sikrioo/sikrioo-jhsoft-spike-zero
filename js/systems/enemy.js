@@ -1438,11 +1438,22 @@ window.EnemySystem = (() => {
       b.life -= dt;
       b.spr.x = b.x;
       b.spr.y = b.y;
+      if (b.vx || b.vy) b.spr.rotation = Math.atan2(b.vy, b.vx) + Math.PI / 2;
 
-      if ((performance.now() | 0) % 3 === 0){
-        const t = Effects.makeTrailSprite(b.x - b.vx * 0.18, b.y - b.vy * 0.18, b.color, 0.14, 0.14);
+      const highQuality = window.Effects && Effects.isHighQuality && Effects.isHighQuality();
+      if ((performance.now() | 0) % (highQuality ? 4 : 6) === 0){
+        const isLinear = b.trailKind === "linear";
+        const t = Effects.makeTrailSprite(
+          b.x - b.vx * 0.18,
+          b.y - b.vy * 0.18,
+          b.color,
+          isLinear ? 0.22 : 0.12,
+          isLinear ? 0.14 : 0.12,
+          { kind: isLinear ? "linear" : "default" }
+        );
         S.fx.addChild(t);
-        S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:8 });
+        if (isLinear) t.rotation = Math.atan2(b.vy, b.vx) + Math.PI;
+        S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:6, drag:0.9 });
       }
 
       const out = b.life <= 0

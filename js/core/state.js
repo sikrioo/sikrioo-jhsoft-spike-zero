@@ -30,6 +30,7 @@ window.GameState = {
   practiceStageId: 1,
   practiceStageDurationSec: 180,
   difficulty: "normal",
+  effectQuality: "standard",
 
   stats: {
     maxHp: 100,

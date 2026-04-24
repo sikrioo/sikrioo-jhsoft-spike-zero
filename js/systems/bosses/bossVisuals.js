@@ -13,18 +13,23 @@ window.BossVisuals = (() => {
   function buildFrame(config) {
     const root = new PIXI.Container();
     const aura  = new PIXI.Graphics();
+    const halo  = new PIXI.Graphics();
     const shell = new PIXI.Graphics();
     const core  = new PIXI.Graphics();
+    const ring  = new PIXI.Graphics();
+    const spokes = new PIXI.Graphics();
     const showValue = config.showValue !== false;
     const useGlow = config.useGlow !== false;
+    const radius = config.radius;
 
     const value = showValue ? new PIXI.Text("", {
-      fontFamily: "Arial",
+      fontFamily: "Segoe UI, Arial, sans-serif",
       fontSize: Math.max(10, Math.round(config.radius * 0.6)),
       fontWeight: "900",
       fill: 0xffffff,
-      stroke: 0x000000,
-      strokeThickness: 3,
+      stroke: 0x06101e,
+      strokeThickness: 4,
+      letterSpacing: 1,
       align: "center"
     }) : null;
     if (value) {
@@ -33,32 +38,52 @@ window.BossVisuals = (() => {
     }
 
     aura.beginFill(config.glowColor, 0.12);
-    aura.drawCircle(0, 0, config.radius + 20);
+    aura.drawCircle(0, 0, radius + 20);
     aura.endFill();
+
+    halo.lineStyle(1, config.bodyColor, 0.14);
+    halo.drawCircle(0, 0, radius + 16);
+    halo.lineStyle(1, config.bodyColor, 0.08);
+    halo.drawCircle(0, 0, radius + 28);
 
     shell.beginFill(0x0a0f1d, 0.95);
     shell.lineStyle(4, config.bodyColor, 0.95);
-    shell.drawCircle(0, 0, config.radius);
+    shell.drawCircle(0, 0, radius);
     shell.endFill();
 
     core.beginFill(config.glowColor, 0.2);
-    core.drawCircle(0, 0, config.radius - 7);
+    core.drawCircle(0, 0, radius - 7);
     core.endFill();
     core.lineStyle(2, 0xffffff, 0.45);
-    core.moveTo(-config.radius * 0.45, 0);
-    core.lineTo( config.radius * 0.45, 0);
-    core.moveTo(0, -config.radius * 0.45);
-    core.lineTo(0,  config.radius * 0.45);
+    core.moveTo(-radius * 0.45, 0);
+    core.lineTo( radius * 0.45, 0);
+    core.moveTo(0, -radius * 0.45);
+    core.lineTo(0,  radius * 0.45);
 
-    root.addChild(aura, shell, core);
+    ring.lineStyle(2, 0xffffff, 0.26);
+    ring.drawCircle(0, 0, radius - 13);
+    ring.lineStyle(2, config.glowColor, 0.48);
+    ring.drawCircle(0, 0, radius - 3);
+
+    spokes.lineStyle(2, config.bodyColor, 0.22);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      const inner = radius * 0.58;
+      const outer = radius + 10;
+      spokes.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+      spokes.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+    }
+
+    root.addChild(aura, halo, spokes, shell, ring, core);
     if (value) root.addChild(value);
 
     if (useGlow) {
       const glow = Effects.makeGlowFilter({
         color: config.glowColor,
-        distance: 22,
-        outerStrength: 2.1,
-        innerStrength: 0.5
+        distance: 14,
+        outerStrength: 1.1,
+        innerStrength: 0.2,
+        quality: 0.18
       });
       root.filters = Effects.asFilters(glow);
     }

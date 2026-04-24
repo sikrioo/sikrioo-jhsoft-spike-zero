@@ -46,6 +46,7 @@ window.UI = (() => {
   const practiceTypeEls = [...document.querySelectorAll("input[name='practiceType']")];
   const difficultyEls = [...document.querySelectorAll("input[name='difficulty']")];
   const playerTypeEls = [...document.querySelectorAll("input[name='playerType']")];
+  const effectQualityEls = [...document.querySelectorAll("input[name='effectQuality']")];
   const weaponHud = document.getElementById("weaponHud");
   const bossSelect = document.getElementById("bossSelect");
   const spawnBossBtn = document.getElementById("btnSpawnBoss");
@@ -205,6 +206,7 @@ window.UI = (() => {
     $weaponLevel.textContent = `Lv.${Math.max(1, Math.floor(S.stats.weaponLevel || 1))}`;
     for (const radio of weaponRadioEls) radio.checked = radio.value === S.weaponState.current;
     for (const radio of difficultyEls) radio.checked = radio.value === (S.difficulty || "normal");
+    for (const radio of effectQualityEls) radio.checked = radio.value === (S.effectQuality || "standard");
     weaponHud.style.display = S.stats.practice ? "block" : "none";
     const isBossTest = S.stats.practice && S.stats.practiceMode === "boss";
     const isStageTest = S.stats.practice && S.stats.practiceMode === "stage";
@@ -362,7 +364,7 @@ window.UI = (() => {
     }
     bossHud.classList.add("visible");
     bossHudName.textContent = boss.displayName || boss.name || boss.bossId || "Boss";
-    bossHudMeta.textContent = `${phaseLabel} | HP ${Math.ceil(Math.max(0, boss.hp))} / ${Math.ceil(boss.maxHp)}${extra}`;
+    bossHudMeta.textContent = `${phaseLabel} | CORE ${Math.ceil(Math.max(0, boss.hp))} / ${Math.ceil(boss.maxHp)}${extra}`;
     bossHudFill.style.width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
   }
 
@@ -395,6 +397,79 @@ window.UI = (() => {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+
+    const formatPercentDelta = (value, inverse=false) => {
+      if (typeof value !== "number") return null;
+      const delta = inverse ? (1 - value) : (value - 1);
+      const sign = delta >= 0 ? "+" : "";
+      return `${sign}${Math.round(delta * 100)}%`;
+    };
+
+    const formatFrames = (frames) => {
+      if (typeof frames !== "number") return null;
+      return `${frames}f (${(frames / 60).toFixed(1)}s)`;
+    };
+
+    const getActiveSkillMeta = (skillId) => {
+      const skill = window.ActiveSkillSystem && ActiveSkillSystem.getDefinition
+        ? ActiveSkillSystem.getDefinition(skillId)
+        : null;
+      if (!skill) return [];
+      const data = skill.effectData || {};
+      const meta = [];
+      if (skill.mpCost != null) meta.push(`${skill.mpCost} MP`);
+      if (skill.cooldown != null) meta.push(`CD ${formatFrames(skill.cooldown)}`);
+      if (skill.duration && skill.duration > 1) meta.push(`Duration ${formatFrames(skill.duration)}`);
+      if (data.radius != null) meta.push(`Radius ${data.radius}`);
+      if (data.range != null) meta.push(`Range ${data.range}`);
+      if (data.damage != null) meta.push(`Damage ${data.damage}`);
+      if (data.bossDamage != null) meta.push(`Boss ${data.bossDamage}`);
+      if (data.damageMultiplier != null) meta.push(`Damage x${data.damageMultiplier}`);
+      if (data.count != null) meta.push(`${data.count} shots`);
+      if (data.blastRadius != null) meta.push(`Blast ${data.blastRadius}`);
+      if (data.bulletClearRadius != null) meta.push(`Clear ${data.bulletClearRadius}`);
+      if (data.knockback != null) meta.push(`Knockback ${data.knockback}`);
+      if (data.hp != null) meta.push(`HP ${data.hp}`);
+      if (data.speedMultiplier != null) meta.push(`Speed ${formatPercentDelta(data.speedMultiplier)}`);
+      if (data.fireRateMultiplier != null) meta.push(`Fire rate ${formatPercentDelta(data.fireRateMultiplier, true)}`);
+      if (data.bulletSpeedMultiplier != null) meta.push(`Bullet speed ${formatPercentDelta(data.bulletSpeedMultiplier)}`);
+      if (data.alpha != null) meta.push(`Opacity ${Math.round(data.alpha * 100)}%`);
+      return meta.filter(Boolean);
+    };
+
+    const getUpgradeMeta = (upgrade, level) => {
+      const meta = [];
+      const nextLevel = Math.max(1, (level || 0) + 1);
+      const table = window.UPGRADE_BALANCE && UPGRADE_BALANCE[upgrade.id];
+      const step = Array.isArray(table)
+        ? table[Math.max(0, Math.min(table.length - 1, nextLevel - 1))]
+        : null;
+
+      if (upgrade.id.startsWith("active_")) {
+        const skillId = upgrade.id.replace(/^active_/, "").replace(/_unlock$/, "");
+        return getActiveSkillMeta(skillId);
+      }
+      if (upgrade.id === "firerate" && typeof step === "number") meta.push(`Next fire interval ${formatPercentDelta(step, true)}`);
+      else if (upgrade.id === "speed" && typeof step === "number") meta.push(`Next speed ${formatPercentDelta(step)}`);
+      else if (upgrade.id === "dash" && typeof step === "number") meta.push(`Next dash CD ${formatPercentDelta(step, true)}`);
+      else if (upgrade.id === "bulletspeed" && typeof step === "number") meta.push(`Next bullet speed ${formatPercentDelta(step)}`);
+      else if (upgrade.id === "range_extender" && typeof step === "number") meta.push(`Range ${Math.round(step * 100)}%`);
+      else if (upgrade.id === "defense" && typeof step === "number") meta.push(`Next DEF +${step}`);
+      else if (upgrade.id === "pierce" && typeof step === "number") meta.push(`Next pierce +${step}`);
+      else if (upgrade.id === "hp" && typeof step === "number") meta.push(`Next max HP +${step}`);
+      else if (upgrade.id === "regen" && typeof step === "number") meta.push(`Next regen +${step}/s`);
+      else if (upgrade.id === "shield" && step) meta.push(`Shield +${step.shieldMax}`, `Regen +${step.shieldRegen}/s`);
+      else if (upgrade.id === "proximity_mine" && step) meta.push(`Damage ${step.damage}`, `Radius ${step.radius}`, `Max ${step.maxCount}`, `CD ${formatFrames(step.cooldown)}`);
+      else if (upgrade.id === "homingmissile" && step) {
+        if (step.damage != null) meta.push(`Damage ${step.damage}`);
+        if (step.damageDelta != null && step.damageDelta > 0) meta.push(`Damage +${step.damageDelta}`);
+        if (step.cooldownMul != null) meta.push(`CD ${formatPercentDelta(step.cooldownMul, true)}`);
+        if (step.cooldownMin != null) meta.push(`Min CD ${formatFrames(step.cooldownMin)}`);
+      } else if (upgrade.id === "weapon_level") meta.push("Unlocks stronger weapon profiles up to Lv.7");
+      else if (upgrade.id === "hardpoint_guns") meta.push("Lv1 left | Lv2 left/right | Lv3 rear");
+
+      return meta.filter(Boolean);
+    };
 
     const statItems = [
       { label: "HP", value: `${Math.floor(S.stats.hp)} / ${Math.floor(S.stats.maxHp)}` },
@@ -454,8 +529,9 @@ window.UI = (() => {
         if (!entry || !entry.upgrade) return;
         const upgrade = entry.upgrade;
         const desc = upgrade.desc || "No detailed description.";
+        const meta = getUpgradeMeta(upgrade, entry.level);
         row.classList.add("pauseSkillRow");
-        row.title = desc;
+        row.title = meta.length ? `${desc}\n${meta.join(" | ")}` : desc;
 
         const detail = document.createElement("div");
         detail.className = "pauseSkillDetail";
@@ -463,6 +539,13 @@ window.UI = (() => {
         const text = document.createElement("p");
         text.textContent = desc;
         detail.appendChild(text);
+
+        if (meta.length) {
+          const stats = document.createElement("div");
+          stats.className = "pauseSkillStats";
+          stats.textContent = meta.join(" | ");
+          detail.appendChild(stats);
+        }
 
         if (Array.isArray(upgrade.tags) && upgrade.tags.length) {
           const tags = document.createElement("div");
@@ -781,6 +864,9 @@ window.UI = (() => {
     card.className = `dialogueCard ${isController ? "controller" : "player"} typing`;
 
     if (isController) {
+      const avatarFrame = document.createElement("div");
+      avatarFrame.className = "dialogueAvatarFrame";
+
       const avatar = document.createElement("img");
       avatar.className = "dialogueAvatar";
       avatar.src = speaker.avatarSrc || "./assets/images/characters/avatar-controller.jpg";
@@ -790,7 +876,8 @@ window.UI = (() => {
         }
       };
       avatar.alt = speaker.name;
-      card.appendChild(avatar);
+      avatarFrame.appendChild(avatar);
+      card.appendChild(avatarFrame);
     } else {
       const stub = document.createElement("div");
       stub.className = "dialogueStub";
@@ -801,14 +888,27 @@ window.UI = (() => {
     const bubble = document.createElement("div");
     bubble.className = "dialogueBubble";
 
+    const chrome = document.createElement("div");
+    chrome.className = "dialogueChrome";
+
+    const top = document.createElement("div");
+    top.className = "dialogueTop";
+
     const name = document.createElement("div");
     name.className = "dialogueName";
     name.textContent = speaker.name;
 
+    const channel = document.createElement("div");
+    channel.className = "dialogueChannel";
+    channel.textContent = isController ? "COMMUNICATION LINK" : "PILOT FEED";
+
     const text = document.createElement("div");
     text.className = "dialogueText";
 
-    bubble.appendChild(name);
+    top.appendChild(name);
+    top.appendChild(channel);
+    bubble.appendChild(chrome);
+    bubble.appendChild(top);
     bubble.appendChild(text);
     card.appendChild(bubble);
     dialogueLog.appendChild(card);
@@ -861,7 +961,7 @@ window.UI = (() => {
     }
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
@@ -889,6 +989,11 @@ window.UI = (() => {
     for (const radio of playerTypeEls){
       radio.onchange = () => {
         if (radio.checked && onPlayerTypeChange) onPlayerTypeChange(radio.value);
+      };
+    }
+    for (const radio of effectQualityEls){
+      radio.onchange = () => {
+        if (radio.checked && onEffectQualityChange) onEffectQualityChange(radio.value);
       };
     }
     if (closeSkillMapBtn) closeSkillMapBtn.onclick = closeSkillMapPanel;

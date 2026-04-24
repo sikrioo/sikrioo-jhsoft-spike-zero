@@ -26,7 +26,8 @@ window.BossBullets = (() => {
    */
   function make(x, y, angle, options = {}) {
     const opts = { ...DEFAULTS, ...options };
-    const spr  = Effects.makeBulletSprite(x, y, angle, opts.color);
+    const bulletKind = opts.bulletKind || (opts.radius >= 10 ? "missile" : "hardpoint");
+    const spr  = Effects.makeBulletSprite(x, y, angle, opts.color, { kind: bulletKind });
     spr.scale.set(opts.scaleX, opts.scaleY);
     GameState.fx.addChild(spr);
     return {
@@ -38,7 +39,8 @@ window.BossBullets = (() => {
       r:     opts.radius,
       dmg:   opts.damage,
       life:  opts.life,
-      color: opts.color
+      color: opts.color,
+      trailKind: opts.trailKind || "linear"
     };
   }
 

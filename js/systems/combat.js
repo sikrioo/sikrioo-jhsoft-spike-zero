@@ -66,7 +66,9 @@ window.CombatSystem = (() => {
 
   function makeBullet(x, y, ang, damage, speed, pierce, options={}){
     const S = GameState;
-    const spr = Effects.makeBulletSprite(x, y, ang, options.color || 0x32f6ff);
+    const spr = Effects.makeBulletSprite(x, y, ang, options.color || 0x32f6ff, {
+      kind: options.spriteKind || options.kind || "default"
+    });
     if (options.scaleX || options.scaleY) spr.scale.set(options.scaleX || 1, options.scaleY || 1);
     S.fx.addChild(spr);
 
@@ -82,7 +84,8 @@ window.CombatSystem = (() => {
       pierce,
       color: options.color || 0x32f6ff,
       life:options.life || 120,
-      trailAlpha: options.trailAlpha || 0.18
+      trailAlpha: options.trailAlpha || 0.18,
+      trailKind: options.trailKind || "default"
     };
   }
 
@@ -110,34 +113,41 @@ window.CombatSystem = (() => {
     const endX = cos * beam.length;
     const endY = sin * beam.length;
 
-    g.lineStyle(beam.width + 10, beam.color, 0.10 * alpha);
+    g.lineStyle(beam.width + 14, beam.color, 0.06 * alpha);
     g.moveTo(0, 0);
     g.lineTo(endX, endY);
 
-    g.lineStyle(beam.width + 5, beam.color, 0.22 * alpha);
+    g.lineStyle(beam.width + 8, beam.color, 0.14 * alpha);
     g.moveTo(nx * arcJitter, ny * arcJitter);
     g.quadraticCurveTo(endX * 0.38 + nx * arcJitter * 1.8, endY * 0.38 + ny * arcJitter * 1.8, endX - nx * arcJitter * 0.7, endY - ny * arcJitter * 0.7);
     g.moveTo(-nx * arcJitter, -ny * arcJitter);
     g.quadraticCurveTo(endX * 0.42 - nx * arcJitter * 1.9, endY * 0.42 - ny * arcJitter * 1.9, endX + nx * arcJitter * 0.7, endY + ny * arcJitter * 0.7);
 
-    g.lineStyle(beam.width + 2, beam.color, 0.34 * alpha);
+    g.lineStyle(beam.width + 3, beam.color, 0.26 * alpha);
     g.moveTo(nx * (arcJitter * 0.45), ny * (arcJitter * 0.45));
     g.lineTo(endX + nx * (arcJitter * 0.3), endY + ny * (arcJitter * 0.3));
     g.moveTo(-nx * (arcJitter * 0.45), -ny * (arcJitter * 0.45));
     g.lineTo(endX - nx * (arcJitter * 0.3), endY - ny * (arcJitter * 0.3));
 
-    g.lineStyle(beam.width, beam.color, 0.95 * alpha);
+    g.lineStyle(beam.width + 1, beam.color, 0.78 * alpha);
     g.moveTo(0, 0);
     g.lineTo(endX, endY);
 
-    g.lineStyle(Math.max(2, beam.width * 0.42), 0xffffff, 0.9 * alpha);
+    g.lineStyle(Math.max(2, beam.width * 0.36), 0xffffff, 0.96 * alpha);
     g.moveTo(0, 0);
     g.lineTo(endX, endY);
+
+    g.beginFill(beam.color, 0.18 * alpha);
+    g.drawCircle(0, 0, beam.width * 1.7);
+    g.endFill();
+    g.beginFill(0xffffff, 0.82 * alpha);
+    g.drawCircle(0, 0, Math.max(2, beam.width * 0.46));
+    g.endFill();
   }
 
   function makeMissile(x, y, target, damageMul=1){
     const S = GameState;
-    const spr = Effects.makeBulletSprite(x, y, -Math.PI / 2, 0xffb347);
+    const spr = Effects.makeBulletSprite(x, y, -Math.PI / 2, 0xffb347, { kind: "missile" });
     spr.scale.set(1.25, 1.4);
     S.fx.addChild(spr);
 
@@ -151,7 +161,8 @@ window.CombatSystem = (() => {
       dmg:S.stats.homingMissileDamage * damageMul,
       color: 0xffb347,
       target,
-      life:180
+      life:180,
+      trailKind:"linear"
     };
   }
 
@@ -159,7 +170,7 @@ window.CombatSystem = (() => {
     const S = GameState;
     const startX = target ? target.x + Helpers.rand(-120, 120) : S.player.spr.x + Helpers.rand(-180, 180);
     const startY = -40 - Helpers.rand(0, 90);
-    const spr = Effects.makeBulletSprite(startX, startY, Math.PI / 2, 0xffd27a);
+    const spr = Effects.makeBulletSprite(startX, startY, Math.PI / 2, 0xffd27a, { kind: "missileHeavy" });
     spr.scale.set(1.55, 2.2);
     S.fx.addChild(spr);
 
@@ -175,7 +186,8 @@ window.CombatSystem = (() => {
       color:0xffd27a,
       target,
       heavy:true,
-      life:150
+      life:150,
+      trailKind:"linear"
     };
   }
 
@@ -183,7 +195,7 @@ window.CombatSystem = (() => {
     const S = GameState;
     const angle = Math.atan2(targetPoint.y - startY, targetPoint.x - startX);
     const sideSign = side === "left" ? -1 : 1;
-    const spr = Effects.makeBulletSprite(startX, startY, angle + Math.PI / 2, sideSign < 0 ? 0xffb347 : 0x7df9ff);
+    const spr = Effects.makeBulletSprite(startX, startY, angle + Math.PI / 2, sideSign < 0 ? 0xffb347 : 0x7df9ff, { kind: "missile" });
     spr.scale.set(1.1, 1.45);
     S.fx.addChild(spr);
 
@@ -211,14 +223,15 @@ window.CombatSystem = (() => {
       wobbleAmp:Helpers.rand(0.10, 0.28),
       blastRadius:(effectData.blastRadius || 76) + Helpers.rand(-10, 8),
       trailEvery:2,
-      launched:false
+      launched:false,
+      trailKind:"linear"
     };
   }
 
   function makeOmniBurstShot(x, y, angle, index, effectData, bonusDamageMul=1){
     const S = GameState;
     const color = index % 2 === 0 ? 0xffd27a : 0xff7a47;
-    const spr = Effects.makeBulletSprite(x, y, angle + Math.PI / 2, color);
+    const spr = Effects.makeBulletSprite(x, y, angle + Math.PI / 2, color, { kind: "missile" });
     spr.scale.set(0.95, 1.25);
     S.fx.addChild(spr);
 
@@ -244,7 +257,8 @@ window.CombatSystem = (() => {
       age:0,
       blastRadius:(effectData.blastRadius || 68) + Helpers.rand(-8, 8),
       spin:Helpers.rand(-0.045, 0.045),
-      launched:false
+      launched:false,
+      trailKind:"linear"
     };
   }
 
@@ -401,10 +415,12 @@ window.CombatSystem = (() => {
           color: 0x7fd9ff,
           radius: 5.5,
           kind: "hardpoint",
+          spriteKind: "hardpoint",
           scaleX: 0.78,
           scaleY: 0.84,
           life: 54,
-          trailAlpha: 0.14
+          trailAlpha: 0.14,
+          trailKind: "linear"
         }
       );
       S.bullets.push(bullet);
@@ -462,9 +478,11 @@ window.CombatSystem = (() => {
           color:0x32f6ff,
           radius:7,
           kind:"machinegun",
+          spriteKind:"default",
           scaleX:1,
           scaleY:1.05,
-          life:(spec.projectileLife || 68) * getRangeMultiplier()
+          life:(spec.projectileLife || 68) * getRangeMultiplier(),
+          trailKind:"linear"
         }
       );
       S.bullets.push(bullet);
@@ -557,6 +575,7 @@ window.CombatSystem = (() => {
           radius:8.5,
           life:(spec.projectileLife || 24) * getRangeMultiplier(),
           kind:"shotgun",
+          spriteKind:"shotgun",
           scaleX:1.25,
           scaleY:1.3,
           trailAlpha:0.26
@@ -741,15 +760,24 @@ window.CombatSystem = (() => {
       }
 
       if ((performance.now() | 0) % 2 === 0){
+        const highQuality = window.Effects && Effects.isHighQuality && Effects.isHighQuality();
+        const spawnEvery = b.kind === "shotgun"
+          ? (highQuality ? 2 : 3)
+          : b.trailKind === "linear"
+            ? (highQuality ? 4 : 6)
+            : (highQuality ? 3 : 5);
+        if ((performance.now() | 0) % spawnEvery !== 0) continue;
         const t = Effects.makeTrailSprite(
           b.x - b.vx * 0.2,
           b.y - b.vy * 0.2,
           b.color || 0x32f6ff,
-          b.kind === "shotgun" ? Helpers.rand(0.16, 0.28) : Helpers.rand(0.12, 0.22),
-          b.trailAlpha || 0.18
+          b.kind === "shotgun" ? Helpers.rand(0.14, 0.22) : b.trailKind === "linear" ? Helpers.rand(0.26, 0.42) : Helpers.rand(0.1, 0.18),
+          Math.min(0.18, b.trailAlpha || 0.18),
+          { kind: b.trailKind === "linear" ? "linear" : "default" }
         );
         S.fx.addChild(t);
-        S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:b.kind === "shotgun" ? 10 : 12 });
+        if (b.trailKind === "linear") t.rotation = Math.atan2(b.vy, b.vx) + Math.PI;
+        S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:b.kind === "shotgun" ? 8 : 10, drag:0.9 });
       }
     }
   }
@@ -862,10 +890,12 @@ window.CombatSystem = (() => {
           continue;
         }
 
-        if ((performance.now() | 0) % (m.trailEvery || 2) === 0){
-          const t = Effects.makeTrailSprite(m.x - m.vx * 0.3, m.y - m.vy * 0.3, m.color || 0xffb347, Helpers.rand(0.16, 0.26), 0.2);
+        const highQuality = window.Effects && Effects.isHighQuality && Effects.isHighQuality();
+        if ((performance.now() | 0) % Math.max(highQuality ? 3 : 5, (m.trailEvery || 2) + (highQuality ? 1 : 3)) === 0){
+          const t = Effects.makeTrailSprite(m.x - m.vx * 0.3, m.y - m.vy * 0.3, m.color || 0xffb347, Helpers.rand(0.3, 0.48), 0.2, { kind: "linear" });
           S.fx.addChild(t);
-          S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:12 });
+          t.rotation = Math.atan2(m.vy, m.vx) + Math.PI;
+          S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:10, drag:0.9 });
         }
         continue;
       }
@@ -900,10 +930,12 @@ window.CombatSystem = (() => {
           continue;
         }
 
-        if ((performance.now() | 0) % 2 === 0){
-          const t = Effects.makeTrailSprite(m.x - m.vx * 0.35, m.y - m.vy * 0.35, m.color || 0xffd27a, Helpers.rand(0.14, 0.24), 0.18);
+        const highQuality = window.Effects && Effects.isHighQuality && Effects.isHighQuality();
+        if ((performance.now() | 0) % (highQuality ? 3 : 5) === 0){
+          const t = Effects.makeTrailSprite(m.x - m.vx * 0.35, m.y - m.vy * 0.35, m.color || 0xffd27a, Helpers.rand(0.28, 0.42), 0.18, { kind: "linear" });
           S.fx.addChild(t);
-          S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:10 });
+          t.rotation = Math.atan2(m.vy, m.vx) + Math.PI;
+          S.particles.push({ spr:t, x:t.x, y:t.y, vx:0, vy:0, life:8, drag:0.9 });
         }
         continue;
       }
@@ -930,6 +962,13 @@ window.CombatSystem = (() => {
       m.life -= dt;
       m.spr.x = m.x;
       m.spr.y = m.y;
+      const highQuality = window.Effects && Effects.isHighQuality && Effects.isHighQuality();
+      if ((performance.now() | 0) % (m.heavy ? (highQuality ? 3 : 5) : (highQuality ? 4 : 6)) === 0){
+        const trail = Effects.makeTrailSprite(m.x - m.vx * 0.28, m.y - m.vy * 0.28, m.color || 0xffb347, m.heavy ? Helpers.rand(0.34, 0.5) : Helpers.rand(0.26, 0.4), m.heavy ? 0.22 : 0.18, { kind: "linear" });
+        S.fx.addChild(trail);
+        trail.rotation = Math.atan2(m.vy, m.vx) + Math.PI;
+        S.particles.push({ spr:trail, x:trail.x, y:trail.y, vx:0, vy:0, life:m.heavy ? 10 : 8, drag:0.9 });
+      }
 
       const target = m.target;
       if (target){
