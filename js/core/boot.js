@@ -115,7 +115,7 @@ window.Boot = (() => {
   }
 
   function normalizeDifficulty(value) {
-    return value === "easy" ? "easy" : "normal";
+    return ["easy", "normal", "hard"].includes(value) ? value : "normal";
   }
 
   function normalizePlayerType(value) {
@@ -777,7 +777,8 @@ window.Boot = (() => {
     P.spawnT += dt;
     const suppressEnemySpawns = window.BossSystem && BossSystem.shouldSuppressEnemySpawns();
     if (!suppressEnemySpawns) {
-      const spawnRate = Math.max(11, 46 - P.wave * 1.15);
+      const difficulty = GAME_BALANCE.DIFFICULTY[S.difficulty || "normal"] || GAME_BALANCE.DIFFICULTY.normal;
+      const spawnRate = Math.max(9, (46 - P.wave * 1.15) * (difficulty.spawnRateMultiplier || 1));
       while (P.spawnT >= spawnRate && P.spawnedCount < P.waveTarget){
         P.spawnT -= spawnRate;
         EnemySystem.spawnEnemy();

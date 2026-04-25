@@ -25,7 +25,8 @@ window.WaveSystem = (() => {
 
   function getWaveCountMultiplier() {
     if (GameState.stats.practice) return 1;
-    return GameState.difficulty === "easy" ? 0.75 : 1;
+    const difficulty = GAME_BALANCE.DIFFICULTY[GameState.difficulty || "normal"] || GAME_BALANCE.DIFFICULTY.normal;
+    return difficulty.waveCountMultiplier || 1;
   }
 
   function resumeCombat() {

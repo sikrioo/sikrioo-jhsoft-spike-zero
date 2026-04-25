@@ -204,70 +204,6 @@ window.Effects = (() => {
     });
   }
 
-  function getEnemyTexture(tierKey, tier){
-    return makeTexture(`enemy.${tierKey}`, ()=>{
-      const c = new PIXI.Container();
-      const aura = new PIXI.Graphics();
-      const ring = new PIXI.Graphics();
-      const inner = new PIXI.Graphics();
-      const r = tier.radius;
-
-      if (tierKey === "lancer" || tierKey === "spin_lancer") {
-        aura.beginFill(tier.fillColor, 0.10);
-        aura.drawPolygon([
-          r + 12, 0,
-          -r - 6, -r * 0.82,
-          -r * 0.55, 0,
-          -r - 6, r * 0.82
-        ]);
-        aura.endFill();
-
-        ring.beginFill(0x0b0b18, 1);
-        ring.lineStyle(2.5, tier.lineColor, 0.96);
-        ring.drawPolygon([
-          r + 5, 0,
-          -r, -r * 0.72,
-          -r * 0.48, 0,
-          -r, r * 0.72
-        ]);
-        ring.endFill();
-
-        inner.beginFill(tier.fillColor, 0.24);
-        inner.drawPolygon([
-          r * 0.45, 0,
-          -r * 0.5, -r * 0.34,
-          -r * 0.26, 0,
-          -r * 0.5, r * 0.34
-        ]);
-        inner.endFill();
-
-        const core = new PIXI.Graphics();
-        core.beginFill(0xffffff, 0.32);
-        core.drawCircle(-r * 0.2, 0, r * 0.16);
-        core.endFill();
-
-        c.addChild(aura, ring, inner, core);
-        return c;
-      }
-
-      aura.beginFill(tier.fillColor, tierKey === "normal" ? 0.06 : 0.10);
-      aura.drawCircle(0, 0, r + (tierKey === "boss" ? 16 : tierKey === "midboss" ? 10 : 6));
-      aura.endFill();
-
-      ring.beginFill(0x0b0b18, 1);
-      ring.lineStyle(tierKey === "boss" ? 4 : tierKey === "midboss" ? 3 : 2, tier.lineColor, 0.95);
-      ring.drawCircle(0, 0, r);
-      ring.endFill();
-
-      inner.beginFill(tier.fillColor, tierKey === "boss" ? 0.30 : tierKey === "midboss" ? 0.24 : tierKey === "elite" ? 0.20 : 0.16);
-      inner.drawCircle(0, 0, r - 5);
-      inner.endFill();
-
-      c.addChild(aura, ring, inner);
-      return c;
-    });
-  }
-
   function makeParticleSprite(x, y, color=0x32f6ff, size=1, alpha=0.85){
     return makeCenteredSprite(getParticleTexture(), x, y, color, alpha, size);
   }
@@ -296,10 +232,6 @@ window.Effects = (() => {
       );
     }
     return spr;
-  }
-
-  function makeEnemySprite(tierKey, tier, x, y){
-    return makeCenteredSprite(getEnemyTexture(tierKey, tier), x, y, 0xffffff, 1, 1);
   }
 
   function emitPulse(x, y, color=0xffffff, radius=120, life=20){
@@ -452,7 +384,6 @@ window.Effects = (() => {
     emitPlayerExplosion,
     makeParticleSprite,
     makeTrailSprite,
-    makeBulletSprite,
-    makeEnemySprite
+    makeBulletSprite
   };
 })();

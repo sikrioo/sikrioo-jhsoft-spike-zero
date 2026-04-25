@@ -156,6 +156,9 @@ window.BossSystem = (() => {
   function createBaseBoss(def, options = {}) {
     const root = new PIXI.Container();
     const view = getCombatView();
+    const difficulty = GAME_BALANCE.DIFFICULTY[GameState.difficulty || "normal"] || GAME_BALANCE.DIFFICULTY.normal;
+    const hpMultiplier = difficulty.enemyHpMultiplier || 1;
+    const damageMultiplier = difficulty.enemyDamageMultiplier || 1;
     root.x = view.centerX;
     root.y = view.top + 120;
     GameState.uiLayer.addChild(root);
@@ -170,15 +173,15 @@ window.BossSystem = (() => {
       x:           root.x,
       y:           root.y,
       r:           def.radius,
-      hp:          def.maxHp,
-      maxHp:       def.maxHp,
+      hp:          Math.ceil(def.maxHp * hpMultiplier),
+      maxHp:       Math.ceil(def.maxHp * hpMultiplier),
       scoreBase:   def.scoreBase,
       xp:          def.xp,
       glowColor:   def.glowColor,
       hitT:        0,
       slowT:       0,
       slowMul:     1,
-      contactDamage:  options.contactDamage  || 12,
+      contactDamage:  Math.ceil((options.contactDamage  || 12) * damageMultiplier),
       collisionPush:  options.collisionPush  || 6.5,
 
       destroyVisuals() {

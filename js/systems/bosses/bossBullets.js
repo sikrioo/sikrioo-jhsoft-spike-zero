@@ -26,6 +26,9 @@ window.BossBullets = (() => {
    */
   function make(x, y, angle, options = {}) {
     const opts = { ...DEFAULTS, ...options };
+    const difficulty = GAME_BALANCE.DIFFICULTY[GameState.difficulty || "normal"] || GAME_BALANCE.DIFFICULTY.normal;
+    const speedMultiplier = difficulty.enemyBulletSpeedMultiplier || 1;
+    const damageMultiplier = difficulty.enemyDamageMultiplier || 1;
     const bulletKind = opts.bulletKind || (opts.radius >= 10 ? "missile" : "hardpoint");
     const spr  = Effects.makeBulletSprite(x, y, angle, opts.color, { kind: bulletKind });
     spr.scale.set(opts.scaleX, opts.scaleY);
@@ -34,10 +37,10 @@ window.BossBullets = (() => {
       spr,
       x,
       y,
-      vx:    Math.cos(angle) * opts.speed,
-      vy:    Math.sin(angle) * opts.speed,
+      vx:    Math.cos(angle) * opts.speed * speedMultiplier,
+      vy:    Math.sin(angle) * opts.speed * speedMultiplier,
       r:     opts.radius,
-      dmg:   opts.damage,
+      dmg:   Math.ceil(opts.damage * damageMultiplier),
       life:  opts.life,
       color: opts.color,
       trailKind: opts.trailKind || "linear"

@@ -339,8 +339,10 @@ window.SkillSystem = (() => {
   function gainXp(amount) {
     const S = GameState;
     const P = S.progression;
+    const difficulty = GAME_BALANCE.DIFFICULTY[S.difficulty || "normal"] || GAME_BALANCE.DIFFICULTY.normal;
+    const gained = Math.max(0, amount * (difficulty.xpMultiplier || 1));
 
-    P.xp += amount;
+    P.xp += gained;
     while (P.xp >= P.xpToNext) {
       P.xp -= P.xpToNext;
       P.level += 1;

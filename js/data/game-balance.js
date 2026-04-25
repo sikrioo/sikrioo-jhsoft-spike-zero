@@ -21,6 +21,39 @@ window.GAME_BALANCE = {
     GROWTH: 1.384
   },
 
+  DIFFICULTY: {
+    easy: {
+      waveCountMultiplier: 0.75,
+      spawnRateMultiplier: 1,
+      enemyHpMultiplier: 1,
+      enemySpeedMultiplier: 1,
+      enemyDamageMultiplier: 1,
+      enemyBulletSpeedMultiplier: 1,
+      xpMultiplier: 1,
+      specialThreatBonus: 0
+    },
+    normal: {
+      waveCountMultiplier: 1,
+      spawnRateMultiplier: 1,
+      enemyHpMultiplier: 1,
+      enemySpeedMultiplier: 1,
+      enemyDamageMultiplier: 1,
+      enemyBulletSpeedMultiplier: 1,
+      xpMultiplier: 1,
+      specialThreatBonus: 0
+    },
+    hard: {
+      waveCountMultiplier: 1.3,
+      spawnRateMultiplier: 0.85,
+      enemyHpMultiplier: 1.15,
+      enemySpeedMultiplier: 1.08,
+      enemyDamageMultiplier: 1.1,
+      enemyBulletSpeedMultiplier: 1.08,
+      xpMultiplier: 1.1,
+      specialThreatBonus: 0.08
+    }
+  },
+
   SHIPS: {
     standard: {
       starterActiveSkills: ["boost"],
