@@ -261,20 +261,26 @@
       margin: 24px auto 28px;
       background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.30), transparent);
     }
-    #menuDifficulty {
+    #menuDifficulty,
+    #menuShip {
       display: grid;
       gap: 8px;
-      margin: 0 auto 24px;
-      width: min(280px, 100%);
+      margin: 0 auto 18px;
+      width: min(330px, 100%);
       text-align: left;
     }
-    #menuDifficultyLabel {
+    #menuDifficulty {
+      margin-bottom: 24px;
+    }
+    #menuDifficultyLabel,
+    #menuShipLabel {
       font-size: 11px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: rgba(255, 255, 255, 0.32);
     }
-    .menuDifficultyOption {
+    .menuDifficultyOption,
+    .menuShipOption {
       display: grid;
       grid-template-columns: auto 1fr auto;
       align-items: center;
@@ -286,19 +292,23 @@
       cursor: pointer;
       transition: border-color 0.18s ease, background 0.18s ease;
     }
-    .menuDifficultyOption:hover {
+    .menuDifficultyOption:hover,
+    .menuShipOption:hover {
       border-color: rgba(255, 255, 255, 0.18);
       background: rgba(255, 255, 255, 0.06);
     }
-    .menuDifficultyOption input {
+    .menuDifficultyOption input,
+    .menuShipOption input {
       margin: 0;
     }
-    .menuDifficultyOption span {
+    .menuDifficultyOption span,
+    .menuShipOption span {
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.04em;
     }
-    .menuDifficultyOption small {
+    .menuDifficultyOption small,
+    .menuShipOption small {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.48);
     }
@@ -482,6 +492,24 @@
         Start immediately and enter the live route.
       </div>
       <div id="menuDivider"></div>
+      <div id="menuShip">
+        <div id="menuShipLabel">Ship Type</div>
+        <label class="menuShipOption">
+          <input type="radio" name="menuPlayerType" value="standard" checked />
+          <span>Standard</span>
+          <small>Balanced frame</small>
+        </label>
+        <label class="menuShipOption">
+          <input type="radio" name="menuPlayerType" value="power" />
+          <span>Power</span>
+          <small>Heavy assault</small>
+        </label>
+        <label class="menuShipOption">
+          <input type="radio" name="menuPlayerType" value="agility" />
+          <span>Agility</span>
+          <small>Fast interceptor</small>
+        </label>
+      </div>
       <div id="menuDifficulty">
         <div id="menuDifficultyLabel">Difficulty</div>
         <label class="menuDifficultyOption">
@@ -542,7 +570,9 @@
       const prefetchCount = document.getElementById("prefetchCount");
       const prefetchAction = document.getElementById("prefetchAction");
       const difficultyEls = [...document.querySelectorAll("input[name='menuDifficulty']")];
+      const playerTypeEls = [...document.querySelectorAll("input[name='menuPlayerType']")];
       const menuDifficultyOptions = [...document.querySelectorAll(".menuDifficultyOption")];
+      const menuShipOptions = [...document.querySelectorAll(".menuShipOption")];
 
       const introAudio = new Audio("./assets/bgm/intro-logo/jeremusic70-space-intro-no-copyright-music-124261.mp3");
       introAudio.loop = false;
@@ -1318,6 +1348,7 @@
 
       async function enterGame() {
         const selectedDifficulty = (difficultyEls.find((el) => el.checked) || { value: "normal" }).value;
+        const selectedPlayerType = (playerTypeEls.find((el) => el.checked) || { value: "standard" }).value;
         playMenuClick();
         try {
           sessionStorage.setItem("spike-zero-audio-activated", audioStarted ? "1" : "0");
@@ -1332,7 +1363,7 @@
           new Promise((resolve) => setTimeout(resolve, 1200))
         ]);
         setTimeout(() => {
-          window.location.href = "./game.html?autostart=play&difficulty=" + encodeURIComponent(selectedDifficulty);
+          window.location.href = "./game.html?autostart=play&difficulty=" + encodeURIComponent(selectedDifficulty) + "&player=" + encodeURIComponent(selectedPlayerType);
         }, 620);
       }
 
@@ -1350,9 +1381,17 @@
       for (const option of menuDifficultyOptions) {
         option.addEventListener("mouseenter", playMenuHover);
       }
+      for (const option of menuShipOptions) {
+        option.addEventListener("mouseenter", playMenuHover);
+      }
       for (const difficultyEl of difficultyEls) {
         difficultyEl.addEventListener("change", () => {
           if (difficultyEl.checked) playMenuClick();
+        });
+      }
+      for (const playerTypeEl of playerTypeEls) {
+        playerTypeEl.addEventListener("change", () => {
+          if (playerTypeEl.checked) playMenuClick();
         });
       }
       window.addEventListener("resize", () => {

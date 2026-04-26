@@ -1237,6 +1237,9 @@ window.EnemySystem = (() => {
       } else {
         e.spr.alpha = 1;
       }
+      if (window.PlanetSystem && e.tier !== "boss") {
+        PlanetSystem.resolveShipCollision(e, e.r);
+      }
       if (e.staggerT > 0 && e.bodySpr && e.bodySpr.tint != null) {
         e.bodySpr.tint = ((performance.now() | 0) % 6 < 3) ? 0xc9fbff : 0xe1c7ff;
       }

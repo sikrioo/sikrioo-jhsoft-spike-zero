@@ -74,6 +74,22 @@ window.PlayerFactory = (() => {
     return ring;
   }
 
+  function makeAfterburnerOverlay() {
+    const g = new PIXI.Graphics();
+    g.beginFill(0xff8a3d, 0.34);
+    g.drawPolygon([ 0, 8, -17, 17, -7, 7, 0, 22, 7, 7, 17, 17 ]);
+    g.endFill();
+    g.lineStyle(1.6, 0x7df9ff, 0.46);
+    g.moveTo(-12, 14);
+    g.lineTo(0, 24);
+    g.lineTo(12, 14);
+    g.filters = Effects.asFilters(
+      Effects.makeGlowFilter({ color: 0xff8a3d, distance: 14, outerStrength: 1.6, innerStrength: 0.12, quality: 0.14 })
+    );
+    g.alpha = 0;
+    return g;
+  }
+
   // ══════════════════════════════════════════════════════════
   // STANDARD — 청록. 대칭 날개 + 테일핀. 균형형
   // 바운딩: x ±18, y -18~20
@@ -358,6 +374,8 @@ window.PlayerFactory = (() => {
 
     const build = builders[shipType] ?? buildStandard;
     const { shield, collisionR } = build(c);
+    const afterburnerSpr = makeAfterburnerOverlay();
+    c.addChildAt(afterburnerSpr, 0);
 
     c.x = S.app.renderer.width  / 2;
     c.y = S.app.renderer.height / 2;
@@ -367,6 +385,7 @@ window.PlayerFactory = (() => {
       type:      "player",
       spr:       c,
       shieldSpr: shield,
+      afterburnerSpr,
       r:         collisionR,
       vx: 0, vy: 0,
       inv:    0,

@@ -51,6 +51,8 @@ window.WaveSystem = (() => {
     P.stage = Math.min(getMaxStage(), Math.max(1, stage));
     warmStageAssets(P.stage);
     if (window.BackgroundRenderer) BackgroundRenderer.drawBackground();
+    if (window.StageAtmosphere) StageAtmosphere.resetForStage(P.stage);
+    if (window.PlanetSystem) PlanetSystem.resetForStage(P.stage);
     P.stageDuration = options.stageDurationFrames || getDefaultStageDurationFrames();
     P.stageTime = P.stageDuration;
     P.stageState = "combat";

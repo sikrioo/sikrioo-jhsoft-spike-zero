@@ -25,6 +25,28 @@
   </div>
 
   <div class="hud">
+    <div class="combatHud">
+      <div class="combatHudRow hp">
+        <span>HP</span>
+        <strong id="hudHpText">100</strong>
+        <div class="combatHudBar"><i id="hudHpFill"></i></div>
+      </div>
+      <div class="combatHudRow mp">
+        <span>MP</span>
+        <strong id="hudMpText">100 / 100</strong>
+        <div class="combatHudBar"><i id="hudMpFill"></i></div>
+      </div>
+      <div class="combatHudRow xp">
+        <span>XP</span>
+        <strong id="hudXpText">0 / 16</strong>
+        <div class="combatHudBar"><i id="hudXpFill"></i></div>
+      </div>
+      <div class="buffHud" id="buffHud" hidden>
+        <span class="buffIcon">AB</span>
+        <b>Afterburner</b>
+        <strong id="afterburnerTime">0.0s</strong>
+      </div>
+    </div>
     <div class="row">
       <div class="pill"><b>Score</b><span id="score">0</span></div>
       <div class="pill"><b>Stage</b><span id="stage">1</span></div>
@@ -54,6 +76,11 @@
     <div class="bossHudBar">
       <div class="bossHudFill" id="bossHudFill"></div>
     </div>
+  </div>
+
+  <div class="missionMetaHud" id="missionMetaHud">
+    <div><span>Time</span><strong id="hudTimeText">03:00</strong></div>
+    <div><span>Score</span><strong id="hudScoreText">0</strong></div>
   </div>
 
   <div class="activeHud" id="activeHud">
@@ -302,11 +329,13 @@
   <script src="./js/systems/resource-loader.js"></script>
   <script src="./js/systems/ui.js"></script>
   <script src="./js/systems/dialogue.js"></script>
+  <script src="./js/systems/stage-atmosphere.js"></script>
   <script src="./js/systems/skill.js"></script>
   <script src="./js/systems/active-skills.js"></script>
   <script src="./js/systems/defense.js"></script>
   <script src="./js/systems/wave.js"></script>
   <script src="./js/systems/enemy-combat.js"></script>
+  <script src="./js/systems/planet.js"></script>
   <script src="./js/systems/enemy.js"></script>
   <script src="./js/systems/bosses/bossVisuals.js"></script>
   <script src="./js/systems/bosses/bossBullets.js"></script>

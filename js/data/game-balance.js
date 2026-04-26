@@ -17,8 +17,8 @@ window.GAME_BALANCE = {
   },
 
   XP: {
-    BASE_TO_NEXT: 16,
-    GROWTH: 1.384
+    BASE_TO_NEXT: 14,
+    GROWTH: 1.36
   },
 
   DIFFICULTY: {

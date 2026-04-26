@@ -66,6 +66,16 @@ window.EnemyVisuals = (() => {
         aura: 0.12, nose: 1.32, tail: 0.8, wing: 0.62, wingBack: 0.72,
         core: 0.16, bodyAlpha: 0.24, hull: 0x1d0b12, trim: 0xffb0b0,
         spike: true
+      },
+      midboss: {
+        aura: 0.16, nose: 0.92, tail: 1.24, wing: 1.18, wingBack: 0.42,
+        core: 0.24, bodyAlpha: 0.32, hull: 0x201018, trim: 0xffd08a,
+        heavy: true, twinMuzzle: true, bellyCore: true
+      },
+      boss: {
+        aura: 0.18, nose: 0.86, tail: 1.28, wing: 1.08, wingBack: 0.48,
+        core: 0.26, bodyAlpha: 0.34, hull: 0x1d0c1c, trim: 0xffb3c8,
+        heavy: true, splitWing: true, twinMuzzle: true, bellyCore: true
       }
     };
     return styles[tierKey] || null;
@@ -232,17 +242,36 @@ window.EnemyVisuals = (() => {
         return c;
       }
 
-      aura.beginFill(tier.fillColor, tierKey === "normal" ? 0.06 : 0.10);
-      aura.drawCircle(0, 0, r + (tierKey === "boss" ? 16 : tierKey === "midboss" ? 10 : 6));
+      aura.beginFill(tier.fillColor, 0.10);
+      aura.drawPolygon([
+        r + 12, 0,
+        r * 0.14, -r * 0.76,
+        -r - 8, -r * 0.58,
+        -r * 0.58, 0,
+        -r - 8, r * 0.58,
+        r * 0.14, r * 0.76
+      ]);
       aura.endFill();
 
       ring.beginFill(0x0b0b18, 1);
-      ring.lineStyle(tierKey === "boss" ? 4 : tierKey === "midboss" ? 3 : 2, tier.lineColor, 0.95);
-      ring.drawCircle(0, 0, r);
+      ring.lineStyle(2.5, tier.lineColor, 0.95);
+      ring.drawPolygon([
+        r + 4, 0,
+        r * 0.12, -r * 0.56,
+        -r * 0.88, -r * 0.46,
+        -r * 0.48, 0,
+        -r * 0.88, r * 0.46,
+        r * 0.12, r * 0.56
+      ]);
       ring.endFill();
 
-      inner.beginFill(tier.fillColor, tierKey === "boss" ? 0.30 : tierKey === "midboss" ? 0.24 : tierKey === "elite" ? 0.20 : 0.16);
-      inner.drawCircle(0, 0, r - 5);
+      inner.beginFill(tier.fillColor, 0.22);
+      inner.drawPolygon([
+        r * 0.45, 0,
+        -r * 0.12, -r * 0.24,
+        -r * 0.32, 0,
+        -r * 0.12, r * 0.24
+      ]);
       inner.endFill();
 
       c.addChild(aura, ring, inner);

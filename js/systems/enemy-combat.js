@@ -66,6 +66,13 @@ window.EnemyCombat = (() => {
       b.spr.y = b.y;
       if (b.vx || b.vy) b.spr.rotation = Math.atan2(b.vy, b.vx) + Math.PI / 2;
 
+      if (window.PlanetSystem && PlanetSystem.blocksProjectile(b)){
+        Effects.emitParticle(b.x, b.y, b.color || 0xffcc59, 4, 0.35);
+        S.fx.removeChild(b.spr);
+        S.enemyBullets.splice(i, 1);
+        continue;
+      }
+
       const highQuality = window.Effects && Effects.isHighQuality && Effects.isHighQuality();
       if ((performance.now() | 0) % (highQuality ? 4 : 6) === 0){
         const isLinear = b.trailKind === "linear";

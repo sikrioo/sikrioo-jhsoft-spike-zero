@@ -18,6 +18,16 @@ window.UI = (() => {
   const $combo = document.getElementById("combo");
   const $weaponName = document.getElementById("weaponName");
   const $weaponLevel = document.getElementById("weaponLevel");
+  const hudHpText = document.getElementById("hudHpText");
+  const hudMpText = document.getElementById("hudMpText");
+  const hudXpText = document.getElementById("hudXpText");
+  const hudHpFill = document.getElementById("hudHpFill");
+  const hudMpFill = document.getElementById("hudMpFill");
+  const hudXpFill = document.getElementById("hudXpFill");
+  const buffHud = document.getElementById("buffHud");
+  const afterburnerTime = document.getElementById("afterburnerTime");
+  const hudTimeText = document.getElementById("hudTimeText");
+  const hudScoreText = document.getElementById("hudScoreText");
 
   const overlayRoot = document.getElementById("overlayRoot");
   const startCard = document.getElementById("startCard");
@@ -205,6 +215,19 @@ window.UI = (() => {
     $combo.textContent = "x" + P.combo.toFixed(1).replace(/\.0$/,"");
     $weaponName.textContent = weaponDef ? weaponDef.name : "-";
     $weaponLevel.textContent = `Lv.${Math.max(1, Math.floor(S.stats.weaponLevel || 1))}`;
+    if (hudHpText) hudHpText.textContent = `${Math.max(0, Math.floor(S.stats.hp))} / ${Math.floor(S.stats.maxHp)}`;
+    if (hudMpText) hudMpText.textContent = `${Math.floor(S.stats.mp)} / ${Math.floor(S.stats.mpMax)}`;
+    if (hudXpText) hudXpText.textContent = `${Math.floor(P.xp)} / ${Math.floor(P.xpToNext)}`;
+    if (hudHpFill) hudHpFill.style.width = `${Helpers.clamp(S.stats.hp / Math.max(1, S.stats.maxHp), 0, 1) * 100}%`;
+    if (hudMpFill) hudMpFill.style.width = `${Helpers.clamp(S.stats.mp / Math.max(1, S.stats.mpMax), 0, 1) * 100}%`;
+    if (hudXpFill) hudXpFill.style.width = `${Helpers.clamp(P.xp / Math.max(1, P.xpToNext), 0, 1) * 100}%`;
+    if (hudTimeText) hudTimeText.textContent = S.stats.practice && S.stats.practiceMode === "boss" ? "TEST" : formatStageTime(P.stageTime);
+    if (hudScoreText) hudScoreText.textContent = String(Math.floor(P.score));
+    if (buffHud && afterburnerTime) {
+      const active = S.activeSkillState.afterburnerT > 0;
+      buffHud.hidden = !active;
+      afterburnerTime.textContent = `${Math.max(0, S.activeSkillState.afterburnerT / 60).toFixed(1)}s`;
+    }
     for (const radio of weaponRadioEls) radio.checked = radio.value === S.weaponState.current;
     for (const radio of difficultyEls) radio.checked = radio.value === (S.difficulty || "normal");
     for (const radio of effectQualityEls) radio.checked = radio.value === (S.effectQuality || "standard");

@@ -269,6 +269,8 @@ window.Boot = (() => {
     for (const d of S.decoys) S.uiLayer.removeChild(d.spr);
     for (const smoke of S.smokeClouds) if (smoke.spr && smoke.spr.parent) smoke.spr.parent.removeChild(smoke.spr);
     for (const hazard of S.hazards) if (hazard.spr && hazard.spr.parent) hazard.spr.parent.removeChild(hazard.spr);
+    if (window.PlanetSystem) PlanetSystem.clear();
+    if (window.StageAtmosphere) StageAtmosphere.clear();
     for (const mine of S.mines) if (mine.spr && mine.spr.parent) mine.spr.parent.removeChild(mine.spr);
     for (const b of S.bullets) S.fx.removeChild(b.spr);
     for (const b of S.enemyBullets) S.fx.removeChild(b.spr);
@@ -283,6 +285,7 @@ window.Boot = (() => {
     S.decoys.length = 0;
     S.smokeClouds.length = 0;
     S.hazards.length = 0;
+    S.planets.length = 0;
     S.mines.length = 0;
     S.bullets.length = 0;
     S.enemyBullets.length = 0;
@@ -498,6 +501,7 @@ window.Boot = (() => {
     updateMouseWorldCoordinates();
     updateCameraTransform();
     BackgroundRenderer.drawBackground();
+    if (window.StageAtmosphere) StageAtmosphere.resize();
   }
 
   function scheduleResizeRefresh() {
@@ -575,7 +579,8 @@ window.Boot = (() => {
     doDash();
 
     const afterburnerSkill = ActiveSkillSystem.getDefinition("afterburner");
-    const afterburnerBoost = S.activeSkillState.afterburnerT > 0 && afterburnerSkill
+    const afterburnerActive = S.activeSkillState.afterburnerT > 0 && afterburnerSkill;
+    const afterburnerBoost = afterburnerActive
       ? afterburnerSkill.effectData.speedMultiplier
       : 1;
     const accel = S.stats.speed * afterburnerBoost * 0.9;
@@ -592,9 +597,39 @@ window.Boot = (() => {
     const arena = Helpers.getArenaBounds();
     p.spr.x = Helpers.clamp(p.spr.x, arena.left + 20, arena.right - 20);
     p.spr.y = Helpers.clamp(p.spr.y, arena.top + 20, arena.bottom - 20);
+    if (window.PlanetSystem) PlanetSystem.resolveShipCollision(p, p.r);
 
     const ang = Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
     p.spr.rotation = ang + Math.PI / 2;
+    p.spr.tint = afterburnerActive ? 0xffc087 : 0xffffff;
+    if (p.afterburnerSpr) {
+      p.afterburnerSpr.alpha = afterburnerActive ? 0.72 + Math.sin(performance.now() / 55) * 0.12 : 0;
+      const flameScale = afterburnerActive ? 1.08 + Math.sin(performance.now() / 70) * 0.08 : 1;
+      p.afterburnerSpr.scale.set(flameScale, afterburnerActive ? 1.22 : 1);
+    }
+    if (afterburnerActive && ((performance.now() | 0) % 2 === 0)) {
+      const rearX = p.spr.x - Math.cos(ang) * 18;
+      const rearY = p.spr.y - Math.sin(ang) * 18;
+      const sideX = -Math.sin(ang);
+      const sideY = Math.cos(ang);
+      for (let i = 0; i < 2; i++) {
+        const side = i === 0 ? -1 : 1;
+        const t = Effects.makeTrailSprite(
+          rearX + sideX * side * 4,
+          rearY + sideY * side * 4,
+          side === -1 ? 0xff8a3d : 0x7df9ff,
+          0.22,
+          0.2,
+          { kind: "linear" }
+        );
+        t.rotation = ang + Math.PI;
+        S.fx.addChild(t);
+        S.particles.push({ spr:t, x:t.x, y:t.y, vx:-Math.cos(ang) * 0.25, vy:-Math.sin(ang) * 0.25, life:8, drag:0.9 });
+      }
+      if ((performance.now() | 0) % 4 === 0) {
+        Effects.emitParticle(rearX, rearY, 0xffa24d, 3, 0.48);
+      }
+    }
     const stealthAlpha = S.activeSkillState.stealthT > 0
       ? S.activeSkillState.stealthAlpha + Math.sin(performance.now() / 90) * 0.06
       : 1;
@@ -807,6 +842,7 @@ window.Boot = (() => {
     }
     updateMouseWorldCoordinates();
     updateCameraTransform(dt);
+    if (window.StageAtmosphere) StageAtmosphere.update(dt);
 
     if (S.progression.waveState === "dying"){
       updateParticles(dt);

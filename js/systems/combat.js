@@ -735,6 +735,12 @@ window.CombatSystem = (() => {
       b.spr.x = b.x;
       b.spr.y = b.y;
 
+      if (window.PlanetSystem && PlanetSystem.blocksProjectile(b)){
+        Effects.emitParticle(b.x, b.y, b.color || 0x9eb8ff, 4, 0.35);
+        destroyProjectile(S.bullets, i);
+        continue;
+      }
+
       if (b.life <= 0 || b.x < view.left - 80 || b.x > view.right + 80 || b.y < view.top - 80 || b.y > view.bottom + 80){
         destroyProjectile(S.bullets, i);
         continue;

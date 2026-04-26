@@ -16,6 +16,7 @@ window.GameState = {
   decoys: [],
   smokeClouds: [],
   hazards: [],
+  planets: [],
   mines: [],
   bullets: [],
   enemyBullets: [],
