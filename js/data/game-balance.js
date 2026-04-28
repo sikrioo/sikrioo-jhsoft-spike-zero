@@ -70,30 +70,9 @@ window.GAME_BALANCE = {
   },
 
   TEST: {
-    STARTING_UPGRADES: [
-      "shield",
-      "homingmissile",
-      "weapon_level",
-      "flak_burst",      
-      "arc_defender",
-      "proximity_mine",
-      "proximity_mine",
-      "proximity_mine"
-    ],
-    STARTING_ACTIVE_SKILL_LEVELS: {
-      boost: 3
-    },
+    STARTING_UPGRADES: [],
+    STARTING_ACTIVE_SKILL_LEVELS: {},
     STARTING_WEAPON: "machinegun",
-    STARTING_ACTIVE_SKILLS: [
-      "decoy_drone",
-      "boost",
-      "afterburner",
-      "nova_pulse",
-      "crossfire_missiles",
-      "omni_burst",
-      "stealth_field"
-      // Smoke Screen is disabled until its visual effect is optimized.
-      // "smoke_screen"
-    ]
+    STARTING_ACTIVE_SKILLS: []
   }
 };

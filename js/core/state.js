@@ -15,6 +15,7 @@ window.GameState = {
   player: null,
   decoys: [],
   smokeClouds: [],
+  slowFields: [],
   hazards: [],
   planets: [],
   mines: [],
@@ -33,6 +34,7 @@ window.GameState = {
   difficulty: "normal",
   effectQuality: "standard",
   autoFire: true,
+  autoAim: false,
   camera: {
     x: 0,
     y: 0
@@ -84,6 +86,9 @@ window.GameState = {
     mineMaxCount: 0,
     mineRadius: 0,
     mineDamage: 0,
+    chainAttackLevel: 0,
+    slowFieldLevel: 0,
+    slowFieldCooldown: 0,
     practice: false,
     practiceMode: "none"
   },
@@ -106,6 +111,7 @@ window.GameState = {
     xp: 0,
     xpToNext: GAME_BALANCE.XP.BASE_TO_NEXT,
     pendingLevelUps: 0,
+    levelUpRerollUsed: false,
     bossFinishTimer: 0,
     deathTimer: 0
   },

@@ -4,6 +4,78 @@ window.Boot = (() => {
 
   function addShake(v){ S.shake = Math.min(24, S.shake + v); }
 
+  function removeDisplayObject(node) {
+    if (node && node.parent) node.parent.removeChild(node);
+  }
+
+  function resetInputState() {
+    S.keys.clear();
+    S.mouse.down = false;
+  }
+
+  function clearCombatState(options = {}) {
+    const preservePlayer = options.preservePlayer !== false;
+    const preserveEnvironment = !!options.preserveEnvironment;
+
+    resetInputState();
+
+    if (S.weaponState.laserChannel) {
+      removeDisplayObject(S.weaponState.laserChannel.beam && S.weaponState.laserChannel.beam.spr);
+      S.weaponState.laserChannel = null;
+    }
+
+    for (const decoy of S.decoys) removeDisplayObject(decoy && decoy.spr);
+    for (const smoke of S.smokeClouds) removeDisplayObject(smoke && smoke.spr);
+    for (const field of S.slowFields) removeDisplayObject(field && field.spr);
+    for (const hazard of S.hazards) removeDisplayObject(hazard && hazard.spr);
+    for (const mine of S.mines) removeDisplayObject(mine && mine.spr);
+    for (const bullet of S.bullets) removeDisplayObject(bullet && bullet.spr);
+    for (const bullet of S.enemyBullets) removeDisplayObject(bullet && bullet.spr);
+    for (const beam of S.beams) removeDisplayObject(beam && beam.spr);
+    for (const missile of S.missiles) removeDisplayObject(missile && missile.spr);
+    for (const particle of S.particles) removeDisplayObject(particle && particle.spr);
+
+    for (const enemy of S.enemies) {
+      if (enemy && enemy.scheduler && typeof enemy.scheduler.clear === "function") {
+        enemy.scheduler.clear();
+      }
+      if (enemy && typeof enemy.destroyVisuals === "function") enemy.destroyVisuals();
+      else removeDisplayObject(enemy && enemy.spr);
+    }
+
+    S.decoys.length = 0;
+    S.smokeClouds.length = 0;
+    S.slowFields.length = 0;
+    S.hazards.length = 0;
+    S.mines.length = 0;
+    S.bullets.length = 0;
+    S.enemyBullets.length = 0;
+    S.beams.length = 0;
+    S.missiles.length = 0;
+    S.enemies.length = 0;
+    S.particles.length = 0;
+
+    if (!preserveEnvironment) {
+      S.planets.length = 0;
+      if (window.PlanetSystem) PlanetSystem.clear();
+      if (window.StageAtmosphere) StageAtmosphere.clear();
+    }
+
+    if (preservePlayer && S.player) {
+      S.player.vx = 0;
+      S.player.vy = 0;
+      S.player.fireCd = 0;
+      S.player.dashT = 0;
+    }
+
+    S.progression.waveAlive = 0;
+    S.progression.spawnedCount = 0;
+    S.progression.spawnT = 0;
+    S.stats.hardpointCooldown = 0;
+    S.stats.homingMissileCd = 0;
+    S.stats.slowFieldCooldown = 0;
+  }
+
   const loadingOverlay = document.getElementById("loadingOverlay");
   const loadingStatus = document.getElementById("loadingStatus");
   const loadingBarFill = document.getElementById("loadingBarFill");
@@ -81,14 +153,15 @@ window.Boot = (() => {
     if (!canTogglePause()) return false;
     const shouldOpen = typeof open === "boolean" ? open : S.progression.waveState !== "paused";
     if (shouldOpen) {
+      resetInputState();
       S.progression.waveState = "paused";
       S.pause.open = true;
-      S.mouse.down = false;
       UI.renderPauseMenu(handlePauseUpgradeAdjust, resetPauseUpgrades, clearPauseUpgrades);
       UI.showCard("pause");
       UI.hudUpdate();
       return true;
     }
+    resetInputState();
     S.progression.waveState = "running";
     S.pause.open = false;
     UI.showCard(null);
@@ -111,7 +184,11 @@ window.Boot = (() => {
 
   function normalizePracticeStageId(stageId) {
     const maxStage = window.WaveSystem && WaveSystem.getMaxStage ? WaveSystem.getMaxStage() : 3;
-    return Math.min(maxStage, Math.max(1, Math.floor(stageId || 1)));
+    const parsedStageId = Math.floor(Number(stageId) || 1);
+    if (window.WaveSystem && WaveSystem.isMapTestStageId && WaveSystem.isMapTestStageId(parsedStageId)) {
+      return parsedStageId;
+    }
+    return Math.min(maxStage, Math.max(1, parsedStageId));
   }
 
   function normalizeDifficulty(value) {
@@ -130,6 +207,10 @@ window.Boot = (() => {
     return value === false || value === "false" || value === "manual" || value === "off"
       ? false
       : true;
+  }
+
+  function normalizeAutoAim(value) {
+    return value === true || value === "true" || value === "on" || value === "assist";
   }
 
   function readStoredPlayerType() {
@@ -180,6 +261,22 @@ window.Boot = (() => {
     return S.autoFire;
   }
 
+  function readStoredAutoAim() {
+    try {
+      return normalizeAutoAim(localStorage.getItem("spike-zero-auto-aim"));
+    } catch (_) {
+      return normalizeAutoAim(S.autoAim);
+    }
+  }
+
+  function setAutoAim(value) {
+    S.autoAim = normalizeAutoAim(value);
+    try {
+      localStorage.setItem("spike-zero-auto-aim", S.autoAim ? "true" : "false");
+    } catch (_) {}
+    return S.autoAim;
+  }
+
   function applyPlayerTypeStats(playerType) {
     if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
       PlayerFactory.applyShipStats(S.stats, normalizePlayerType(playerType));
@@ -194,7 +291,8 @@ window.Boot = (() => {
       difficulty: normalizeDifficulty(params.get("difficulty") || S.difficulty || "normal"),
       playerType,
       effectQuality: normalizeEffectQuality(params.get("effects") || params.get("quality") || readStoredEffectQuality()),
-      autoFire: normalizeAutoFire(params.get("autofire") || readStoredAutoFire())
+      autoFire: normalizeAutoFire(params.get("autofire") || readStoredAutoFire()),
+      autoAim: normalizeAutoAim(params.get("autoaim") || readStoredAutoAim())
     };
   }
 
@@ -266,33 +364,7 @@ window.Boot = (() => {
     if (window.DialogueSystem) DialogueSystem.cancel();
     if (window.UI) UI.resetDialogueLog();
     if (window.BgmSystem) BgmSystem.stopAll();
-    for (const d of S.decoys) S.uiLayer.removeChild(d.spr);
-    for (const smoke of S.smokeClouds) if (smoke.spr && smoke.spr.parent) smoke.spr.parent.removeChild(smoke.spr);
-    for (const hazard of S.hazards) if (hazard.spr && hazard.spr.parent) hazard.spr.parent.removeChild(hazard.spr);
-    if (window.PlanetSystem) PlanetSystem.clear();
-    if (window.StageAtmosphere) StageAtmosphere.clear();
-    for (const mine of S.mines) if (mine.spr && mine.spr.parent) mine.spr.parent.removeChild(mine.spr);
-    for (const b of S.bullets) S.fx.removeChild(b.spr);
-    for (const b of S.enemyBullets) S.fx.removeChild(b.spr);
-    for (const beam of S.beams) S.fx.removeChild(beam.spr);
-    for (const m of S.missiles) S.fx.removeChild(m.spr);
-    for (const e of S.enemies) {
-      if (e.destroyVisuals) e.destroyVisuals();
-      else S.uiLayer.removeChild(e.spr);
-    }
-    for (const p of S.particles) S.fx.removeChild(p.spr);
-
-    S.decoys.length = 0;
-    S.smokeClouds.length = 0;
-    S.hazards.length = 0;
-    S.planets.length = 0;
-    S.mines.length = 0;
-    S.bullets.length = 0;
-    S.enemyBullets.length = 0;
-    S.beams.length = 0;
-    S.missiles.length = 0;
-    S.enemies.length = 0;
-    S.particles.length = 0;
+    clearCombatState({ preservePlayer: false });
 
     S.stats.maxHp = 100;
     S.stats.hp = 100;
@@ -333,6 +405,9 @@ window.Boot = (() => {
     S.stats.mineMaxCount = 0;
     S.stats.mineRadius = 0;
     S.stats.mineDamage = 0;
+    S.stats.chainAttackLevel = 0;
+    S.stats.slowFieldLevel = 0;
+    S.stats.slowFieldCooldown = 0;
     applyPlayerTypeStats(playerType);
     S.stats.practice = !!testMode;
     S.stats.practiceMode = practiceMode;
@@ -357,6 +432,7 @@ window.Boot = (() => {
     S.progression.xp = 0;
     S.progression.xpToNext = GAME_BALANCE.XP.BASE_TO_NEXT;
     S.progression.pendingLevelUps = 0;
+    S.progression.levelUpRerollUsed = false;
     S.progression.deathTimer = 0;
 
     S.upgrades.levels = {};
@@ -394,8 +470,8 @@ window.Boot = (() => {
     updateCameraTransform();
     CombatSystem.applyStartingWeaponLoadout(testMode);
     CombatSystem.syncWeaponStats();
-    SkillSystem.applyStartingLoadout(testMode);
     ActiveSkillSystem.assignStartingLoadout(testMode);
+    SkillSystem.applyStartingLoadout(testMode);
 
     if (testMode && practiceMode === "boss") {
       WaveSystem.startNextWave();
@@ -416,11 +492,10 @@ window.Boot = (() => {
 
     S.progression.waveState = "dying";
     S.progression.deathTimer = 28;
-    S.mouse.down = false;
-    S.keys.delete("Space");
+    resetInputState();
 
     if (S.weaponState.laserChannel){
-      S.fx.removeChild(S.weaponState.laserChannel.beam.spr);
+      removeDisplayObject(S.weaponState.laserChannel.beam.spr);
       S.weaponState.laserChannel = null;
     }
 
@@ -449,6 +524,10 @@ window.Boot = (() => {
         e.preventDefault();
         return;
       }
+      if (S.progression.waveState === "levelup" && window.UI && UI.handleUpgradeKey && UI.handleUpgradeKey(e.code)) {
+        e.preventDefault();
+        return;
+      }
       if (["Escape", "KeyP"].includes(e.code) && canTogglePause()) {
         setPauseState();
         e.preventDefault();
@@ -468,6 +547,11 @@ window.Boot = (() => {
     }, { passive:false });
 
     window.addEventListener("keyup", (e)=>S.keys.delete(e.code));
+    window.addEventListener("blur", resetInputState);
+    window.addEventListener("pointercancel", resetInputState);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) resetInputState();
+    });
 
     S.app.view.addEventListener("pointermove", (e)=>{
       const rect = S.app.view.getBoundingClientRect();
@@ -599,13 +683,69 @@ window.Boot = (() => {
     p.spr.y = Helpers.clamp(p.spr.y, arena.top + 20, arena.bottom - 20);
     if (window.PlanetSystem) PlanetSystem.resolveShipCollision(p, p.r);
 
-    const ang = Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
+    const ang = window.CombatSystem && CombatSystem.getPlayerAimAngle
+      ? CombatSystem.getPlayerAimAngle({ maxStrength: 0.36 })
+      : Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
     p.spr.rotation = ang + Math.PI / 2;
     p.spr.tint = afterburnerActive ? 0xffc087 : 0xffffff;
     if (p.afterburnerSpr) {
       p.afterburnerSpr.alpha = afterburnerActive ? 0.72 + Math.sin(performance.now() / 55) * 0.12 : 0;
       const flameScale = afterburnerActive ? 1.08 + Math.sin(performance.now() / 70) * 0.08 : 1;
       p.afterburnerSpr.scale.set(flameScale, afterburnerActive ? 1.22 : 1);
+    }
+    p.engineTrailT = Math.max(0, (p.engineTrailT || 0) - dt);
+    const moveSpeed = Math.hypot(p.vx, p.vy);
+    const isMoving = (ax !== 0 || ay !== 0) && moveSpeed > 0.35;
+    if (isMoving && p.engineTrailT <= 0 && S.particles.length < 180) {
+      const emitAngle = Math.atan2(-p.vy, -p.vx);
+      const rearBaseX = p.spr.x + Math.cos(emitAngle) * 18;
+      const rearBaseY = p.spr.y + Math.sin(emitAngle) * 18;
+      const sideX = -Math.sin(emitAngle);
+      const sideY = Math.cos(emitAngle);
+      const warmTint = afterburnerActive ? 0xffffff : 0xf3f7ff;
+      const coolTint = afterburnerActive ? 0xdff8ff : 0xcfeeff;
+      const trailScale = afterburnerActive ? Helpers.rand(0.62, 0.9) : Helpers.rand(0.42, 0.68);
+      for (let i = 0; i < 2; i++) {
+        const side = i === 0 ? -1 : 1;
+        const tint = i === 0 ? warmTint : coolTint;
+        const trail = Effects.makeTrailSprite(
+          rearBaseX + sideX * side * 4 + Helpers.rand(-1.5, 1.5),
+          rearBaseY + sideY * side * 4 + Helpers.rand(-1.5, 1.5),
+          tint,
+          trailScale,
+          afterburnerActive ? 0.34 : 0.28,
+          { kind: "linear" }
+        );
+        trail.rotation = emitAngle + Helpers.rand(-0.12, 0.12);
+        S.fx.addChild(trail);
+        S.particles.push({
+          spr: trail,
+          x: trail.x,
+          y: trail.y,
+          vx: Math.cos(emitAngle) * Helpers.rand(0.3, 0.72),
+          vy: Math.sin(emitAngle) * Helpers.rand(0.3, 0.72),
+          life: afterburnerActive ? Helpers.rand(16, 24) : Helpers.rand(12, 18),
+          drag: 0.9
+        });
+      }
+      const glow = Effects.makeTrailSprite(
+        rearBaseX + Helpers.rand(-2, 2),
+        rearBaseY + Helpers.rand(-2, 2),
+        afterburnerActive ? 0xffffff : 0xeaf4ff,
+        afterburnerActive ? Helpers.rand(0.38, 0.55) : Helpers.rand(0.26, 0.4),
+        afterburnerActive ? 0.26 : 0.22
+      );
+      S.fx.addChild(glow);
+      S.particles.push({
+        spr: glow,
+        x: glow.x,
+        y: glow.y,
+        vx: Math.cos(emitAngle) * Helpers.rand(0.08, 0.18),
+        vy: Math.sin(emitAngle) * Helpers.rand(0.08, 0.18),
+        life: afterburnerActive ? Helpers.rand(10, 16) : Helpers.rand(8, 12),
+        drag: 0.88
+      });
+      p.engineTrailT = afterburnerActive ? 1.1 : 1.6;
     }
     if (afterburnerActive && ((performance.now() | 0) % 2 === 0)) {
       const rearX = p.spr.x - Math.cos(ang) * 18;
@@ -801,6 +941,10 @@ window.Boot = (() => {
       if (P.combo < 1.02) P.combo = 1;
     }
 
+    if (window.WaveSystem && WaveSystem.isAsteroidMapTestStage && WaveSystem.isAsteroidMapTestStage(P.stage)) {
+      return;
+    }
+
     if (stageRunEnabled && P.stageState === "combat" && !(window.BossSystem && BossSystem.hasActiveBoss())) {
       P.stageTime = Math.max(0, P.stageTime - dt);
       if (P.stageTime <= 0) {
@@ -858,6 +1002,7 @@ window.Boot = (() => {
     if (S.progression.waveState !== "running") return;
 
     updateProgress(dt);
+    if (window.PlanetSystem && PlanetSystem.update) PlanetSystem.update(dt);
     updatePlayer(dt);
     updateCameraTransform(dt);
     if (window.DefenseSystem) DefenseSystem.update(dt);
@@ -938,7 +1083,7 @@ window.Boot = (() => {
       onBack: ()=>{
         if (window.DialogueSystem) DialogueSystem.cancel();
         UI.resetDialogueLog();
-        UI.showCard("start");
+        window.location.href = "./index.html";
       },
       onBossChange: (bossId) => {
         if (!window.BossSystem) return;
@@ -966,6 +1111,10 @@ window.Boot = (() => {
       },
       onAutoFireChange: (autoFire) => {
         setAutoFire(autoFire);
+        UI.hudUpdate();
+      },
+      onAutoAimChange: (autoAim) => {
+        setAutoAim(autoAim);
         UI.hudUpdate();
       },
       onPauseToggle: (open) => {
@@ -997,6 +1146,7 @@ window.Boot = (() => {
     setPlayerType(launchOptions.playerType);
     setEffectQuality(launchOptions.effectQuality);
     setAutoFire(launchOptions.autoFire);
+    setAutoAim(launchOptions.autoAim);
     for (const radio of document.querySelectorAll("input[name='difficulty']")) {
       radio.checked = radio.value === S.difficulty;
     }
@@ -1008,6 +1158,9 @@ window.Boot = (() => {
     }
     for (const radio of document.querySelectorAll("input[name='autoFire']")) {
       radio.checked = String(S.autoFire) === radio.value;
+    }
+    for (const radio of document.querySelectorAll("input[name='autoAim']")) {
+      radio.checked = String(S.autoAim) === radio.value;
     }
     UI.populateBossOptions();
     ActiveSkillSystem.assignStartingLoadout(false);
@@ -1027,5 +1180,5 @@ window.Boot = (() => {
 
   init();
 
-  return { resetAll, gameOver };
+  return { resetAll, gameOver, resetInputState, clearCombatState };
 })();

@@ -1,4 +1,11 @@
 window.CombatSystem = (() => {
+  const CHAIN_ATTACK_SPECS = [
+    null,
+    { range: 140, targetCount: 1, damageMultiplier: 1.0, falloffRates: [1.0, 0.8, 0.5], bossTargetCap: 1, bossDamageMul: 0.75 },
+    { range: 140, targetCount: 2, damageMultiplier: 1.1, falloffRates: [1.0, 0.8, 0.5], bossTargetCap: 1, bossDamageMul: 0.75 },
+    { range: 140, targetCount: 3, damageMultiplier: 1.2, falloffRates: [1.0, 0.8, 0.5], bossTargetCap: 2, bossDamageMul: 0.72 }
+  ];
+
   function getWeaponDef(){
     return WEAPON_DEFINITIONS[GameState.weaponState.current];
   }
@@ -62,6 +69,121 @@ window.CombatSystem = (() => {
       }
     }
     return best;
+  }
+
+  function normalizeAngleDelta(delta) {
+    let value = delta;
+    while (value > Math.PI) value -= Math.PI * 2;
+    while (value < -Math.PI) value += Math.PI * 2;
+    return value;
+  }
+
+  function getAutoAimTarget(originX, originY, baseAngle) {
+    const S = GameState;
+    if (!S.autoAim || !S.enemies.length) return null;
+
+    const view = Helpers.getViewBounds();
+    const maxRange = 360;
+    const maxRangeSq = maxRange * maxRange;
+    const fallbackRange = 240;
+    const fallbackRangeSq = fallbackRange * fallbackRange;
+    const maxAngleDelta = Math.PI * 0.42;
+    let bestTarget = null;
+    let bestScore = -Infinity;
+    let fallbackTarget = null;
+    let fallbackScore = -Infinity;
+
+    for (const enemy of S.enemies) {
+      if (!enemy) continue;
+      const hitCircles = getEnemyHitCircles(enemy);
+      for (const circle of hitCircles) {
+        if (
+          circle.x + circle.radius < view.left ||
+          circle.x - circle.radius > view.right ||
+          circle.y + circle.radius < view.top ||
+          circle.y - circle.radius > view.bottom
+        ) {
+          continue;
+        }
+
+        const dx = circle.x - originX;
+        const dy = circle.y - originY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > maxRangeSq) continue;
+        if (window.PlanetSystem && PlanetSystem.blocksLineOfSight && PlanetSystem.blocksLineOfSight(originX, originY, circle.x, circle.y, circle.radius * 0.2)) {
+          continue;
+        }
+
+        const dist = Math.sqrt(distSq) || 1;
+        const distanceBias = 1 - Helpers.clamp(dist / maxRange, 0, 1);
+
+        if (distSq <= fallbackRangeSq) {
+          const fallbackAngle = Math.atan2(dy, dx);
+          const fallbackAngleDelta = Math.abs(normalizeAngleDelta(fallbackAngle - baseAngle));
+          const fallbackScoreNow = distanceBias * 0.8 + Math.cos(Math.min(Math.PI, fallbackAngleDelta)) * 0.2;
+          if (fallbackScoreNow > fallbackScore) {
+            fallbackScore = fallbackScoreNow;
+            fallbackTarget = {
+              mode: "fallback",
+              enemy,
+              x: circle.x,
+              y: circle.y,
+              angle: fallbackAngle,
+              distance: dist,
+              score: fallbackScoreNow
+            };
+          }
+        }
+
+        const angleToTarget = Math.atan2(dy, dx);
+        const angleDelta = normalizeAngleDelta(angleToTarget - baseAngle);
+        const absAngleDelta = Math.abs(angleDelta);
+        if (absAngleDelta > maxAngleDelta) continue;
+        const forwardBias = Math.cos(absAngleDelta);
+        const score = forwardBias * 0.62 + distanceBias * 0.38;
+        if (score <= bestScore) continue;
+
+        bestScore = score;
+        bestTarget = {
+          mode: "front",
+          enemy,
+          x: circle.x,
+          y: circle.y,
+          angle: angleToTarget,
+          distance: dist,
+          score
+        };
+      }
+    }
+
+    return bestTarget || fallbackTarget;
+  }
+
+  function applyAutoAim(originX, originY, baseAngle, options = {}) {
+    const S = GameState;
+    if (!S.autoAim) return baseAngle;
+    const target = getAutoAimTarget(originX, originY, baseAngle);
+    if (!target) return baseAngle;
+
+    const angleDelta = normalizeAngleDelta(target.angle - baseAngle);
+    if (target.mode === "fallback") {
+      const fallbackTurn = Math.min(1, options.fallbackTurnStrength || 1);
+      return baseAngle + angleDelta * fallbackTurn;
+    }
+
+    const maxStrength = Math.min(0.4, options.maxStrength || 0.36);
+    const distanceFactor = 1 - Helpers.clamp(target.distance / 360, 0, 1);
+    const assistStrength = maxStrength * (0.45 + distanceFactor * 0.55);
+    return baseAngle + angleDelta * assistStrength;
+  }
+
+  function getPlayerAimAngle(options = {}) {
+    const S = GameState;
+    const player = S.player;
+    if (!player || !player.spr) return 0;
+    const baseAngle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    if (options.autoAim === false) return baseAngle;
+    return applyAutoAim(player.spr.x, player.spr.y, baseAngle, options);
   }
 
   function makeBullet(x, y, ang, damage, speed, pierce, options={}){
@@ -341,6 +463,81 @@ window.CombatSystem = (() => {
     return false;
   }
 
+  function tryChainAttack(sourceEnemy, sourceBullet, sourceHitCircle) {
+    const S = GameState;
+    const level = Math.max(0, Math.min(3, S.stats.chainAttackLevel || 0));
+    if (level <= 0 || !sourceEnemy || !sourceBullet) return;
+
+    const spec = CHAIN_ATTACK_SPECS[level];
+    if (!spec) return;
+
+    const originX = sourceHitCircle ? sourceHitCircle.x : sourceEnemy.x;
+    const originY = sourceHitCircle ? sourceHitCircle.y : sourceEnemy.y;
+    const rangeSq = spec.range * spec.range;
+    const chosen = [];
+    const used = new Set([sourceEnemy]);
+
+    for (const enemy of S.enemies) {
+      if (!enemy || used.has(enemy)) continue;
+      let bestCircle = null;
+      let bestDistSq = Infinity;
+
+      for (const circle of getEnemyHitCircles(enemy)) {
+        const dx = circle.x - originX;
+        const dy = circle.y - originY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > rangeSq || distSq >= bestDistSq) continue;
+        if (
+          window.PlanetSystem &&
+          PlanetSystem.blocksLineOfSight &&
+          PlanetSystem.blocksLineOfSight(originX, originY, circle.x, circle.y, Math.max(2, circle.radius * 0.2))
+        ) {
+          continue;
+        }
+        bestCircle = circle;
+        bestDistSq = distSq;
+      }
+
+      if (!bestCircle) continue;
+      chosen.push({
+        enemy,
+        hitCircle: bestCircle,
+        distSq: bestDistSq
+      });
+    }
+
+    chosen.sort((a, b) => a.distSq - b.distSq);
+
+    let chainX = originX;
+    let chainY = originY;
+    let bossHits = 0;
+    let appliedCount = 0;
+    const chainColor = sourceBullet.kind === "shotgun" ? 0xffd8a8 : 0x9fe8ff;
+
+    for (let index = 0; index < chosen.length; index++) {
+      if (appliedCount >= spec.targetCount) break;
+      const target = chosen[index];
+      const enemy = target.enemy;
+      if (!enemy || used.has(enemy) || !S.enemies.includes(enemy)) continue;
+      if (enemy.tier === "boss" && bossHits >= spec.bossTargetCap) continue;
+
+      const falloff = spec.falloffRates[Math.min(appliedCount, spec.falloffRates.length - 1)] ?? 0.5;
+      const bossMul = enemy.tier === "boss" ? spec.bossDamageMul : 1;
+      const damage = Math.max(1, sourceBullet.dmg * spec.damageMultiplier * falloff * bossMul);
+
+      Effects.emitLineTelegraph(chainX, chainY, target.hitCircle.x, target.hitCircle.y, chainColor, 5, 1.4);
+      Effects.emitParticle(chainX, chainY, chainColor, 2, 0.2);
+      Effects.emitParticle(target.hitCircle.x, target.hitCircle.y, chainColor, enemy.tier === "boss" ? 4 : 3, enemy.tier === "boss" ? 0.4 : 0.3);
+      damageEnemy(enemy, damage, chainColor, enemy.tier === "boss" ? 6 : 4, enemy.tier === "boss" ? 0.45 : 0.32, target.hitCircle);
+
+      used.add(enemy);
+      if (enemy.tier === "boss") bossHits += 1;
+      appliedCount += 1;
+      chainX = target.hitCircle.x;
+      chainY = target.hitCircle.y;
+    }
+  }
+
   function getAfterburnerMultipliers(){
     const S = GameState;
     const afterburnerSkill = window.ActiveSkillSystem && ActiveSkillSystem.getDefinition("afterburner");
@@ -445,10 +642,10 @@ window.CombatSystem = (() => {
     }
 
     const { damageMul, fireRateMul, bulletSpeedMul } = getAfterburnerMultipliers();
-    const ang = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const ang = getPlayerAimAngle({ maxStrength: 0.36 });
 
     if (S.weaponState.current === "machinegun") fireMachinegun(ang, bulletSpeedMul, damageMul);
-    if (S.weaponState.current === "laser") fireLaser(ang, damageMul);
+    if (S.weaponState.current === "laser") fireLaser(getPlayerAimAngle({ autoAim:false }), damageMul);
     if (S.weaponState.current === "shotgun") fireShotgun(ang, bulletSpeedMul, damageMul);
     tryShootHardpoints(ang, bulletSpeedMul, damageMul);
 
@@ -756,6 +953,7 @@ window.CombatSystem = (() => {
           const particleCount = b.kind === "shotgun" ? 14 : (e.tier === "boss" ? 18 : 10);
           const particlePower = b.kind === "shotgun" ? 1.35 : (e.tier === "boss" ? 1.3 : 1.0);
           damageEnemy(e, b.dmg, b.color || e.glowColor, particleCount, particlePower, hitCircle);
+          tryChainAttack(e, b, hitCircle);
           if (b.pierce > 0){
             b.pierce -= 1;
           } else {
@@ -1009,6 +1207,7 @@ window.CombatSystem = (() => {
 
   return {
     damageEnemy,
+    getPlayerAimAngle,
     tryShoot,
     tryShootMissiles,
     launchMissileVolley,

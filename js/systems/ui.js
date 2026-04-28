@@ -49,6 +49,7 @@ window.UI = (() => {
   const pauseBtn = document.getElementById("btnPauseMenu");
   const resumePauseBtn = document.getElementById("btnResumePause");
   const upgradeGrid = document.getElementById("upgradeGrid");
+  const upgradeRerollBtn = document.getElementById("btnUpgradeReroll");
   const finalScoreEl = document.getElementById("finalScore");
   const warningOverlay = document.getElementById("warningOverlay");
   const activeSlotEls = [...document.querySelectorAll(".activeSlot")];
@@ -58,6 +59,7 @@ window.UI = (() => {
   const playerTypeEls = [...document.querySelectorAll("input[name='playerType']")];
   const effectQualityEls = [...document.querySelectorAll("input[name='effectQuality']")];
   const autoFireEls = [...document.querySelectorAll("input[name='autoFire']")];
+  const autoAimEls = [...document.querySelectorAll("input[name='autoAim']")];
   const weaponHud = document.getElementById("weaponHud");
   const bossSelect = document.getElementById("bossSelect");
   const spawnBossBtn = document.getElementById("btnSpawnBoss");
@@ -81,6 +83,7 @@ window.UI = (() => {
   let stageStartTimer = null;
   let stageStartAnimation = null;
   let pauseMenuFilter = "all";
+  let upgradeChoiceState = null;
 
   function getCharacterProfile(characterId) {
     const profiles = window.CHARACTER_PROFILES || {};
@@ -178,6 +181,7 @@ window.UI = (() => {
   function hudUpdate() {
     const S = GameState;
     const P = S.progression;
+    const isAsteroidMapTest = window.WaveSystem && WaveSystem.isAsteroidMapTestStage && WaveSystem.isAsteroidMapTestStage(P.stage);
     const weaponDef = WEAPON_DEFINITIONS[S.weaponState.current];
     const hudModifiers = getActiveHudModifiers();
     const baseSpeed = Math.round(S.stats.speed * 10) / 10;
@@ -193,8 +197,10 @@ window.UI = (() => {
     const bulletSpeedBonus = hudModifiers ? Math.round(hudModifiers.bulletSpeedBonus * 10) / 10 : 0;
 
     $score.textContent = String(Math.floor(P.score));
-    $stage.textContent = String(P.stage || 1);
-    $stageTime.textContent = S.stats.practice && S.stats.practiceMode === "boss"
+    $stage.textContent = window.WaveSystem && WaveSystem.getStageHudLabel
+      ? WaveSystem.getStageHudLabel(P.stage)
+      : String(P.stage || 1);
+    $stageTime.textContent = (S.stats.practice && S.stats.practiceMode === "boss") || isAsteroidMapTest
       ? "TEST"
       : formatStageTime(P.stageTime);
     $wave.textContent = String(P.wave);
@@ -221,7 +227,7 @@ window.UI = (() => {
     if (hudHpFill) hudHpFill.style.width = `${Helpers.clamp(S.stats.hp / Math.max(1, S.stats.maxHp), 0, 1) * 100}%`;
     if (hudMpFill) hudMpFill.style.width = `${Helpers.clamp(S.stats.mp / Math.max(1, S.stats.mpMax), 0, 1) * 100}%`;
     if (hudXpFill) hudXpFill.style.width = `${Helpers.clamp(P.xp / Math.max(1, P.xpToNext), 0, 1) * 100}%`;
-    if (hudTimeText) hudTimeText.textContent = S.stats.practice && S.stats.practiceMode === "boss" ? "TEST" : formatStageTime(P.stageTime);
+    if (hudTimeText) hudTimeText.textContent = ((S.stats.practice && S.stats.practiceMode === "boss") || isAsteroidMapTest) ? "TEST" : formatStageTime(P.stageTime);
     if (hudScoreText) hudScoreText.textContent = String(Math.floor(P.score));
     if (buffHud && afterburnerTime) {
       const active = S.activeSkillState.afterburnerT > 0;
@@ -232,6 +238,7 @@ window.UI = (() => {
     for (const radio of difficultyEls) radio.checked = radio.value === (S.difficulty || "normal");
     for (const radio of effectQualityEls) radio.checked = radio.value === (S.effectQuality || "standard");
     for (const radio of autoFireEls) radio.checked = String(S.autoFire !== false) === radio.value;
+    for (const radio of autoAimEls) radio.checked = String(S.autoAim === true) === radio.value;
     weaponHud.style.display = S.stats.practice ? "block" : "none";
     const isBossTest = S.stats.practice && S.stats.practiceMode === "boss";
     const isStageTest = S.stats.practice && S.stats.practiceMode === "stage";
@@ -275,6 +282,11 @@ window.UI = (() => {
         if (option.value === selectedStage) option.selected = true;
         stageSelect.appendChild(option);
       }
+      const asteroidOption = document.createElement("option");
+      asteroidOption.value = "4";
+      asteroidOption.textContent = "Stage 4 - Asteroid Map Test";
+      if (asteroidOption.value === selectedStage) asteroidOption.selected = true;
+      stageSelect.appendChild(asteroidOption);
     }
   }
 
@@ -451,9 +463,14 @@ window.UI = (() => {
       if (data.bossDamage != null) meta.push(`Boss ${data.bossDamage}`);
       if (data.damageMultiplier != null) meta.push(`Damage x${data.damageMultiplier}`);
       if (data.count != null) meta.push(`${data.count} shots`);
+      if (data.targetCount != null) meta.push(`${data.targetCount} targets`);
+      if (data.chainRange != null) meta.push(`Chain ${data.chainRange}`);
       if (data.blastRadius != null) meta.push(`Blast ${data.blastRadius}`);
       if (data.bulletClearRadius != null) meta.push(`Clear ${data.bulletClearRadius}`);
       if (data.knockback != null) meta.push(`Knockback ${data.knockback}`);
+      if (data.width != null && data.height != null) meta.push(`Field ${data.width}x${data.height}`);
+      if (data.slowRate != null) meta.push(`Slow ${Math.round((1 - data.slowRate) * 100)}%`);
+      if (data.bossSlowRate != null) meta.push(`Boss slow ${Math.round((1 - data.bossSlowRate) * 100)}%`);
       if (data.hp != null) meta.push(`HP ${data.hp}`);
       if (data.speedMultiplier != null) meta.push(`Speed ${formatPercentDelta(data.speedMultiplier)}`);
       if (data.fireRateMultiplier != null) meta.push(`Fire rate ${formatPercentDelta(data.fireRateMultiplier, true)}`);
@@ -519,22 +536,19 @@ window.UI = (() => {
       </div>
     `).join("");
 
-    const visibleUpgrades = (window.UPGRADE_DEFINITIONS || [])
-      .map((upgrade) => ({ upgrade, level: S.upgrades.levels[upgrade.id] || 0 }))
+    const visibleUpgrades = getPauseMenuEntries()
       .filter((entry) => S.stats.practice || entry.level > 0)
-      .filter((entry) => pauseMenuFilter === "all" ? true : entry.upgrade.category === pauseMenuFilter)
-      .sort((a, b) => a.upgrade.name.localeCompare(b.upgrade.name));
+      .filter((entry) => pauseMenuFilter === "all" ? true : entry.category === pauseMenuFilter)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     pauseUpgradeList.innerHTML = visibleUpgrades.length
-      ? visibleUpgrades.map(({ upgrade, level }) => {
-          const adjustable = S.stats.practice && typeof upgrade.maxLevel === "number" && upgrade.maxLevel > 1;
-          const displayLevel = upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level;
-          const displayMax = upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel;
+      ? visibleUpgrades.map((entry) => {
+          const { upgrade, level, adjustable, displayLevel, displayMax } = entry;
           return `
           <div class="pauseInfoRow">
             <div>
-              <div class="pauseAdjustName">${upgrade.name}</div>
-              <div class="pauseInfoMeta">${upgrade.category.toUpperCase()} · Lv.${displayLevel}${displayMax ? ` / ${displayMax}` : ""}</div>
+              <div class="pauseAdjustName">${entry.name}</div>
+              <div class="pauseInfoMeta">${entry.category.toUpperCase()} · Lv.${displayLevel}${displayMax ? ` / ${displayMax}` : ""}</div>
             </div>
             ${adjustable ? `
               <div class="pauseAdjustControls">
@@ -551,10 +565,9 @@ window.UI = (() => {
       const rows = [...pauseUpgradeList.querySelectorAll(".pauseInfoRow")];
       rows.forEach((row, index) => {
         const entry = visibleUpgrades[index];
-        if (!entry || !entry.upgrade) return;
-        const upgrade = entry.upgrade;
-        const desc = upgrade.desc || "No detailed description.";
-        const meta = getUpgradeMeta(upgrade, entry.level);
+        if (!entry) return;
+        const desc = entry.desc || "No detailed description.";
+        const meta = entry.upgrade ? getUpgradeMeta(entry.upgrade, entry.level) : [];
         row.classList.add("pauseSkillRow");
         row.title = meta.length ? `${desc}\n${meta.join(" | ")}` : desc;
 
@@ -572,10 +585,10 @@ window.UI = (() => {
           detail.appendChild(stats);
         }
 
-        if (Array.isArray(upgrade.tags) && upgrade.tags.length) {
+        if (Array.isArray(entry.tags) && entry.tags.length) {
           const tags = document.createElement("div");
           tags.className = "pauseSkillTags";
-          for (const tag of upgrade.tags) {
+          for (const tag of entry.tags) {
             const chip = document.createElement("span");
             chip.textContent = tag;
             tags.appendChild(chip);
@@ -621,6 +634,57 @@ window.UI = (() => {
     showCard("over");
   }
 
+  function getPauseMenuEntries() {
+    const S = GameState;
+    const entries = [];
+
+    const resolveActiveSkillId = (upgrade) => {
+      if (!upgrade || upgrade.category !== "active") return null;
+      if (window.ActiveSkillSystem && typeof ActiveSkillSystem.getDefinition === "function") {
+        if (ActiveSkillSystem.getDefinition(upgrade.id)) return upgrade.id;
+      }
+      if (upgrade.id.startsWith("active_") && upgrade.id.endsWith("_unlock")) {
+        return upgrade.id.replace(/^active_/, "").replace(/_unlock$/, "");
+      }
+      return null;
+    };
+
+    for (const upgrade of (window.UPGRADE_DEFINITIONS || [])) {
+      const level = S.upgrades.levels[upgrade.id] || 0;
+      const adjustable = S.stats.practice && typeof upgrade.maxLevel === "number" && upgrade.maxLevel >= 1;
+      if (!S.stats.practice) {
+        if (level <= 0) continue;
+      } else if (level <= 0) {
+        if (!adjustable) continue;
+      }
+
+      const activeSkillId = resolveActiveSkillId(upgrade);
+      const activeSkill = activeSkillId && window.ActiveSkillSystem && typeof ActiveSkillSystem.getDefinition === "function"
+        ? ActiveSkillSystem.getDefinition(activeSkillId)
+        : null;
+      const slot = activeSkillId
+        ? (S.activeSkillState.slots || []).find((entry) => entry.skillId === activeSkillId)
+        : null;
+      const tags = Array.isArray(upgrade.tags) ? upgrade.tags.slice() : [];
+      if (slot) tags.unshift(`slot:${slot.label}`);
+
+      entries.push({
+        id: upgrade.id,
+        name: activeSkill ? activeSkill.name : upgrade.name,
+        desc: activeSkill ? (activeSkill.desc || upgrade.desc || "No detailed description.") : (upgrade.desc || "No detailed description."),
+        tags,
+        category: upgrade.category,
+        level,
+        displayLevel: upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level,
+        displayMax: upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel,
+        adjustable,
+        upgrade
+      });
+    }
+
+    return entries;
+  }
+
   function renderPauseMenu(onAdjustUpgrade=null, onResetUpgrades=null, onClearUpgrades=null) {
     const S = GameState;
     if (!pauseStatsGrid || !pauseUpgradeList) return;
@@ -655,33 +719,22 @@ window.UI = (() => {
       </div>
     `).join("");
 
-    const visibleUpgrades = (window.UPGRADE_DEFINITIONS || [])
-      .map((upgrade) => ({ upgrade, level: S.upgrades.levels[upgrade.id] || 0 }))
-      .filter((entry) => {
-        if (!S.stats.practice) return entry.level > 0;
-        if (entry.level > 0) return true;
-        return typeof entry.upgrade.maxLevel === "number" && entry.upgrade.maxLevel > 1 && entry.upgrade.category !== "active";
-      })
-      .filter((entry) => pauseMenuFilter === "all" ? true : entry.upgrade.category === pauseMenuFilter)
-      .sort((a, b) => {
-        if (S.stats.practice && b.level !== a.level) return b.level - a.level;
-        return a.upgrade.name.localeCompare(b.upgrade.name);
-      });
+    const visibleUpgrades = getPauseMenuEntries()
+      .filter((entry) => pauseMenuFilter === "all" ? true : entry.category === pauseMenuFilter)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     pauseUpgradeList.innerHTML = visibleUpgrades.length
-      ? visibleUpgrades.map(({ upgrade, level }) => {
-          const adjustable = S.stats.practice && typeof upgrade.maxLevel === "number" && upgrade.maxLevel > 1;
-          const displayLevel = upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level;
-          const displayMax = upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel;
-          const desc = escapeHtml(upgrade.desc || "No detailed description.");
-          const tags = Array.isArray(upgrade.tags) && upgrade.tags.length
-            ? `<div class="pauseSkillTags">${upgrade.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>`
+      ? visibleUpgrades.map((entry) => {
+          const { upgrade, level, adjustable, displayLevel, displayMax } = entry;
+          const desc = escapeHtml(entry.desc || "No detailed description.");
+          const tags = Array.isArray(entry.tags) && entry.tags.length
+            ? `<div class="pauseSkillTags">${entry.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>`
             : "";
           return `
           <div class="pauseInfoRow">
             <div>
-              <div class="pauseAdjustName">${upgrade.name}</div>
-              <div class="pauseInfoMeta">${upgrade.category.toUpperCase()} · Lv.${displayLevel}${displayMax ? ` / ${displayMax}` : ""}</div>
+              <div class="pauseAdjustName">${entry.name}</div>
+              <div class="pauseInfoMeta">${entry.category.toUpperCase()} · Lv.${displayLevel}${displayMax ? ` / ${displayMax}` : ""}</div>
             </div>
             ${adjustable ? `
               <div class="pauseAdjustControls">
@@ -698,9 +751,8 @@ window.UI = (() => {
       const rows = [...pauseUpgradeList.querySelectorAll(".pauseInfoRow")];
       rows.forEach((row, index) => {
         const entry = visibleUpgrades[index];
-        if (!entry || !entry.upgrade) return;
-        const upgrade = entry.upgrade;
-        const desc = upgrade.desc || "No detailed description.";
+        if (!entry) return;
+        const desc = entry.desc || "No detailed description.";
         row.classList.add("pauseSkillRow");
         row.title = desc;
 
@@ -711,10 +763,10 @@ window.UI = (() => {
         text.textContent = desc;
         detail.appendChild(text);
 
-        if (Array.isArray(upgrade.tags) && upgrade.tags.length) {
+        if (Array.isArray(entry.tags) && entry.tags.length) {
           const tags = document.createElement("div");
           tags.className = "pauseSkillTags";
-          for (const tag of upgrade.tags) {
+          for (const tag of entry.tags) {
             const chip = document.createElement("span");
             chip.textContent = tag;
             tags.appendChild(chip);
@@ -967,7 +1019,60 @@ window.UI = (() => {
     closeDialogueOverlay();
   }
 
-  function renderUpgradeChoices(choices, onPick) {
+  function syncUpgradeChoiceSelection() {
+    if (!upgradeChoiceState || !upgradeGrid) return;
+    const cards = [...upgradeGrid.querySelectorAll(".upgrade")];
+    cards.forEach((card, index) => {
+      card.classList.toggle("selected", index === upgradeChoiceState.selectedIndex);
+    });
+  }
+
+  function moveUpgradeSelection(delta) {
+    if (!upgradeChoiceState || !upgradeChoiceState.choices.length) return false;
+    const total = upgradeChoiceState.choices.length;
+    upgradeChoiceState.selectedIndex = (upgradeChoiceState.selectedIndex + delta + total) % total;
+    syncUpgradeChoiceSelection();
+    if (window.SoundSystem) SoundSystem.play("ui_hover", { playbackRate: 1.02, cooldownMs: 0 });
+    return true;
+  }
+
+  function confirmUpgradeSelection() {
+    if (!upgradeChoiceState || !upgradeChoiceState.choices.length) return false;
+    const choice = upgradeChoiceState.choices[upgradeChoiceState.selectedIndex];
+    if (!choice || typeof upgradeChoiceState.onPick !== "function") return false;
+    upgradeChoiceState.onPick(choice);
+    return true;
+  }
+
+  function triggerUpgradeReroll() {
+    if (!upgradeChoiceState || typeof upgradeChoiceState.onReroll !== "function" || upgradeChoiceState.rerollUsed) return false;
+    upgradeChoiceState.onReroll();
+    return true;
+  }
+
+  function handleUpgradeKey(code) {
+    if (!upgradeChoiceState) return false;
+    if (["ArrowLeft", "KeyA", "ArrowUp", "KeyW"].includes(code)) return moveUpgradeSelection(-1);
+    if (["ArrowRight", "KeyD", "ArrowDown", "KeyS"].includes(code)) return moveUpgradeSelection(1);
+    if (["Enter", "NumpadEnter"].includes(code)) return confirmUpgradeSelection();
+    if (code === "Space") return triggerUpgradeReroll();
+    return false;
+  }
+
+  function renderUpgradeChoices(choices, onPick, options = {}) {
+    upgradeChoiceState = {
+      choices: choices.slice(),
+      onPick,
+      onReroll: options.onReroll || null,
+      rerollUsed: !!options.rerollUsed,
+      selectedIndex: Math.max(0, Math.min(choices.length - 1, options.selectedIndex || 0))
+    };
+    if (upgradeRerollBtn) {
+      const rerollAvailable = !!options.onReroll && !options.rerollUsed;
+      upgradeRerollBtn.disabled = !rerollAvailable;
+      upgradeRerollBtn.textContent = rerollAvailable ? "Reroll Choices" : "Reroll Used";
+      upgradeRerollBtn.onclick = rerollAvailable ? () => options.onReroll() : null;
+    }
     upgradeGrid.innerHTML = "";
     for (const choice of choices) {
       const typeMeta = getUpgradeTypeMeta(choice);
@@ -979,15 +1084,21 @@ window.UI = (() => {
       };
       el.onmouseenter = playHover;
       el.onpointerenter = playHover;
+      el.onmousemove = () => {
+        if (!upgradeChoiceState) return;
+        upgradeChoiceState.selectedIndex = choices.indexOf(choice);
+        syncUpgradeChoiceSelection();
+      };
       el.onclick = () => {
         if (window.SoundSystem) SoundSystem.play("upgrade_pick");
         onPick(choice);
       };
       upgradeGrid.appendChild(el);
     }
+    syncUpgradeChoiceSelection();
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onAutoAimChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
@@ -1027,6 +1138,11 @@ window.UI = (() => {
         if (radio.checked && onAutoFireChange) onAutoFireChange(radio.value === "true");
       };
     }
+    for (const radio of autoAimEls){
+      radio.onchange = () => {
+        if (radio.checked && onAutoAimChange) onAutoAimChange(radio.value === "true");
+      };
+    }
     if (closeSkillMapBtn) closeSkillMapBtn.onclick = closeSkillMapPanel;
     if (skillMapPanel) {
       skillMapPanel.onclick = (e) => {
@@ -1051,6 +1167,7 @@ window.UI = (() => {
     hudUpdate,
     showCard,
     showGameOver,
+    handleUpgradeKey,
     triggerBossWarning,
     playBossWarning,
     showStageStart,

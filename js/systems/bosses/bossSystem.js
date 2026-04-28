@@ -14,6 +14,7 @@ window.BossSystem = (() => {
   const PRACTICE_DEFAULT = "basic";
   const STAGE_BOSS_ORDER = ["basic", "knight", "split"];
   const WAVE_BOSS_ORDER = ["basic", "advanced", "knight", "split", "summoner"];
+  const BOSS_SPAWN_INTRO_FRAMES = 72;
 
   // ─── 정의 조회 ────────────────────────────────────────────────────────────
 
@@ -1169,6 +1170,28 @@ window.BossSystem = (() => {
       const replacingExisting = options.replaceExisting !== false;
       if (replacingExisting) clearCurrentArena();
       const boss = factory();
+      if (boss && boss.spr) {
+        boss.spawnIntroT = BOSS_SPAWN_INTRO_FRAMES;
+        boss.spr.alpha = 0;
+        boss.spr.scale.set(0.86);
+        const originalUpdateBoss = typeof boss.updateBoss === "function" ? boss.updateBoss.bind(boss) : null;
+        boss.updateBoss = (dt) => {
+          if (originalUpdateBoss) originalUpdateBoss(dt);
+          if (boss.spawnIntroT > 0) {
+            boss.spawnIntroT = Math.max(0, boss.spawnIntroT - dt);
+            const t = 1 - (boss.spawnIntroT / BOSS_SPAWN_INTRO_FRAMES);
+            const eased = 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+            boss.spr.alpha = 0.12 + eased * 0.88;
+            const scale = 0.86 + eased * 0.14;
+            boss.spr.scale.set(scale);
+          } else {
+            boss.spr.alpha = 1;
+            boss.spr.scale.set(1);
+          }
+        };
+        Effects.emitPulse(boss.x, boss.y, boss.glowColor || 0xffffff, (boss.r || 60) * 1.8, 18);
+        Effects.emitParticle(boss.x, boss.y, boss.glowColor || 0xffffff, 18, 1.15);
+      }
       GameState.enemies.push(boss);
       if (replacingExisting) {
         GameState.progression.waveAlive = 1;

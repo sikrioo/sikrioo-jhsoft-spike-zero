@@ -1,4 +1,11 @@
 window.EnemySystem = (() => {
+  const SLOW_FIELD_SPECS = [
+    null,
+    { interval: 180, duration: 108, width: 160, height: 90, spawnDistance: 120, slowRate: 0.62, bossSlowRate: 0.86, maxFields: 1, color: 0x72a8ff, accent: 0xc9a2ff },
+    { interval: 180, duration: 108, width: 160, height: 90, spawnDistance: 120, slowRate: 0.55, bossSlowRate: 0.8, maxFields: 1, color: 0x6f9cff, accent: 0xbf92ff },
+    { interval: 180, duration: 114, width: 172, height: 96, spawnDistance: 126, slowRate: 0.48, bossSlowRate: 0.74, maxFields: 2, color: 0x6b8fff, accent: 0xb782ff }
+  ];
+
   function getTargetForEnemy(enemy){
     const S = GameState;
     let bestDecoy = null;
@@ -33,6 +40,117 @@ window.EnemySystem = (() => {
       }
     }
     return { x: S.player.spr.x, y: S.player.spr.y, r: S.player.r, player: S.player };
+  }
+
+  function clearSlowField(field) {
+    if (field && field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+  }
+
+  function redrawSlowField(field) {
+    const g = field.spr;
+    const lifeRatio = Math.max(0, Math.min(1, field.life / Math.max(1, field.maxLife)));
+    const pulse = 0.82 + Math.sin(performance.now() / 180 + field.seed) * 0.08;
+    const edgeAlpha = 0.36 + lifeRatio * 0.18;
+    const fillAlpha = 0.08 + lifeRatio * 0.08;
+    g.clear();
+    g.lineStyle(2, field.color, edgeAlpha);
+    g.beginFill(field.accent, fillAlpha);
+    g.drawRoundedRect(-field.width * 0.5, -field.height * 0.5, field.width, field.height, 14);
+    g.endFill();
+    g.lineStyle(1, 0xffffff, 0.12 + lifeRatio * 0.08);
+    g.drawRoundedRect(-field.width * 0.44, -field.height * 0.38, field.width * 0.88, field.height * 0.76, 10);
+    g.scale.set(pulse, pulse);
+    g.alpha = Math.max(0, Math.min(0.92, 0.46 + lifeRatio * 0.28));
+  }
+
+  function spawnSlowField(spec) {
+    const S = GameState;
+    const player = S.player;
+    if (!player || !player.spr) return;
+
+    const angle = player.spr.rotation - Math.PI / 2;
+    const spawnX = player.spr.x + Math.cos(angle) * spec.spawnDistance;
+    const spawnY = player.spr.y + Math.sin(angle) * spec.spawnDistance;
+    const spr = new PIXI.Graphics();
+    spr.x = spawnX;
+    spr.y = spawnY;
+    spr.rotation = angle;
+    S.fx.addChild(spr);
+
+    const field = {
+      spr,
+      x: spawnX,
+      y: spawnY,
+      angle,
+      width: spec.width,
+      height: spec.height,
+      life: spec.duration,
+      maxLife: spec.duration,
+      slowRate: spec.slowRate,
+      bossSlowRate: spec.bossSlowRate,
+      color: spec.color,
+      accent: spec.accent,
+      seed: Math.random() * Math.PI * 2
+    };
+
+    redrawSlowField(field);
+    Effects.emitPulse(spawnX, spawnY, spec.color, Math.max(spec.width * 0.46, spec.height), 10);
+    S.slowFields.push(field);
+  }
+
+  function updateSlowFields(dt) {
+    const S = GameState;
+    const level = Math.max(0, Math.min(3, S.stats.slowFieldLevel || 0));
+    const spec = SLOW_FIELD_SPECS[level];
+
+    if (!spec || !S.player || !S.player.spr) {
+      S.stats.slowFieldCooldown = 0;
+      for (let i = S.slowFields.length - 1; i >= 0; i--) {
+        clearSlowField(S.slowFields[i]);
+        S.slowFields.splice(i, 1);
+      }
+      return;
+    }
+
+    S.stats.slowFieldCooldown = Math.max(0, (S.stats.slowFieldCooldown || 0) - dt);
+    if (S.stats.slowFieldCooldown <= 0) {
+      while (S.slowFields.length >= spec.maxFields) {
+        clearSlowField(S.slowFields[0]);
+        S.slowFields.shift();
+      }
+      spawnSlowField(spec);
+      S.stats.slowFieldCooldown = spec.interval;
+    }
+
+    for (let i = S.slowFields.length - 1; i >= 0; i--) {
+      const field = S.slowFields[i];
+      field.life -= dt;
+      redrawSlowField(field);
+
+      if (field.life <= 0) {
+        clearSlowField(field);
+        S.slowFields.splice(i, 1);
+        continue;
+      }
+
+      const cos = Math.cos(field.angle);
+      const sin = Math.sin(field.angle);
+      const halfWidth = field.width * 0.5;
+      const halfHeight = field.height * 0.5;
+
+      for (const enemy of S.enemies) {
+        if (!enemy) continue;
+        const rx = enemy.x - field.x;
+        const ry = enemy.y - field.y;
+        const along = rx * cos + ry * sin;
+        const side = Math.abs(rx * -sin + ry * cos);
+        const hitRadius = enemy.r || 0;
+        if (Math.abs(along) > halfWidth + hitRadius || side > halfHeight + hitRadius) continue;
+        const slowMul = enemy.tier === "boss" ? field.bossSlowRate : field.slowRate;
+        enemy.slowMul = Math.min(enemy.slowMul || 1, slowMul);
+        enemy.slowT = Math.max(enemy.slowT || 0, 4);
+      }
+    }
   }
 
   function getTierByWaveAndRoll(){

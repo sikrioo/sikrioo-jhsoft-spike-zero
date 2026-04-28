@@ -87,6 +87,9 @@ window.ActiveSkillSystem = (() => {
       slots[i].autoCast = false;
     }
     GameState.activeSkillState.ownedSkillIds = [];
+    GameState.activeSkillState.levels = {
+      boost: 1
+    };
 
     const shipConfig = GAME_BALANCE.SHIPS && GAME_BALANCE.SHIPS[GameState.playerType || "standard"];
     const shipLoadout = (shipConfig && shipConfig.starterActiveSkills) || [];
@@ -96,7 +99,9 @@ window.ActiveSkillSystem = (() => {
     for (const skillId of loadout) unlockSkill(skillId, { autoAssign: true });
 
     const startingLevels = testMode ? ((GAME_BALANCE.TEST && GAME_BALANCE.TEST.STARTING_ACTIVE_SKILL_LEVELS) || {}) : {};
-    GameState.activeSkillState.levels.boost = Math.max(1, startingLevels.boost || 1);
+    for (const [skillId, level] of Object.entries(startingLevels)) {
+      GameState.activeSkillState.levels[skillId] = Math.max(1, level || 1);
+    }
   }
 
   function canUseSlot(slot){
@@ -132,8 +137,10 @@ window.ActiveSkillSystem = (() => {
     if (skill.id === "boost") casted = castBoost(skill, context);
     if (skill.id === "afterburner") casted = castAfterburner(skill);
     if (skill.id === "nova_pulse") casted = castNovaPulse(skill);
+    if (skill.id === "chain_attack") casted = castChainAttack(skill);
     if (skill.id === "crossfire_missiles") casted = castCrossfireMissiles(skill);
     if (skill.id === "omni_burst") casted = castOmniBurst(skill);
+    if (skill.id === "magnetic_slow_field") casted = castMagneticSlowField(skill);
     if (skill.id === "stealth_field") casted = castStealthField(skill);
     // Smoke Screen is disabled in data because the current blurred smoke
     // visual is too expensive. Keep the implementation below for later tuning.
@@ -292,6 +299,122 @@ window.ActiveSkillSystem = (() => {
     return true;
   }
 
+  function getEnemyHitCircles(enemy) {
+    if (enemy && typeof enemy.getHitCircles === "function") return enemy.getHitCircles();
+    return [{ x: enemy.x, y: enemy.y, radius: enemy.r }];
+  }
+
+  function findChainLeadTarget(playerX, playerY, baseAngle, maxRange) {
+    const S = GameState;
+    const maxRangeSq = maxRange * maxRange;
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (const enemy of S.enemies) {
+      if (!enemy) continue;
+      for (const circle of getEnemyHitCircles(enemy)) {
+        const dx = circle.x - playerX;
+        const dy = circle.y - playerY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > maxRangeSq) continue;
+        if (
+          window.PlanetSystem &&
+          PlanetSystem.blocksLineOfSight &&
+          PlanetSystem.blocksLineOfSight(playerX, playerY, circle.x, circle.y, Math.max(2, circle.radius * 0.2))
+        ) {
+          continue;
+        }
+        const dist = Math.sqrt(distSq) || 1;
+        const angle = Math.atan2(dy, dx);
+        const angleDelta = Math.atan2(Math.sin(angle - baseAngle), Math.cos(angle - baseAngle));
+        const forwardBias = Math.cos(Math.abs(angleDelta));
+        const distanceBias = 1 - Helpers.clamp(dist / maxRange, 0, 1);
+        const score = forwardBias * 0.58 + distanceBias * 0.42;
+        if (score <= bestScore) continue;
+        bestScore = score;
+        best = { enemy, hitCircle: circle };
+      }
+    }
+
+    return best;
+  }
+
+  function castChainAttack(skill) {
+    const S = GameState;
+    const player = S.player;
+    const data = skill.effectData || {};
+    const level = Math.max(1, S.activeSkillState.levels.chain_attack || 1);
+    const originX = player.spr.x;
+    const originY = player.spr.y;
+    const aimAngle = Math.atan2(S.mouse.y - originY, S.mouse.x - originX);
+    const lead = findChainLeadTarget(originX, originY, aimAngle, data.range || 360);
+    if (!lead) return false;
+
+    const chainRange = (data.chainRange || 150) + (level - 1) * 14;
+    const chainRangeSq = chainRange * chainRange;
+    const targetCount = Math.max(1, (data.targetCount || 5) + (level - 1));
+    const baseDamage = (data.damage || 8) + (level - 1) * 2;
+    const bossDamage = (data.bossDamage || Math.max(1, (data.damage || 8) - 2)) + (level - 1);
+    const falloffRates = Array.isArray(data.falloffRates) ? data.falloffRates : [1, 0.82, 0.64, 0.5, 0.4];
+    const used = new Set();
+    let current = lead;
+    let chainX = originX;
+    let chainY = originY;
+    let hits = 0;
+
+    Effects.emitPulse(originX, originY, 0x8fe7ff, 44, 10);
+    Effects.emitParticle(originX, originY, 0x8fe7ff, 14, 0.9);
+
+    while (current && hits < targetCount) {
+      const enemy = current.enemy;
+      if (!enemy || used.has(enemy) || !S.enemies.includes(enemy)) break;
+      used.add(enemy);
+
+      const falloff = falloffRates[Math.min(hits, falloffRates.length - 1)] ?? 0.4;
+      const color = hits % 2 === 0 ? 0x86eaff : 0xd3a0ff;
+      const damage = enemy.tier === "boss"
+        ? Math.max(1, bossDamage * falloff)
+        : Math.max(1, baseDamage * falloff);
+
+      if (window.Effects && Effects.emitElectricArc) {
+        Effects.emitElectricArc(chainX, chainY, current.hitCircle.x, current.hitCircle.y, color, 0xffffff, 8, 10);
+      } else {
+        Effects.emitLineTelegraph(chainX, chainY, current.hitCircle.x, current.hitCircle.y, color, 6, 2);
+      }
+      Effects.emitParticle(current.hitCircle.x, current.hitCircle.y, color, enemy.tier === "boss" ? 8 : 6, 0.72);
+      Effects.emitPulse(current.hitCircle.x, current.hitCircle.y, color, enemy.tier === "boss" ? 28 : 22, 7);
+      CombatSystem.damageEnemy(enemy, damage, color, enemy.tier === "boss" ? 10 : 8, 0.62, current.hitCircle);
+      hits += 1;
+      chainX = current.hitCircle.x;
+      chainY = current.hitCircle.y;
+
+      let next = null;
+      let nextDistSq = Infinity;
+      for (const candidate of S.enemies) {
+        if (!candidate || used.has(candidate)) continue;
+        for (const circle of getEnemyHitCircles(candidate)) {
+          const dx = circle.x - chainX;
+          const dy = circle.y - chainY;
+          const distSq = dx * dx + dy * dy;
+          if (distSq > chainRangeSq || distSq >= nextDistSq) continue;
+          if (
+            window.PlanetSystem &&
+            PlanetSystem.blocksLineOfSight &&
+            PlanetSystem.blocksLineOfSight(chainX, chainY, circle.x, circle.y, Math.max(2, circle.radius * 0.2))
+          ) {
+            continue;
+          }
+          next = { enemy: candidate, hitCircle: circle };
+          nextDistSq = distSq;
+        }
+      }
+      current = next;
+    }
+
+    S.shake = Math.min(24, S.shake + 3);
+    return hits > 0;
+  }
+
   function castCrossfireMissiles(skill){
     if (!window.CombatSystem || typeof CombatSystem.launchCrossfireMissiles !== "function") return false;
     return CombatSystem.launchCrossfireMissiles(skill.effectData || {});
@@ -300,6 +423,62 @@ window.ActiveSkillSystem = (() => {
   function castOmniBurst(skill){
     if (!window.CombatSystem || typeof CombatSystem.launchOmniBurst !== "function") return false;
     return CombatSystem.launchOmniBurst(skill.effectData || {});
+  }
+
+  function redrawMagneticField(field) {
+    const lifeRatio = Math.max(0, Math.min(1, field.life / Math.max(1, field.maxLife)));
+    const pulse = 0.96 + Math.sin(performance.now() / 120 + field.seed) * 0.06;
+    const g = field.spr;
+    g.clear();
+    g.lineStyle(3, 0x86b8ff, 0.44 + lifeRatio * 0.2);
+    g.beginFill(0x6d4fff, 0.08 + lifeRatio * 0.1);
+    g.drawRoundedRect(-field.width * 0.5, -field.height * 0.5, field.width, field.height, 18);
+    g.endFill();
+    g.lineStyle(1, 0xffffff, 0.22 + lifeRatio * 0.1);
+    g.drawRoundedRect(-field.width * 0.43, -field.height * 0.35, field.width * 0.86, field.height * 0.7, 12);
+    g.moveTo(-field.width * 0.18, 0);
+    g.lineTo(field.width * 0.18, 0);
+    g.moveTo(0, -field.height * 0.2);
+    g.lineTo(0, field.height * 0.2);
+    g.scale.set(pulse, pulse);
+    g.alpha = 0.54 + lifeRatio * 0.18;
+  }
+
+  function castMagneticSlowField(skill) {
+    const S = GameState;
+    const player = S.player;
+    const data = skill.effectData || {};
+    const level = Math.max(1, S.activeSkillState.levels.magnetic_slow_field || 1);
+    const angle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const spawnDistance = data.spawnDistance || 132;
+    const spawnX = player.spr.x + Math.cos(angle) * spawnDistance;
+    const spawnY = player.spr.y + Math.sin(angle) * spawnDistance;
+    const spr = new PIXI.Graphics();
+    spr.x = spawnX;
+    spr.y = spawnY;
+    spr.rotation = angle;
+    S.fx.addChild(spr);
+
+    const field = {
+      spr,
+      x: spawnX,
+      y: spawnY,
+      angle,
+      width: (data.width || 176) + (level - 1) * 18,
+      height: (data.height || 108) + (level - 1) * 10,
+      life: (skill.duration || 120) + (level - 1) * 18,
+      maxLife: (skill.duration || 120) + (level - 1) * 18,
+      slowRate: Math.max(0.28, (data.slowRate || 0.46) - (level - 1) * 0.06),
+      bossSlowRate: Math.max(0.58, (data.bossSlowRate || 0.76) - (level - 1) * 0.05),
+      seed: Math.random() * Math.PI * 2
+    };
+
+    redrawMagneticField(field);
+    S.slowFields.push(field);
+    Effects.emitPulse(spawnX, spawnY, 0x7f9cff, Math.max(field.width * 0.5, field.height * 0.9), 14);
+    Effects.emitPulse(spawnX, spawnY, 0xb69cff, Math.max(field.width * 0.32, field.height * 0.58), 10);
+    Effects.emitParticle(spawnX, spawnY, 0x8eb9ff, 16, 0.95);
+    return true;
   }
 
   function castStealthField(skill){
@@ -425,6 +604,42 @@ window.ActiveSkillSystem = (() => {
     }
   }
 
+  function updateMagneticSlowFields(dt) {
+    const S = GameState;
+    for (let i = S.slowFields.length - 1; i >= 0; i--) {
+      const field = S.slowFields[i];
+      field.life -= dt;
+      redrawMagneticField(field);
+
+      if (field.life <= 0) {
+        if (field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+        S.slowFields.splice(i, 1);
+        continue;
+      }
+
+      const cos = Math.cos(field.angle);
+      const sin = Math.sin(field.angle);
+      const halfWidth = field.width * 0.5;
+      const halfHeight = field.height * 0.5;
+
+      for (const enemy of S.enemies) {
+        if (!enemy) continue;
+        const rx = enemy.x - field.x;
+        const ry = enemy.y - field.y;
+        const along = rx * cos + ry * sin;
+        const side = Math.abs(rx * -sin + ry * cos);
+        const hitRadius = enemy.r || 0;
+        if (Math.abs(along) > halfWidth + hitRadius || side > halfHeight + hitRadius) continue;
+        const slowMul = enemy.tier === "boss" ? field.bossSlowRate : field.slowRate;
+        enemy.slowMul = Math.min(enemy.slowMul || 1, slowMul);
+        enemy.slowT = Math.max(enemy.slowT || 0, 4);
+        if ((performance.now() | 0) % 10 === 0) {
+          Effects.emitParticle(enemy.x, enemy.y, enemy.tier === "boss" ? 0xb69cff : 0x8eb9ff, 1, 0.2);
+        }
+      }
+    }
+  }
+
   function update(dt){
     const S = GameState;
     for (const slot of S.activeSkillState.slots){
@@ -489,6 +704,7 @@ window.ActiveSkillSystem = (() => {
 
     updateDecoys(dt);
     updateSmokeClouds(dt);
+    updateMagneticSlowFields(dt);
   }
 
   return {

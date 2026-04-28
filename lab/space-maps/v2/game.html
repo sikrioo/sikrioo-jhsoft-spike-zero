@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>SPIKE-ZERO Game</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="gameRoot">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud">
+      <div class="title" id="stageTitle">ASTEROID BELT</div>
+      <div class="desc" id="stageDesc">Dense rock field · shadow cover</div>
+      <div class="controls">Move: WASD / Arrow Keys · Light: L</div>
+      <div class="light-status" id="lightStatus">LIGHT OFF</div>
+    </div>
+
+    <div class="panel">
+      <b>Stage Select</b>
+      <button id="btnAsteroid" type="button">Asteroid Belt</button>
+      <button id="btnAsteroidPhysics" type="button">Asteroid Physics Belt</button>
+      <button id="btnAsteroidFlow" type="button">Asteroid Flow Belt</button>
+      <button id="btnAsteroidFlowCombat" type="button">Asteroid Flow Combat</button>
+      <button id="btnNebula" type="button">Nebula Blind Zone</button>
+      <button id="btnGasPlanet" type="button">Gas Planet Field</button>
+      <button id="btnOrbit" type="button">Orbital Satellite Zone</button>
+      <button id="btnMagnetic" type="button">Magnetic Storm Zone</button>
+      <small id="stageRule">큰 소행성 뒤쪽은 암흑 구역입니다.</small>
+    </div>
+
+    <div class="debug-hud" id="debugHud">
+      <div><b>DEBUG</b></div>
+      <div id="debugFps">FPS: -</div>
+      <div id="debugObjects">Objects: -</div>
+      <div id="debugStage">Stage: -</div>
+    </div>
+  </div>
+
+  <script src="./js/core/utils.js"></script>
+  <script src="./js/core/state.js"></script>
+  <script src="./js/core/spatial-grid.js"></script>
+  <script src="./js/core/object-pool.js"></script>
+  <script src="./js/core/engine-runtime.js"></script>
+  <script src="./js/data/stage-data.js"></script>
+  <script src="./js/entities/player.js"></script>
+  <script src="./js/render/background-renderer.js"></script>
+  <script src="./js/render/asteroid-renderer.js"></script>
+  <script src="./js/render/asteroid-physics-renderer.js"></script>
+  <script src="./js/render/asteroid-flow-renderer.js"></script>
+  <script src="./js/render/asteroid-flow-combat-renderer.js"></script>
+  <script src="./js/render/nebula-renderer.js"></script>
+  <script src="./js/render/gas-planet-renderer.js"></script>
+  <script src="./js/render/orbit-renderer.js"></script>
+  <script src="./js/render/magnetic-renderer.js"></script>
+  <script src="./js/systems/map-system.js"></script>
+  <script src="./js/core/boot.js"></script>
+
+</body>
+</html>

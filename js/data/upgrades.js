@@ -414,6 +414,38 @@
       }
     }),
     defineUpgrade({
+      id: "chain_attack",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "dps",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["chain", "multi-target", "offense", "unlock"],
+      name: "Unlock Chain Surge",
+      desc: "Gain Chain Surge, a casted chain strike that jumps through clustered enemies. Further levels strengthen the strike.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("chain_attack");
+        GameState.activeSkillState.levels.chain_attack = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "magnetic_slow_field",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "control",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["control", "area-control", "survival", "unlock"],
+      name: "Unlock Magnetic Snare",
+      desc: "Gain Magnetic Snare, a casted forward field that heavily slows enemies inside. Further levels expand and strengthen it.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("magnetic_slow_field");
+        GameState.activeSkillState.levels.magnetic_slow_field = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
       id: "homingmissile",
       category: "weapon",
       upgradeType: "weapon",

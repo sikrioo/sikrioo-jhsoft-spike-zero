@@ -107,6 +107,45 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     }
   },
   {
+    id: "chain_attack",
+    name: "Chain Surge",
+    desc: "Fire a charged chain strike that latches onto a target and rips through nearby enemies.",
+    type: "offense",
+    mpCost: 26,
+    cooldown: 180,
+    duration: 1,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      range: 360,
+      chainRange: 150,
+      targetCount: 5,
+      damage: 8,
+      bossDamage: 5,
+      falloffRates: [1, 0.82, 0.64, 0.5, 0.4]
+    }
+  },
+  {
+    id: "magnetic_slow_field",
+    name: "Magnetic Snare",
+    desc: "Project a bright forward field that drags hostile ships and slows anything caught inside.",
+    type: "utility",
+    mpCost: 24,
+    cooldown: 210,
+    duration: 126,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      width: 176,
+      height: 108,
+      spawnDistance: 132,
+      slowRate: 0.46,
+      bossSlowRate: 0.76
+    }
+  },
+  {
     id: "stealth_field",
     name: "Stealth Field",
     desc: "Vanish for a short time. Normal enemies lose your position until you attack.",

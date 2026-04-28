@@ -96,8 +96,10 @@ window.PlayerFactory = (() => {
   // ══════════════════════════════════════════════════════════
   function buildStandard(c) {
     const C = 0x32f6ff;
-    const halo = makeShipHalo(0x144976, 20, 28, 0.08);
-    const targetRing = makeTargetRing(22, 0x274d7f, 0.28);
+    const halo = makeShipHalo(0x144976, 18, 25, 0.035);
+    halo.alpha = 0.42;
+    const targetRing = makeTargetRing(20, 0x274d7f, 0.12);
+    targetRing.alpha = 0.38;
 
     // 좌우 대칭 날개 (동일 좌표, x 부호만 반전)
     const wings = new PIXI.Graphics();
@@ -391,6 +393,7 @@ window.PlayerFactory = (() => {
       inv:    0,
       fireCd: 0,
       dashT:  0,
+      engineTrailT: 0
     };
   }
 

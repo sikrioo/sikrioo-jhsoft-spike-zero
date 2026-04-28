@@ -99,11 +99,16 @@ window.SkillSystem = (() => {
     S.stats.mineMaxCount = 0;
     S.stats.mineRadius = 0;
     S.stats.mineDamage = 0;
+    S.stats.chainAttackLevel = 0;
+    S.stats.slowFieldLevel = 0;
+    S.stats.slowFieldCooldown = 0;
     if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
       PlayerFactory.applyShipStats(S.stats, S.playerType || "standard");
     }
     for (const smoke of S.smokeClouds) if (smoke.spr && smoke.spr.parent) smoke.spr.parent.removeChild(smoke.spr);
     S.smokeClouds.length = 0;
+    for (const field of S.slowFields) if (field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+    S.slowFields.length = 0;
 
     CombatSystem.applyStartingWeaponLoadout(S.stats.practice);
     CombatSystem.syncWeaponStats();
@@ -312,26 +317,44 @@ window.SkillSystem = (() => {
     if (S.progression.waveState !== "running") return false;
 
     S.progression.waveState = "levelup";
-    const choices = pickChoices(3);
-    if (!choices.length) {
-      S.progression.pendingLevelUps = 0;
-      S.progression.waveState = "running";
-      UI.showCard(null);
+    S.progression.levelUpRerollUsed = false;
+
+    const renderLevelChoices = () => {
+      const choices = pickChoices(3);
+      if (!choices.length) {
+        S.progression.pendingLevelUps = 0;
+        S.progression.levelUpRerollUsed = false;
+        S.progression.waveState = "running";
+        UI.showCard(null);
+        return false;
+      }
+
+      UI.renderUpgradeChoices(choices, (choice) => {
+        applyUpgradeById(choice.id);
+        S.progression.pendingLevelUps -= 1;
+        S.progression.levelUpRerollUsed = false;
+        UI.hudUpdate();
+
+        if (S.progression.pendingLevelUps > 0) {
+          openLevelUpIfNeeded();
+        } else {
+          UI.showCard(null);
+          S.progression.waveState = "running";
+        }
+      }, {
+        rerollUsed: S.progression.levelUpRerollUsed,
+        onReroll: S.progression.levelUpRerollUsed ? null : () => {
+          S.progression.levelUpRerollUsed = true;
+          if (window.SoundSystem) SoundSystem.play("ui_hover", { playbackRate: 1.08, cooldownMs: 0 });
+          renderLevelChoices();
+        }
+      });
+      return true;
+    };
+
+    if (!renderLevelChoices()) {
       return false;
     }
-
-    UI.renderUpgradeChoices(choices, (choice) => {
-      applyUpgradeById(choice.id);
-      S.progression.pendingLevelUps -= 1;
-      UI.hudUpdate();
-
-      if (S.progression.pendingLevelUps > 0) {
-        openLevelUpIfNeeded();
-      } else {
-        UI.showCard(null);
-        S.progression.waveState = "running";
-      }
-    });
     UI.showCard("upgrade");
     return true;
   }

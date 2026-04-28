@@ -227,6 +227,19 @@
           <small>Hold click or Space</small>
         </label>
       </div>
+      <div class="difficultyPanel">
+        <div class="difficultyLabel">Auto Aim (Experimental)</div>
+        <label class="difficultyOption">
+          <input type="radio" name="autoAim" value="false" checked />
+          <span>Off</span>
+          <small>Pure manual aim</small>
+        </label>
+        <label class="difficultyOption">
+          <input type="radio" name="autoAim" value="true" />
+          <span>On</span>
+          <small>Experimental target assist</small>
+        </label>
+      </div>
       <div class="btnRow">
         <button class="btn" id="btnStart">Play Mode</button>
         <button class="btn secondary" id="btnPracticeBoss">Test Boss</button>
@@ -237,8 +250,11 @@
     <div class="card" id="upgradeCard" style="display:none;">
       <h1>Level Up</h1>
       <p>Choose one upgrade.</p>
+      <div class="btnRow">
+        <button class="btn secondary" id="btnUpgradeReroll" type="button">Reroll Choices</button>
+      </div>
       <div class="upgradeGrid" id="upgradeGrid"></div>
-      <p class="hint">The game resumes as soon as you pick.</p>
+      <p class="hint">Arrow / A,D to move · Enter to pick · Space to reroll</p>
     </div>
 
     <div class="card" id="gameOverCard" style="display:none;">

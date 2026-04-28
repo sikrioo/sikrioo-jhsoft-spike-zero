@@ -49,5 +49,44 @@ window.StageData = {
     laserDurationMin: 30,
     laserDurationMax: 60,
     maxActiveLasers: 3
+  },
+
+  magnetic: {
+    id: "magnetic",
+    title: "MAGNETIC STORM ZONE",
+    desc: "Performance slow field · body-origin lightning",
+    rule: "행성 주변 자기장에 들어가면 기체 성능이 둔화되고, 여러 행성에서 연쇄 번개가 행성 몸체로부터 뻗어나옵니다.",
+    type: "magnetic",
+    magneticForce: 0.035,
+    lightningIntervalMin: 120,
+    lightningIntervalMax: 240
+  },
+
+  asteroidPhysics: {
+    id: "asteroidPhysics",
+    title: "ASTEROID PHYSICS BELT",
+    desc: "Physical asteroids · collision drift · reduced density",
+    rule: "소행성 수를 줄이고, 소행성과 플레이어가 물리적으로 충돌하고 튕기는 피지컬 모드입니다.",
+    type: "asteroidPhysics",
+    restitution: 0.84,
+    friction: 0.998
+  },
+
+  asteroidFlow: {
+    id: "asteroidFlow",
+    title: "ASTEROID FLOW BELT",
+    desc: "Passing asteroids · light physical collision · reduced density",
+    rule: "소행성이 맵 안에 갇히지 않고 한쪽에서 지나가며, 접촉 시 물리 반동이 발생하는 흐름형 소행성 맵입니다.",
+    type: "asteroidFlow",
+    restitution: 0.72,
+    friction: 0.999
+  },
+
+  asteroidFlowCombat: {
+    id: "asteroidFlowCombat",
+    title: "ASTEROID FLOW COMBAT",
+    desc: "Machinegun test · passing physical asteroids",
+    rule: "Space 키로 머신건을 발사하고, 흐르는 소행성과 총알/충돌 반응을 테스트하는 맵입니다. 적기는 제거했습니다.",
+    type: "asteroidFlowCombat"
   }
 };

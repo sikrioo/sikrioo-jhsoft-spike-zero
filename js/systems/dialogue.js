@@ -1,7 +1,7 @@
 window.DialogueSystem = (() => {
   const TYPE_DELAY_MS = 24;
-  const LINE_HOLD_MS = 3400;
-  const END_HOLD_MS = 2600;
+  const LINE_HOLD_MS = 4200;
+  const END_HOLD_MS = 3200;
 
   let token = 0;
   let activeCompletion = null;
@@ -53,6 +53,7 @@ window.DialogueSystem = (() => {
     }
 
     S.progression.waveState = "dialogue";
+    if (window.Boot && Boot.resetInputState) Boot.resetInputState();
     UI.openDialogueOverlay();
 
     for (const line of queue) {
@@ -105,6 +106,7 @@ window.DialogueSystem = (() => {
     activeToken = 0;
     activeCompletion = null;
     if (window.BgmSystem) BgmSystem.clearOverride();
+    if (window.Boot && Boot.resetInputState) Boot.resetInputState();
     UI.resetDialogueLog();
   }
 
@@ -115,6 +117,7 @@ window.DialogueSystem = (() => {
     activeToken = 0;
     activeCompletion = null;
     if (window.BgmSystem) BgmSystem.clearOverride();
+    if (window.Boot && Boot.resetInputState) Boot.resetInputState();
     UI.resetDialogueLog();
     if (typeof onComplete === "function") onComplete();
     return true;

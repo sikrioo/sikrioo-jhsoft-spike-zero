@@ -1016,6 +1016,11 @@ canvas{
   transform:translateY(-1px);
   border-color:rgba(50,246,255,.34);
 }
+.upgrade.selected{
+  transform:translateY(-2px);
+  border-color:rgba(125,249,255,.82);
+  box-shadow:0 0 0 1px rgba(125,249,255,.24), 0 0 22px rgba(125,249,255,.18);
+}
 .upgradeType{
   display:inline-flex;
   align-items:center;

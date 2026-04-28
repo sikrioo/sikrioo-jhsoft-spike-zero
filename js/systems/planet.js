@@ -1,4 +1,5 @@
 window.PlanetSystem = (() => {
+  const ASTEROID_MAP_TEST_STAGE = 4;
   const SIZE_RADIUS = {
     small: 28,
     medium: 56,
@@ -48,6 +49,54 @@ window.PlanetSystem = (() => {
     return root;
   }
 
+  function createRockPoints(radius, seed = 1) {
+    const points = [];
+    let state = seed * 92821 + 17;
+    const rand = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0xffffffff;
+    };
+    const count = Math.max(8, Math.round(radius / 7));
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i) / count;
+      const rough = 0.74 + rand() * 0.38;
+      points.push(Math.cos(a) * radius * rough, Math.sin(a) * radius * rough);
+    }
+    return points;
+  }
+
+  function makeAsteroidSprite(asteroid, seed = 1) {
+    const root = new PIXI.Container();
+    const shadow = new PIXI.Graphics();
+    const body = new PIXI.Graphics();
+    const detail = new PIXI.Graphics();
+    const radius = asteroid.radius;
+    const points = createRockPoints(radius, seed);
+
+    shadow.beginFill(0x000000, radius >= 42 ? 0.22 : 0.14);
+    shadow.drawEllipse(radius * 0.3, radius * 0.16, radius * 0.95, radius * 0.52);
+    shadow.endFill();
+    shadow.filters = [new PIXI.filters.BlurFilter(radius >= 42 ? 10 : 6)];
+
+    body.beginFill(asteroid.color, 0.98);
+    body.lineStyle(Math.max(1, radius * 0.05), asteroid.rimColor, 0.36);
+    body.drawPolygon(points);
+    body.endFill();
+
+    detail.lineStyle(Math.max(1, radius * 0.03), 0xf0e2c4, 0.16);
+    detail.drawPolygon(points.map((value, index) => value * (index % 2 === 0 ? 0.68 : 0.68)));
+    detail.lineStyle(1, 0x130f0f, 0.18);
+    detail.drawCircle(-radius * 0.18, -radius * 0.12, Math.max(3, radius * 0.14));
+    detail.drawCircle(radius * 0.12, radius * 0.18, Math.max(2, radius * 0.1));
+    detail.drawCircle(radius * 0.28, -radius * 0.06, Math.max(2, radius * 0.08));
+
+    root.addChild(shadow, body, detail);
+    root.x = asteroid.x;
+    root.y = asteroid.y;
+    root.rotation = asteroid.rotation || 0;
+    return root;
+  }
+
   function clear() {
     const S = GameState;
     for (const planet of S.planets) {
@@ -78,8 +127,58 @@ window.PlanetSystem = (() => {
     return configs[Math.max(0, Math.min(2, stage - 1))];
   }
 
+  function getAsteroidFieldConfig() {
+    const arena = Helpers.getArenaBounds();
+    return [
+      { size: "large", count: 3, speedMin: 0.18, speedMax: 0.34, yMin: arena.top + arena.height * 0.12, yMax: arena.top + arena.height * 0.46 },
+      { size: "medium", count: 8, speedMin: 0.34, speedMax: 0.62, yMin: arena.top + arena.height * 0.08, yMax: arena.bottom - arena.height * 0.08 },
+      { size: "small", count: 18, speedMin: 0.58, speedMax: 1.08, yMin: arena.top + arena.height * 0.05, yMax: arena.bottom - arena.height * 0.05 }
+    ];
+  }
+
+  function resetForAsteroidMapTest() {
+    const S = GameState;
+    const arena = Helpers.getArenaBounds();
+    const radii = { small: 16, medium: 34, large: 66 };
+    let seed = 401;
+    for (const group of getAsteroidFieldConfig()) {
+      for (let i = 0; i < group.count; i++) {
+        seed += 17;
+        const radius = radii[group.size] + Helpers.rand(-Math.max(2, radii[group.size] * 0.12), Math.max(3, radii[group.size] * 0.16));
+        const asteroid = {
+          id: `asteroid_test_${group.size}_${i}`,
+          size: group.size,
+          x: Helpers.rand(arena.left - radius * 0.5, arena.right + radius * 0.5),
+          y: Helpers.rand(group.yMin, group.yMax),
+          radius,
+          collision: true,
+          blocksBullet: true,
+          blocksShip: true,
+          damageOnContact: false,
+          gravity: false,
+          color: group.size === "large" ? 0x6a6258 : group.size === "medium" ? 0x74695d : 0x857768,
+          rimColor: group.size === "large" ? 0xe7d7bb : 0xd8c8a8,
+          rotation: Helpers.rand(0, Math.PI * 2),
+          spin: Helpers.rand(-0.008, 0.008) * (group.size === "large" ? 0.45 : 1),
+          vx: Helpers.rand(group.speedMin, group.speedMax),
+          vy: Helpers.rand(-0.14, 0.14),
+          spr: null,
+          seed,
+          isAsteroid: true
+        };
+        asteroid.spr = makeAsteroidSprite(asteroid, asteroid.seed);
+        S.uiLayer.addChildAt(asteroid.spr, 0);
+        S.planets.push(asteroid);
+      }
+    }
+  }
+
   function resetForStage(stage = 1) {
     clear();
+    if (Number(stage) === ASTEROID_MAP_TEST_STAGE) {
+      resetForAsteroidMapTest();
+      return;
+    }
     const S = GameState;
     const planets = getStagePlanets(stage).map((data, index) => {
       const radius = SIZE_RADIUS[data.size] || SIZE_RADIUS.medium;
@@ -100,6 +199,35 @@ window.PlanetSystem = (() => {
       planet.spr = makePlanetSprite(planet, planet.seed);
       S.uiLayer.addChildAt(planet.spr, 0);
       S.planets.push(planet);
+    }
+  }
+
+  function update(dt = 1) {
+    const arena = Helpers.getArenaBounds();
+    for (const planet of GameState.planets) {
+      if (!planet.isAsteroid || !planet.spr) continue;
+      planet.x += planet.vx * dt;
+      planet.y += planet.vy * dt;
+      planet.rotation += planet.spin * dt;
+
+      const horizontalMargin = planet.radius * 3.2;
+      const verticalMargin = planet.radius * 1.8;
+      if (planet.x > arena.right + horizontalMargin) {
+        planet.x = arena.left - horizontalMargin;
+        planet.y = Helpers.rand(arena.top + planet.radius, arena.bottom - planet.radius);
+      } else if (planet.x < arena.left - horizontalMargin) {
+        planet.x = arena.right + horizontalMargin;
+        planet.y = Helpers.rand(arena.top + planet.radius, arena.bottom - planet.radius);
+      }
+      if (planet.y < arena.top - verticalMargin) {
+        planet.y = arena.bottom + verticalMargin;
+      } else if (planet.y > arena.bottom + verticalMargin) {
+        planet.y = arena.top - verticalMargin;
+      }
+
+      planet.spr.x = planet.x;
+      planet.spr.y = planet.y;
+      planet.spr.rotation = planet.rotation;
     }
   }
 
@@ -146,10 +274,30 @@ window.PlanetSystem = (() => {
     return false;
   }
 
+  function blocksLineOfSight(x1, y1, x2, y2, padding = 0) {
+    if (!GameState.planets.length) return false;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq <= 0.0001) return false;
+
+    for (const planet of GameState.planets) {
+      if (!planet.blocksBullet) continue;
+      const rr = planet.radius + padding;
+      const t = Helpers.clamp((((planet.x - x1) * dx) + ((planet.y - y1) * dy)) / lenSq, 0, 1);
+      const px = x1 + dx * t;
+      const py = y1 + dy * t;
+      if (Helpers.dist2(px, py, planet.x, planet.y) <= rr * rr) return true;
+    }
+    return false;
+  }
+
   return {
     clear,
     resetForStage,
+    update,
     resolveShipCollision,
-    blocksProjectile
+    blocksProjectile,
+    blocksLineOfSight
   };
 })();

@@ -8,5 +8,7 @@ window.GameState = {
   keys: new Set(),
   stageId: "asteroid",
   player: null,
-  mapRuntime: null
+  mapRuntime: null,
+  engine: null,
+  debug: { fps: 0, objectCount: 0, updates: 0 }
 };
