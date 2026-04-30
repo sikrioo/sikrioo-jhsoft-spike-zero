@@ -90,6 +90,9 @@ window.ActiveSkillSystem = (() => {
     GameState.activeSkillState.levels = {
       boost: 1
     };
+    GameState.activeSkillState.boostDirection = "forward";
+
+    unlockSkill("boost", { autoAssign: true });
 
     const shipConfig = GAME_BALANCE.SHIPS && GAME_BALANCE.SHIPS[GameState.playerType || "standard"];
     const shipLoadout = (shipConfig && shipConfig.starterActiveSkills) || [];
@@ -116,6 +119,61 @@ window.ActiveSkillSystem = (() => {
 
   function tryUseSlotByKey(code){
     return tryUseSlot(getSlotByKey(code));
+  }
+
+  function getBoostDirection(){
+    return GameState.activeSkillState.boostDirection || "forward";
+  }
+
+  function getBoostDirectionLabel(direction = getBoostDirection()){
+    if (direction === "left") return "LEFT";
+    if (direction === "right") return "RIGHT";
+    if (direction === "back") return "BACK";
+    return "FRONT";
+  }
+
+  function getBoostDirectionIcon(direction = getBoostDirection()){
+    if (direction === "left") return "\u2190";
+    if (direction === "right") return "\u2192";
+    if (direction === "back") return "\u2193";
+    return "\u2191";
+  }
+
+  function getAvailableBoostDirections(){
+    return ["forward", "left", "right", "back"];
+  }
+
+  function normalizeBoostDirection(direction){
+    const available = getAvailableBoostDirections();
+    if (available.includes(direction)) return direction;
+    return "forward";
+  }
+
+  function setBoostDirection(direction){
+    const boostSlot = GameState.activeSkillState.slots.find(slot => slot.skillId === "boost");
+    if (!boostSlot) return false;
+    GameState.activeSkillState.boostDirection = normalizeBoostDirection(direction);
+    UI.flashActiveSlot(boostSlot.key, "cast");
+    if (window.UI && UI.showActiveSlotHint) {
+      UI.showActiveSlotHint(boostSlot.key, `BOOST ${getBoostDirectionLabel()}`);
+    }
+    if (window.SoundSystem) {
+      SoundSystem.play("ui_hover", { playbackRate: 1.18, volume: 0.18, cooldownMs: 0 });
+      SoundSystem.play("radio_in", { playbackRate: 1.3, volume: 0.08, cooldownMs: 0 });
+    }
+    UI.hudUpdate();
+    return true;
+  }
+
+  function cycleBoostDirection(){
+    const boostSlot = GameState.activeSkillState.slots.find(slot => slot.skillId === "boost");
+    if (!boostSlot) return false;
+    const directions = getAvailableBoostDirections();
+    if (!directions.length) return false;
+    const current = normalizeBoostDirection(getBoostDirection());
+    const currentIndex = Math.max(0, directions.indexOf(current));
+    const nextDirection = directions[(currentIndex + 1) % directions.length];
+    return setBoostDirection(nextDirection);
   }
 
   function tryUseBoostDirection(direction){
@@ -197,7 +255,7 @@ window.ActiveSkillSystem = (() => {
     const p = S.player;
     const facing = Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
     const level = Math.max(1, S.activeSkillState.levels.boost || 1);
-    const boostSpec = getBoostSpec(skill, facing, level, context.boostDirection || null);
+    const boostSpec = getBoostSpec(skill, facing, level, context.boostDirection || getBoostDirection());
 
     p.vx += Math.cos(boostSpec.angle) * boostSpec.profile.speed;
     p.vy += Math.sin(boostSpec.angle) * boostSpec.profile.speed;
@@ -215,23 +273,33 @@ window.ActiveSkillSystem = (() => {
 
   function getBoostSpec(skill, facing, level, explicitDirection=null){
     let angle = facing;
-    let profile = skill.effectData.forward;
+    let profile = scaleBoostProfile(skill.effectData.forward, level);
 
     if (explicitDirection === "forward"){
       angle = facing;
-      profile = skill.effectData.forward;
-    } else if (explicitDirection === "back" && level >= 3){
+      profile = scaleBoostProfile(skill.effectData.forward, level);
+    } else if (explicitDirection === "back"){
       angle = facing + Math.PI;
-      profile = skill.effectData.back;
-    } else if (explicitDirection === "left" && level >= 2){
+      profile = scaleBoostProfile(skill.effectData.back, level);
+    } else if (explicitDirection === "left"){
       angle = facing - Math.PI / 2;
-      profile = skill.effectData.side;
-    } else if (explicitDirection === "right" && level >= 2){
+      profile = scaleBoostProfile(skill.effectData.side, level);
+    } else if (explicitDirection === "right"){
       angle = facing + Math.PI / 2;
-      profile = skill.effectData.side;
+      profile = scaleBoostProfile(skill.effectData.side, level);
     }
 
     return { angle, profile };
+  }
+
+  function scaleBoostProfile(profile, level){
+    const lv = Math.max(1, level || 1);
+    const bonus = lv - 1;
+    return {
+      speed: (profile.speed || 0) + bonus * 1.5,
+      drag: Math.min(0.97, (profile.drag || 0.9) + bonus * 0.01),
+      mitigationMul: Math.max(0.72, (profile.mitigationMul || 1) - bonus * 0.03)
+    };
   }
 
   function castAfterburner(skill){
@@ -717,6 +785,11 @@ window.ActiveSkillSystem = (() => {
     clearSlot,
     assignSkillToSlot,
     breakStealth,
+    getBoostDirection,
+    getBoostDirectionLabel,
+    getBoostDirectionIcon,
+    setBoostDirection,
+    cycleBoostDirection,
     tryUseSlotByKey,
     tryUseBoostDirection,
     update

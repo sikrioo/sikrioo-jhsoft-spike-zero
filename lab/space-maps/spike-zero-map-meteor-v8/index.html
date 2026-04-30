@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>SPIKE-ZERO Map Prototype</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="pixiRoot">
+    <div class="pixi-hud">
+      <div class="title">SPIKE-ZERO · PIXIJS MAP PROTOTYPE</div>
+      <div class="desc">WASD/Arrow: move · Space: machinegun · L: nebula light · 1~8: map</div>
+      <div class="desc">Map hotkeys: 1-0</div>
+      <div class="map-buttons">
+        <button data-map="asteroid">Asteroid</button>
+        <button data-map="gas">Gas</button>
+        <button data-map="magnetic">Magnetic</button>
+        <button data-map="nebula">Nebula</button>
+        <button data-map="orbit">Orbit</button>
+        <button data-map="jupiter">Jupiter</button>
+        <button data-map="solar">Solar</button>
+        <button data-map="storm">Storm</button>
+        <button data-map="meteor">Meteor</button>
+        <button data-map="cataclysm">Cataclysm</button>
+      </div>
+    </div>
+
+    <div class="pixi-debug" id="pixiDebug">
+      FPS: -<br>
+      Bullets: -<br>
+      Objects: -
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.18.1/dist/pixi.min.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

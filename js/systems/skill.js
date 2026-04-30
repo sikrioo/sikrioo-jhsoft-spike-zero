@@ -120,6 +120,7 @@ window.SkillSystem = (() => {
     S.upgrades.categoryCounts.passive = 0;
     S.upgrades.categoryCounts.active = 0;
 
+    S.activeSkillState.boostDirection = "forward";
     S.activeSkillState.boostDir = 0;
     S.activeSkillState.boostDrag = 0.9;
     S.activeSkillState.boostMitigationT = 0;
@@ -258,6 +259,9 @@ window.SkillSystem = (() => {
     }
     if ((upgradeState.levels.speed || 0) > 0 && upgrade.id === "dash") {
       weight *= 1.14;
+    }
+    if (S.activeSkillState.ownedSkillIds.includes("boost") && upgrade.id === "boost_tuning") {
+      weight *= 1.35;
     }
     if (((upgradeState.levels.flak_burst || 0) > 0 || (upgradeState.levels.arc_defender || 0) > 0) && ["defense", "hp", "dash"].includes(upgrade.id)) {
       weight *= 1.12;

@@ -56,7 +56,6 @@ window.Boot = (() => {
     S.particles.length = 0;
 
     if (!preserveEnvironment) {
-      S.planets.length = 0;
       if (window.PlanetSystem) PlanetSystem.clear();
       if (window.StageAtmosphere) StageAtmosphere.clear();
     }
@@ -447,6 +446,7 @@ window.Boot = (() => {
     } else {
       S.hazardTimer = Helpers.randi(360, 560);
     }
+    S.activeSkillState.boostDirection = "forward";
     S.activeSkillState.boostDir = 0;
     S.activeSkillState.boostDrag = 0.9;
     S.activeSkillState.boostMitigationT = 0;
@@ -538,6 +538,12 @@ window.Boot = (() => {
         return;
       }
       S.keys.add(e.code);
+      if (e.code === "KeyC") {
+        if (window.ActiveSkillSystem && ActiveSkillSystem.cycleBoostDirection && ActiveSkillSystem.cycleBoostDirection()) {
+          e.preventDefault();
+          return;
+        }
+      }
       if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
       if (e.code === "Digit1") ActiveSkillSystem.tryUseBoostDirection("forward");
       if (e.code === "Digit2") ActiveSkillSystem.tryUseBoostDirection("left");

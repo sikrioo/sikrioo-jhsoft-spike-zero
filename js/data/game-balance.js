@@ -10,7 +10,7 @@ window.GAME_BALANCE = {
     BULLET_COUNT: 1,
     DEFENSE: 0,
     MP_MAX: 100,
-    MP_REGEN: 10,
+    MP_REGEN: 2.5,
     SHIELD_REGEN_DELAY_MAX: 180,
     HOMING_MISSILE_DAMAGE: 2,
     HOMING_MISSILE_CD_MAX: 140
@@ -23,7 +23,7 @@ window.GAME_BALANCE = {
 
   DIFFICULTY: {
     easy: {
-      waveCountMultiplier: 0.75,
+      waveCountMultiplier: 0.9,
       spawnRateMultiplier: 1,
       enemyHpMultiplier: 1,
       enemySpeedMultiplier: 1,
@@ -33,7 +33,7 @@ window.GAME_BALANCE = {
       specialThreatBonus: 0
     },
     normal: {
-      waveCountMultiplier: 1,
+      waveCountMultiplier: 1.2,
       spawnRateMultiplier: 1,
       enemyHpMultiplier: 1,
       enemySpeedMultiplier: 1,
@@ -43,7 +43,7 @@ window.GAME_BALANCE = {
       specialThreatBonus: 0
     },
     hard: {
-      waveCountMultiplier: 1.3,
+      waveCountMultiplier: 1.56,
       spawnRateMultiplier: 0.85,
       enemyHpMultiplier: 1.15,
       enemySpeedMultiplier: 1.08,
@@ -56,7 +56,7 @@ window.GAME_BALANCE = {
 
   SHIPS: {
     standard: {
-      starterActiveSkills: ["boost"],
+      starterActiveSkills: ["decoy_drone"],
       particleTint: 0x7df9ff
     },
     power: {

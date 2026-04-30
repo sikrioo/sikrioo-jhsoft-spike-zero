@@ -562,32 +562,27 @@ window.CombatSystem = (() => {
     const forwardY = Math.sin(ang);
     const sideX = -forwardY;
     const sideY = forwardX;
+    const innerAngleOffset = level >= 3 ? 0.014 : 0.025;
+    const outerAngleOffset = level >= 3 ? 0.03 : 0.055;
+    const outerForwardOffset = level >= 3 ? 8 : 6;
 
-    const barrels = [
-      {
-        muzzleX: S.player.spr.x + forwardX * 8 - sideX * 12,
-        muzzleY: S.player.spr.y + forwardY * 8 - sideY * 12,
-        angle: ang - Math.PI / 2
-      }
+    const mounts = [
+      { sideSign: -1, sideOffset: 16, forwardOffset: 10, angleOffset: innerAngleOffset },
+      { sideSign: 1, sideOffset: 16, forwardOffset: 10, angleOffset: -innerAngleOffset }
     ];
 
     if (level >= 2) {
-      barrels.push({
-        muzzleX: S.player.spr.x + forwardX * 8 + sideX * 12,
-        muzzleY: S.player.spr.y + forwardY * 8 + sideY * 12,
-        angle: ang + Math.PI / 2
-      });
+      mounts.push(
+        { sideSign: -1, sideOffset: 28, forwardOffset: outerForwardOffset, angleOffset: outerAngleOffset },
+        { sideSign: 1, sideOffset: 28, forwardOffset: outerForwardOffset, angleOffset: -outerAngleOffset }
+      );
     }
 
-    if (level >= 3) {
-      barrels.push({
-        muzzleX: S.player.spr.x - forwardX * 16,
-        muzzleY: S.player.spr.y - forwardY * 16,
-        angle: ang + Math.PI
-      });
-    }
-
-    return barrels;
+    return mounts.map((mount) => ({
+      muzzleX: S.player.spr.x + forwardX * mount.forwardOffset + sideX * mount.sideOffset * mount.sideSign,
+      muzzleY: S.player.spr.y + forwardY * mount.forwardOffset + sideY * mount.sideOffset * mount.sideSign,
+      angle: ang + mount.angleOffset
+    }));
   }
 
   function tryShootHardpoints(ang, bulletSpeedMul, damageMul=1) {
@@ -599,24 +594,24 @@ window.CombatSystem = (() => {
     const barrels = getHardpointBarrels(ang);
     if (!barrels.length) return;
 
-    const baseDamageMul = 0.58 + (level - 1) * 0.08;
+    const baseDamageMul = level >= 3 ? 0.16 : level >= 2 ? 0.14 : 0.18;
     for (const barrel of barrels) {
       const bullet = makeBullet(
         barrel.muzzleX,
         barrel.muzzleY,
         barrel.angle,
-        Math.max(0.8, S.stats.bulletDamage * damageMul * baseDamageMul),
-        S.stats.bulletSpeed * WEAPON_DEFINITIONS.machinegun.projectileSpeedMul * bulletSpeedMul * 0.92,
+        Math.max(0.3, S.stats.bulletDamage * damageMul * baseDamageMul),
+        S.stats.bulletSpeed * WEAPON_DEFINITIONS.machinegun.projectileSpeedMul * bulletSpeedMul * 0.96,
         0,
         {
           color: 0x7fd9ff,
-          radius: 5.5,
+          radius: 3.4,
           kind: "hardpoint",
           spriteKind: "hardpoint",
-          scaleX: 0.78,
-          scaleY: 0.84,
-          life: 54,
-          trailAlpha: 0.14,
+          scaleX: 0.42,
+          scaleY: 0.68,
+          life: 40,
+          trailAlpha: 0.05,
           trailKind: "linear"
         }
       );
@@ -624,7 +619,7 @@ window.CombatSystem = (() => {
       Effects.emitParticle(barrel.muzzleX, barrel.muzzleY, getShipParticleTint(0x7fd9ff), 4, 0.55);
     }
 
-    S.stats.hardpointCooldown = Math.max(8, S.stats.fireRate * 1.08);
+    S.stats.hardpointCooldown = level >= 3 ? 9 : level >= 2 ? 10 : 8;
     if (window.SoundSystem) {
       SoundSystem.play("player_fire", { playbackRate: 1.18 + Helpers.rand(-0.04, 0.03), volume: 0.34, cooldownMs: 0 });
     }
@@ -634,20 +629,27 @@ window.CombatSystem = (() => {
     const S = GameState;
     const player = S.player;
     if (S.stats.hardpointCooldown > 0) S.stats.hardpointCooldown -= 1;
-    if (player.fireCd > 0) return;
     const wantsFire = S.autoFire || S.mouse.down || S.keys.has("Space");
     if (!wantsFire) return;
+
+    const { damageMul, fireRateMul, bulletSpeedMul } = getAfterburnerMultipliers();
+    const ang = getPlayerAimAngle({ maxStrength: 0.36 });
+    const canHardpointFire = (S.stats.hardpointLevel || 0) > 0 && S.stats.hardpointCooldown <= 0;
+    const canMainFire = player.fireCd <= 0;
+
+    if (!canHardpointFire && !canMainFire) return;
     if (S.activeSkillState.stealthT > 0 && window.ActiveSkillSystem) {
       ActiveSkillSystem.breakStealth("attack");
     }
 
-    const { damageMul, fireRateMul, bulletSpeedMul } = getAfterburnerMultipliers();
-    const ang = getPlayerAimAngle({ maxStrength: 0.36 });
+    if (canHardpointFire) {
+      tryShootHardpoints(ang, bulletSpeedMul, damageMul);
+    }
+    if (!canMainFire) return;
 
     if (S.weaponState.current === "machinegun") fireMachinegun(ang, bulletSpeedMul, damageMul);
     if (S.weaponState.current === "laser") fireLaser(getPlayerAimAngle({ autoAim:false }), damageMul);
     if (S.weaponState.current === "shotgun") fireShotgun(ang, bulletSpeedMul, damageMul);
-    tryShootHardpoints(ang, bulletSpeedMul, damageMul);
 
     if (S.weaponState.current !== "laser"){
       player.fireCd = S.stats.fireRate * fireRateMul;

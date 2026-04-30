@@ -4,6 +4,78 @@
  * BossSystem, 개별 보스 파일에서 공통으로 사용
  */
 window.BossVisuals = (() => {
+  function buildRegularPolygonPoints(radius, sides = 6, rotation = -Math.PI / 2, innerScale = 1) {
+    const points = [];
+    const safeSides = Math.max(3, Math.floor(sides || 3));
+    for (let i = 0; i < safeSides; i++) {
+      const angle = rotation + (Math.PI * 2 * i) / safeSides;
+      const scale = typeof innerScale === "function" ? innerScale(i, safeSides) : innerScale;
+      points.push(Math.cos(angle) * radius * scale, Math.sin(angle) * radius * scale);
+    }
+    return points;
+  }
+
+  function buildPolygonSilhouette(radius, sides, color, jagged = false, options = {}) {
+    const g = new PIXI.Graphics();
+    const alpha = options.alpha != null ? options.alpha : 0.18;
+    const lineAlpha = options.lineAlpha != null ? options.lineAlpha : 0.78;
+    const lineWidth = options.lineWidth != null ? options.lineWidth : 2;
+    const scaleOuter = options.scaleOuter != null ? options.scaleOuter : 1.08;
+    const points = buildRegularPolygonPoints(
+      radius * scaleOuter,
+      sides,
+      options.rotation != null ? options.rotation : -Math.PI / 2,
+      jagged ? (index) => (index % 2 === 0 ? 1 : 0.72) : 1
+    );
+    g.beginFill(color, alpha);
+    g.lineStyle(lineWidth, options.lineColor || color, lineAlpha);
+    g.drawPolygon(points);
+    g.endFill();
+    return g;
+  }
+
+  function buildSpikeRing(radius, color, count = 10, spikeLength = 12, options = {}) {
+    const g = new PIXI.Graphics();
+    const safeCount = Math.max(3, Math.floor(count || 3));
+    const innerRadius = radius + (options.innerOffset || 10);
+    const outerRadius = innerRadius + spikeLength;
+    const baseHalfWidth = options.baseHalfWidth || Math.max(3, spikeLength * 0.28);
+    for (let i = 0; i < safeCount; i++) {
+      const angle = (Math.PI * 2 * i) / safeCount + (options.rotation || 0);
+      const nx = Math.cos(angle);
+      const ny = Math.sin(angle);
+      const tx = -ny;
+      const ty = nx;
+      g.beginFill(options.fillColor || color, options.fillAlpha != null ? options.fillAlpha : 0.12);
+      g.lineStyle(options.lineWidth || 2, color, options.lineAlpha != null ? options.lineAlpha : 0.78);
+      g.drawPolygon([
+        nx * outerRadius, ny * outerRadius,
+        nx * innerRadius + tx * baseHalfWidth, ny * innerRadius + ty * baseHalfWidth,
+        nx * innerRadius - tx * baseHalfWidth, ny * innerRadius - ty * baseHalfWidth
+      ]);
+      g.endFill();
+    }
+    return g;
+  }
+
+  function buildOrbitOrbs(radius, color, count = 3, options = {}) {
+    const root = new PIXI.Container();
+    const safeCount = Math.max(1, Math.floor(count || 1));
+    const orbitRadius = radius + (options.offset || 22);
+    const orbRadius = options.orbRadius || Math.max(3, Math.round(radius * 0.12));
+    for (let i = 0; i < safeCount; i++) {
+      const angle = (Math.PI * 2 * i) / safeCount;
+      const orb = new PIXI.Graphics();
+      orb.beginFill(color, options.fillAlpha != null ? options.fillAlpha : 0.8);
+      orb.lineStyle(1.5, 0xffffff, 0.72);
+      orb.drawCircle(0, 0, orbRadius);
+      orb.endFill();
+      orb.x = Math.cos(angle) * orbitRadius;
+      orb.y = Math.sin(angle) * orbitRadius;
+      root.addChild(orb);
+    }
+    return root;
+  }
 
   /**
    * 보스 프레임 컨테이너 생성
@@ -18,6 +90,9 @@ window.BossVisuals = (() => {
     const core  = new PIXI.Graphics();
     const ring  = new PIXI.Graphics();
     const spokes = new PIXI.Graphics();
+    const silhouette = new PIXI.Container();
+    const stateLayer = new PIXI.Container();
+    const orbitContainer = new PIXI.Container();
     const showValue = config.showValue !== false;
     const useGlow = config.useGlow !== false;
     const radius = config.radius;
@@ -74,7 +149,7 @@ window.BossVisuals = (() => {
       spokes.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
     }
 
-    root.addChild(aura, halo, spokes, shell, ring, core);
+    root.addChild(aura, halo, spokes, shell, silhouette, ring, core, stateLayer, orbitContainer);
     if (value) root.addChild(value);
 
     if (useGlow) {
@@ -88,6 +163,15 @@ window.BossVisuals = (() => {
       root.filters = Effects.asFilters(glow);
     }
 
+    root.aura = aura;
+    root.halo = halo;
+    root.spokes = spokes;
+    root.shell = shell;
+    root.silhouette = silhouette;
+    root.ring = ring;
+    root.core = core;
+    root.stateLayer = stateLayer;
+    root.orbitContainer = orbitContainer;
     root.valueText = value;
     return root;
   }
@@ -181,6 +265,9 @@ window.BossVisuals = (() => {
 
   return {
     buildFrame,
+    buildOrbitOrbs,
+    buildSpikeRing,
+    buildPolygonSilhouette,
     setFrameValue,
     attachHpBar,
     attachMiniHpBar,

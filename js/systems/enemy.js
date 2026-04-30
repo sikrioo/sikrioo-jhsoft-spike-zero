@@ -1247,12 +1247,15 @@ window.EnemySystem = (() => {
         }
         e.updateBoss(dt);
 
+        let renderAlpha = 1;
         if (e.hitT > 0){
           e.hitT -= dt;
-          e.spr.alpha = 0.82;
-        } else {
-          e.spr.alpha = 1;
+          renderAlpha = 0.82;
         }
+        if (window.BossSystem && typeof BossSystem.tickSpawnIntro === "function") {
+          renderAlpha = Math.min(renderAlpha, BossSystem.tickSpawnIntro(e, dt));
+        }
+        e.spr.alpha = renderAlpha;
 
         for (const hitCircle of getHitCircles(e)){
           const rr = hitCircle.radius + p.r;

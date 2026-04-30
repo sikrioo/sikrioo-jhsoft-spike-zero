@@ -309,8 +309,15 @@ window.UI = (() => {
         continue;
       }
 
-      nameEl.textContent = skill.name;
+      let skillName = skill.name;
+      if (skill.id === "boost" && window.ActiveSkillSystem && ActiveSkillSystem.getBoostDirectionIcon) {
+        skillName += ` ${ActiveSkillSystem.getBoostDirectionIcon()}`;
+      }
+      nameEl.textContent = skillName;
       typeEl.textContent = skill.type.toUpperCase();
+      if (skill.id === "boost" && window.ActiveSkillSystem && ActiveSkillSystem.getBoostDirectionLabel) {
+        typeEl.textContent = `BOOST ${ActiveSkillSystem.getBoostDirectionLabel()}`;
+      }
       costEl.textContent = `${skill.mpCost} MP`;
       cdEl.textContent = slot.cooldown > 0 ? `${(slot.cooldown / 60).toFixed(1)}s` : "READY";
       el.classList.toggle("cooldown", slot.cooldown > 0);
@@ -413,6 +420,19 @@ window.UI = (() => {
     setTimeout(() => el.classList.remove(className), 160);
   }
 
+  function showActiveSlotHint(key, text){
+    const el = activeSlotEls.find(item => item.dataset.key === key);
+    if (!el) return;
+    el.dataset.floatLabel = text || "";
+    el.classList.remove("dirSet");
+    void el.offsetWidth;
+    el.classList.add("dirSet");
+    setTimeout(() => {
+      el.classList.remove("dirSet");
+      if (el.dataset.floatLabel === text) delete el.dataset.floatLabel;
+    }, 520);
+  }
+
   function showCard(which) {
     if (which !== "clear") pendingStageClearResolve = null;
     startCard.style.display = which === "start" ? "block" : "none";
@@ -491,6 +511,16 @@ window.UI = (() => {
         const skillId = upgrade.id.replace(/^active_/, "").replace(/_unlock$/, "");
         return getActiveSkillMeta(skillId);
       }
+      if (upgrade.id === "boost_tuning") {
+        const currentLevel = Math.max(1, GameState.activeSkillState.levels.boost || 1);
+        const nextBoostLevel = Math.min(4, currentLevel + 1);
+        return [
+          `Boost Lv.${nextBoostLevel}`,
+          `Speed +${(nextBoostLevel - 1) * 1.5}`,
+          `Drag +${Math.round((nextBoostLevel - 1) * 1)}%`,
+          `Mitigation +${Math.round((nextBoostLevel - 1) * 3)}%`
+        ];
+      }
       if (upgrade.id === "firerate" && typeof step === "number") meta.push(`Next fire interval ${formatPercentDelta(step, true)}`);
       else if (upgrade.id === "speed" && typeof step === "number") meta.push(`Next speed ${formatPercentDelta(step)}`);
       else if (upgrade.id === "dash" && typeof step === "number") meta.push(`Next dash CD ${formatPercentDelta(step, true)}`);
@@ -508,7 +538,7 @@ window.UI = (() => {
         if (step.cooldownMul != null) meta.push(`CD ${formatPercentDelta(step.cooldownMul, true)}`);
         if (step.cooldownMin != null) meta.push(`Min CD ${formatFrames(step.cooldownMin)}`);
       } else if (upgrade.id === "weapon_level") meta.push("Unlocks stronger weapon profiles up to Lv.7");
-      else if (upgrade.id === "hardpoint_guns") meta.push("Lv1 left | Lv2 left/right | Lv3 rear");
+      else if (upgrade.id === "hardpoint_guns") meta.push("Lv1 dual wing guns | Lv2 quad wing guns | Lv3 tighter quad guns");
 
       return meta.filter(Boolean);
     };
@@ -520,7 +550,7 @@ window.UI = (() => {
       { label: "ATK", value: `${S.stats.bulletDamage.toFixed(1)}` },
       { label: "Weapon Lv", value: `Lv.${Math.max(1, S.stats.weaponLevel || 1)}` },
       { label: "Range", value: `${Math.round((S.stats.rangeMultiplier || 1) * 100)}%` },
-      { label: "Hardpoints", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
+      { label: "Wing Guns", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
       { label: "DEF", value: `${S.stats.defense.toFixed(1)}` },
       { label: "Fire Rate", value: `${S.stats.fireRate.toFixed(1)}` },
       { label: "Bullet Spd", value: `${S.stats.bulletSpeed.toFixed(1)}` },
@@ -667,6 +697,13 @@ window.UI = (() => {
         : null;
       const tags = Array.isArray(upgrade.tags) ? upgrade.tags.slice() : [];
       if (slot) tags.unshift(`slot:${slot.label}`);
+      const isBoostTuning = upgrade.id === "boost_tuning";
+      const displayLevel = isBoostTuning
+        ? Math.max(1, S.activeSkillState.levels.boost || 1)
+        : (upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level);
+      const displayMax = isBoostTuning
+        ? 4
+        : (upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel);
 
       entries.push({
         id: upgrade.id,
@@ -675,8 +712,8 @@ window.UI = (() => {
         tags,
         category: upgrade.category,
         level,
-        displayLevel: upgrade.id === "weapon_level" ? Math.max(1, level + 1) : level,
-        displayMax: upgrade.id === "weapon_level" ? 7 : upgrade.maxLevel,
+        displayLevel,
+        displayMax,
         adjustable,
         upgrade
       });
@@ -703,7 +740,7 @@ window.UI = (() => {
       { label: "ATK", value: `${S.stats.bulletDamage.toFixed(1)}` },
       { label: "Weapon Lv", value: `Lv.${Math.max(1, S.stats.weaponLevel || 1)}` },
       { label: "Range", value: `${Math.round((S.stats.rangeMultiplier || 1) * 100)}%` },
-      { label: "Hardpoints", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
+      { label: "Wing Guns", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
       { label: "DEF", value: `${S.stats.defense.toFixed(1)}` },
       { label: "Fire Rate", value: `${S.stats.fireRate.toFixed(1)}` },
       { label: "Bullet Spd", value: `${S.stats.bulletSpeed.toFixed(1)}` },
@@ -1184,6 +1221,7 @@ window.UI = (() => {
     closeSkillMapPanel,
     bindButtons,
     flashActiveSlot,
+    showActiveSlotHint,
     populateBossOptions
   };
 })();

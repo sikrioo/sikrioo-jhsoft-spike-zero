@@ -49,19 +49,19 @@
 
   window.UPGRADE_DEFINITIONS = [
     defineUpgrade({
-      id: "active_boost_unlock",
+      id: "boost_tuning",
       category: "active",
       upgradeType: "active",
       subCategory: "mobility",
-      maxLevel: 1,
-      baseWeight: 5,
-      minLevel: 1,
-      tags: ["mobility", "unlock"],
-      name: "Unlock Boost",
-      desc: "Gain the Boost active skill. It auto-fills the first empty slot in Q > E > R order.",
-      requires: (S) => !S.activeSkillState.ownedSkillIds.includes("boost"),
-      apply: () => {
-        ActiveSkillSystem.unlockSkill("boost");
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["mobility", "boost", "upgrade"],
+      name: "Boost Tuning",
+      desc: "Improve Boost speed, sustain, and damage mitigation. Boost keeps full 4-way control from Lv1.",
+      requires: (S) => S.activeSkillState.ownedSkillIds.includes("boost"),
+      apply: (level) => {
+        GameState.activeSkillState.levels.boost = Math.max(1, Math.min(4, level + 1));
       }
     }),
     defineUpgrade({
@@ -486,8 +486,8 @@
       baseWeight: 5,
       minLevel: 2,
       tags: ["auxiliary", "synergy"],
-      name: "Aux Hardpoints",
-      desc: "Adds machinegun-like support guns. Lv1 left, Lv2 left/right, Lv3 left/right/rear.",
+      name: "Wing Guns",
+      desc: "Mount thin wing machineguns. Lv1 adds one gun per wing, Lv2 expands to two per wing, Lv3 tightens the quad-gun formation.",
       apply: (level) => {
         GameState.stats.hardpointLevel = Math.max(0, Math.min(3, level));
       }

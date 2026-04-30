@@ -1,22 +1,10 @@
-/**
- * BossSystem.js
- * 보스 스폰 관리, 상태 조회, 아레나 제어 담당 메인 모듈
- *
- * 의존 모듈 (로드 순서):
- *   1. BossVisuals.js
- *   2. BossBullets.js
- *   3. BossScheduler.js
- *   4. BossSystem.js  (이 파일)
- *
- * 보스 정의(BOSS_DEFINITIONS)는 외부에서 window.BOSS_DEFINITIONS 로 주입
- */
 window.BossSystem = (() => {
   const PRACTICE_DEFAULT = "basic";
   const STAGE_BOSS_ORDER = ["basic", "knight", "split"];
   const WAVE_BOSS_ORDER = ["basic", "advanced", "knight", "split", "summoner"];
   const BOSS_SPAWN_INTRO_FRAMES = 72;
 
-  // ─── 정의 조회 ────────────────────────────────────────────────────────────
+  const factories = Object.create(null);
 
   function getDefinitions() {
     return Object.values(window.BOSS_DEFINITIONS || {});
@@ -26,7 +14,11 @@ window.BossSystem = (() => {
     return (window.BOSS_DEFINITIONS || {})[id] || null;
   }
 
-  // ─── 연습 보스 선택 ────────────────────────────────────────────────────────
+  function registerFactory(id, factory) {
+    if (!id || typeof factory !== "function") return false;
+    factories[id] = factory;
+    return true;
+  }
 
   function getPracticeBossId() {
     const S = GameState;
@@ -41,8 +33,6 @@ window.BossSystem = (() => {
     GameState.practiceBossId = id;
     return true;
   }
-
-  // ─── 활성 보스 조회 ────────────────────────────────────────────────────────
 
   function hasActiveBoss() {
     return GameState.enemies.some((e) => e && e.isBoss && e.hp > 0);
@@ -81,8 +71,6 @@ window.BossSystem = (() => {
     return Helpers.getViewBounds();
   }
 
-  // ─── 웨이브 판단 ────────────────────────────────────────────────────────────
-
   function isBossWave(wave = GameState.progression.wave) {
     if (GameState.progression && GameState.progression.stageDuration > 0) return false;
     return !GameState.stats.practice && wave > 0 && wave % 5 === 0;
@@ -113,8 +101,6 @@ window.BossSystem = (() => {
     return STAGE_BOSS_ORDER.length;
   }
 
-  // ─── 스폰 억제 판단 ────────────────────────────────────────────────────────
-
   function shouldSuppressPracticeSpawns() {
     return !!GameState.stats.practice && GameState.stats.practiceMode === "boss";
   }
@@ -124,13 +110,10 @@ window.BossSystem = (() => {
     return shouldSuppressPracticeSpawns() || hasActiveBoss() || stageBossActive || isBossWave();
   }
 
-  // ─── 아레나 클리어 ─────────────────────────────────────────────────────────
-
   function clearCurrentArena() {
     const S = GameState;
 
     for (const enemy of [...S.enemies]) {
-      // BossScheduler를 가진 보스의 pendingActions 정리
       if (enemy.scheduler) enemy.scheduler.clear();
       if (enemy.destroyVisuals) enemy.destroyVisuals();
       else if (enemy.spr && enemy.spr.parent) enemy.spr.parent.removeChild(enemy.spr);
@@ -142,18 +125,10 @@ window.BossSystem = (() => {
     }
     S.enemyBullets.length = 0;
 
-    S.progression.waveAlive    = 0;
+    S.progression.waveAlive = 0;
     S.progression.spawnedCount = 0;
   }
 
-  // ─── 보스 공통 베이스 ──────────────────────────────────────────────────────
-
-  /**
-   * 모든 보스가 공유하는 기본 프로퍼티/메서드 생성
-   * @param {object} def      - BOSS_DEFINITIONS 항목
-   * @param {object} options  - contactDamage, collisionPush 오버라이드
-   * @returns {object} boss
-   */
   function createBaseBoss(def, options = {}) {
     const root = new PIXI.Container();
     const view = getCombatView();
@@ -165,25 +140,26 @@ window.BossSystem = (() => {
     GameState.uiLayer.addChild(root);
 
     const boss = {
-      type:        "enemy",
-      tier:        "boss",
-      isBoss:      true,
-      bossId:      def.id,
+      type: "enemy",
+      tier: "boss",
+      isBoss: true,
+      bossId: def.id,
       displayName: def.name,
-      spr:         root,
-      x:           root.x,
-      y:           root.y,
-      r:           def.radius,
-      hp:          Math.ceil(def.maxHp * hpMultiplier),
-      maxHp:       Math.ceil(def.maxHp * hpMultiplier),
-      scoreBase:   def.scoreBase,
-      xp:          def.xp,
-      glowColor:   def.glowColor,
-      hitT:        0,
-      slowT:       0,
-      slowMul:     1,
-      contactDamage:  Math.ceil((options.contactDamage  || 12) * damageMultiplier),
-      collisionPush:  options.collisionPush  || 6.5,
+      spr: root,
+      x: root.x,
+      y: root.y,
+      r: def.radius,
+      hp: Math.ceil(def.maxHp * hpMultiplier),
+      maxHp: Math.ceil(def.maxHp * hpMultiplier),
+      dmg: def.damage || 12,
+      scoreBase: def.scoreBase,
+      xp: def.xp,
+      glowColor: def.glowColor,
+      hitT: 0,
+      slowT: 0,
+      slowMul: 1,
+      contactDamage: Math.ceil((options.contactDamage || 12) * damageMultiplier),
+      collisionPush: options.collisionPush || 6.5,
 
       destroyVisuals() {
         if (boss.spr && boss.spr.parent) boss.spr.parent.removeChild(boss.spr);
@@ -209,1000 +185,269 @@ window.BossSystem = (() => {
           boss.glowColor,
           dx, dy,
           {
-            invFrames:      32,
-            push:           boss.collisionPush,
-            particleCount:  18,
-            particlePower:  1.3,
-            pulseRadius:    hitCircle.radius + player.r + 10,
-            pulseLife:      12
+            invFrames: 32,
+            push: boss.collisionPush,
+            particleCount: 18,
+            particlePower: 1.3,
+            pulseRadius: hitCircle.radius + player.r + 10,
+            pulseLife: 12
           }
         );
       }
     };
 
-    return boss;
-  }
-
-  // ─── 보스 팩토리 ──────────────────────────────────────────────────────────
-
-  function createBasicBoss() {
-    const def  = getDefinition("basic");
-    const boss = createBaseBoss(def, { contactDamage: 14, collisionPush: 7.2 });
-
-    boss.core       = BossVisuals.buildFrame({ radius: def.radius, code: def.code, bodyColor: 0x79ffbf, glowColor: 0x48ffc5 });
-    boss.hpBar      = BossVisuals.attachHpBar(boss.spr, 180);
-    boss.phase      = 1;
-    boss.phaseShiftPlayed = false;
-    boss.fireCd     = 24;
-    boss.patternIndex = 0;
-    boss.orbitT     = 0;
-    boss.pendingBlast = null;
-    boss.phaseShiftFx = 0;
-    boss.phaseRing = new PIXI.Graphics();
-    boss.phaseCoreTint = new PIXI.Graphics();
-    boss.spr.addChild(boss.core);
-    boss.spr.addChild(boss.phaseCoreTint);
-    boss.spr.addChild(boss.phaseRing);
-
-    function triggerAreaBlast(blast) {
-      if (!blast) return;
-      Effects.emitPulse(blast.x, blast.y, blast.color, blast.radius * 0.78, 12);
-      Effects.emitParticle(blast.x, blast.y, blast.color, 12, 0.9);
-      const player = GameState.player;
-      const rr = blast.radius + player.r;
-      if (Helpers.dist2(blast.x, blast.y, player.spr.x, player.spr.y) <= rr * rr) {
-        const ang = Math.atan2(player.spr.y - blast.y, player.spr.x - blast.x);
-        EnemySystem.hitPlayerWithEnemyDamage(blast.damage, blast.color, Math.cos(ang), Math.sin(ang), {
-          invFrames: 22,
-          push: 5.2,
-          particleCount: 14,
-          particlePower: 1.0,
-          pulseRadius: blast.radius * 0.52,
-          pulseLife: 10
-        });
-      }
-    }
-
-    boss.updateBoss = (dt) => {
-      const view = getCombatView();
-      if (boss.hp <= boss.maxHp * 0.3) boss.phase = 2;
-      if (boss.phase === 2 && !boss.phaseShiftPlayed) {
-        boss.phaseShiftPlayed = true;
-        boss.phaseShiftFx = 36;
-        Effects.emitPulse(boss.x, boss.y, 0xff9b8d, 84, 16);
-        Effects.emitParticle(boss.x, boss.y, 0xff9b8d, 16, 1.2);
-        Effects.emitPulse(boss.x, boss.y, 0xffffff, 62, 10);
-        boss.fireCd = Math.min(boss.fireCd, 22);
-      }
-      boss.orbitT += dt * 0.012;
-      boss.x = Helpers.lerp(boss.x, view.centerX + Math.cos(boss.orbitT) * 150, 0.05 * dt);
-      boss.y = Helpers.lerp(boss.y, view.top + 118 + Math.sin(boss.orbitT * 2) * 28,  0.05 * dt);
-      boss.spr.x = boss.x;
-      boss.spr.y = boss.y;
-
-      boss.fireCd -= dt;
-      if (boss.phaseShiftFx > 0) boss.phaseShiftFx -= dt;
-
-      // 발사 예고
-      const pattern = boss.patternIndex % (boss.phase === 1 ? 1 : 2);
-      if (pattern !== 0 && !boss.pendingBlast && boss.fireCd <= 48) {
-        const player = getStealthAwarePlayerTarget();
-        const radius = 50;
-        const tx = Helpers.clamp(player.x + player.vx * 5, view.left + 44, view.right - 44);
-        const ty = Helpers.clamp(player.y + player.vy * 5, view.top + 64, view.bottom - 44);
-        boss.pendingBlast = { x: tx, y: ty, radius, damage: 11, color: 0xff6b6b };
-        Effects.emitGroundTelegraph(tx, ty, radius, 0xff6b6b, 48);
-      }
-
-      if (boss.fireCd <= 0) {
-        if (pattern === 0) {
-          const aim = getAngleToTrackedPlayer(boss.x, boss.y);
-          const spread = boss.phase === 1 ? 1 : 2;
-          for (let i = -spread; i <= spread; i++) {
-            GameState.enemyBullets.push(BossBullets.make(boss.x, boss.y + 16, aim + i * 0.16, {
-              color: 0x79ffbf, speed: boss.phase === 1 ? 3.82 : 5.05, damage: 8, radius: 8
-            }));
-          }
-          boss.fireCd = boss.phase === 1 ? 41 : 34;
-        } else {
-          triggerAreaBlast(boss.pendingBlast);
-          boss.pendingBlast = null;
-          boss.fireCd = 60;
-        }
-        boss.patternIndex += 1;
-      }
-
-      BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, boss.phase === 1 ? 0x79ffbf : 0xff9b8d);
-      BossVisuals.setFrameValue(boss.core, boss.hp);
-      const pulse = 1 + Math.sin(performance.now() * 0.01) * 0.03;
-      const shiftBoost = boss.phaseShiftFx > 0 ? (boss.phaseShiftFx / 36) * 0.18 : 0;
-      boss.core.scale.set(pulse + shiftBoost);
-      boss.core.alpha = boss.phase === 1 ? 1 : 0.96;
-      boss.phaseCoreTint.clear();
-      if (boss.phase === 2 || boss.phaseShiftFx > 0) {
-        const tintAlpha = boss.phaseShiftFx > 0 ? 0.14 + (boss.phaseShiftFx / 36) * 0.22 : 0.16;
-        boss.phaseCoreTint.beginFill(0xff8a8a, tintAlpha);
-        boss.phaseCoreTint.drawCircle(0, 0, def.radius - 8);
-        boss.phaseCoreTint.endFill();
-      }
-      boss.phaseRing.clear();
-      if (boss.phase === 2 || boss.phaseShiftFx > 0) {
-        const alpha = boss.phaseShiftFx > 0 ? 0.28 + (boss.phaseShiftFx / 36) * 0.5 : 0.24;
-        const radius = def.radius + 10 + (boss.phaseShiftFx > 0 ? (1 - boss.phaseShiftFx / 36) * 8 : 4);
-        boss.phaseRing.lineStyle(3, 0xff9b8d, alpha);
-        boss.phaseRing.drawCircle(0, 0, radius);
-        boss.phaseRing.lineStyle(1.5, 0xffffff, alpha * 0.8);
-        boss.phaseRing.drawCircle(0, 0, Math.max(10, radius - 6));
-      }
+    boss._ctx = {
+      getTarget: getStealthAwarePlayerTarget,
+      getAngleTo: getAngleToTrackedPlayer,
+      getView: getCombatView
     };
 
     return boss;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-
-  function createAdvancedBoss() {
-    const def  = getDefinition("advanced");
-    const boss = createBaseBoss(def, { contactDamage: 15, collisionPush: 7.6 });
-
-    boss.phase            = 1;
-    boss.phaseShiftPlayed = false;
-    boss.core             = BossVisuals.buildFrame({ radius: def.radius, code: def.code, bodyColor: 0x7a5cff, glowColor: 0x9a7dff });
-    boss.hpBar            = BossVisuals.attachHpBar(boss.spr, 200);
-    boss.orbitT           = Math.random() * Math.PI * 2;
-    boss.aiCd             = 28;
-    boss.attackIndex      = 0;
-    boss.currentAction    = "IDLE";
-    boss.scheduler        = BossScheduler.create();   // ← 공용 스케줄러 사용
-    boss.spr.addChild(boss.core);
-
-    // 패턴 함수들
-    function radialBurst(x, y, count, speed, color, damage, angleOffset = 0, radius = 7) {
-      BossBullets.radialBurst(x, y, count, speed, color, damage, angleOffset, radius);
-    }
-
-    function trackingZone() {
-      const player = getStealthAwarePlayerTarget();
-      const tx = player.x;
-      const ty = player.y;
-      boss.currentAction = "TRACKING";
-      Effects.emitGroundTelegraph(tx, ty, boss.phase === 1 ? 54 : 64, 0xffb347, 16);
-      boss.scheduler.schedule(16, () => {
-        radialBurst(tx, ty, boss.phase === 1 ? 10 : 14, boss.phase === 1 ? 5.0 : 5.8, 0xffb347, 8, performance.now() * 0.002);
-        Effects.emitPulse(tx, ty, 0xffb347, boss.phase === 1 ? 48 : 62, 12);
-      });
-    }
-
-    function rotatingBurst() {
-      boss.currentAction = "ROTATING";
-      Effects.emitGroundTelegraph(boss.x, boss.y, 68, 0x9a7dff, 12);
-      boss.scheduler.schedule(12, () => {
-        radialBurst(boss.x, boss.y, 14, 5.2, 0x9a7dff, 8, boss.orbitT * 0.8);
-      });
-    }
-
-    function doubleRing() {
-      boss.currentAction = "DOUBLE";
-      Effects.emitGroundTelegraph(boss.x, boss.y, 76, 0xff6bb5, 12);
-      boss.scheduler.schedule(12, () => radialBurst(boss.x, boss.y, 10, 4.7, 0xff8fab, 8, performance.now() * 0.002));
-      boss.scheduler.schedule(26, () => radialBurst(boss.x, boss.y, 14, 5.5, 0xff6bb5, 9, performance.now() * 0.003));
-    }
-
-    function teleportBlast() {
-      const player = getStealthAwarePlayerTarget();
-      const preX   = player.x;
-      const preY   = player.y;
-      boss.currentAction = "TELEPORT";
-      Effects.emitGroundTelegraph(preX, preY, 72, 0xff6bb5, 14);
-      boss.scheduler.schedule(14, () => {
-        const angle = Math.atan2(player.y - boss.y, player.x - boss.x) + Math.PI / 2;
-        const view = getCombatView();
-        boss.x = Helpers.clamp(player.x + Math.cos(angle) * 250, view.left + 42, view.right - 42);
-        boss.y = Helpers.clamp(player.y + Math.sin(angle) * 156,  view.top + 54, view.top + view.height * 0.52);
-        boss.spr.x = boss.x;
-        boss.spr.y = boss.y;
-        Effects.emitPulse(boss.x, boss.y, 0xff6bb5, 62, 10);
-        radialBurst(boss.x, boss.y, 10, 5.0, 0xff6bb5, 8, performance.now() * 0.0025);
-      });
-    }
-
-    function checkPhaseTransition() {
-      if (boss.hp <= boss.maxHp * 0.5) boss.phase = 2;
-      if (boss.phase === 2 && !boss.phaseShiftPlayed) {
-        boss.phaseShiftPlayed = true;
-        Effects.emitPulse(boss.x, boss.y, 0xff6bb5, 90, 18);
-        Effects.emitParticle(boss.x, boss.y, 0xff8fab, 20, 1.5);
-        boss.aiCd = Math.min(boss.aiCd, 22);
+  function createStateMachine(entity) {
+    return {
+      set(next, duration) {
+        entity.state = next;
+        entity.stateTime = 0;
+        entity.stateDuration = duration;
+        entity.attackFxPlayed = false;
+        if (next !== "CHARGE") entity.dashTelegraphShown = false;
+      },
+      tick(dt) {
+        entity.stateTime += dt;
+      },
+      elapsed() {
+        return entity.stateTime >= entity.stateDuration;
       }
-    }
+    };
+  }
 
-    boss.updateBoss = (dt) => {
-      boss.scheduler.update(dt);
-      checkPhaseTransition();
+  function chooseMeleeAttackPattern(entity, distToPlayer, forwardThreshold) {
+    if (distToPlayer > forwardThreshold) return "FORWARD_SLASH";
+    entity.attackSide *= -1;
+    return entity.attackSide > 0 ? "LEFT_STEP_SLASH" : "RIGHT_STEP_SLASH";
+  }
 
-      if (boss.phase === 1) {
-        const view = getCombatView();
-        boss.orbitT += dt * 0.014;
-        const targetX = view.centerX + Math.cos(boss.orbitT) * 110;
-        const targetY = view.top + 112 + Math.sin(boss.orbitT * 2) * 24;
-        boss.x = Helpers.lerp(boss.x, targetX, 0.06 * dt);
-        boss.y = Helpers.lerp(boss.y, targetY, 0.06 * dt);
+  function getSlashAngles(entity) {
+    if (entity.attackPattern === "LEFT_STEP_SLASH") return { start: entity.lockAngle - Math.PI * 1.05, end: entity.lockAngle - Math.PI * 0.12 };
+    if (entity.attackPattern === "RIGHT_STEP_SLASH") return { start: entity.lockAngle + Math.PI * 0.12, end: entity.lockAngle + Math.PI * 1.05 };
+    return { start: entity.lockAngle - Math.PI * 0.75, end: entity.lockAngle + Math.PI * 0.15 };
+  }
+
+  function updateMeleeChaser(entity, dt, options = {}) {
+    const player = (options.getTarget || getStealthAwarePlayerTarget)();
+    const angleToPlayer = Math.atan2(player.y - entity.y, player.x - entity.x);
+    const distToPlayer = Math.hypot(player.x - entity.x, player.y - entity.y) || 1;
+    const sm = entity.sm;
+    if (sm) sm.tick(dt);
+    else entity.stateTime += dt;
+    const stateTime = entity.stateTime;
+    const stateDuration = entity.stateDuration || 0;
+
+    if (entity.state === "APPROACH") {
+      if (distToPlayer > options.targetDist) {
+        entity.x += Math.cos(angleToPlayer) * options.moveSpeed * dt;
+        entity.y += Math.sin(angleToPlayer) * options.moveSpeed * dt;
       } else {
-        const player  = getStealthAwarePlayerTarget();
-        const view = getCombatView();
-        boss.orbitT  += dt * 0.01;
-        const desired = Math.atan2(player.y - boss.y, player.x - boss.x) + Math.PI / 2;
-        const targetX = player.x + Math.cos(desired) * 290;
-        const targetY = Helpers.clamp(player.y + Math.sin(desired) * 172, view.top + 88, view.top + view.height * 0.48);
-        boss.x = Helpers.lerp(boss.x, targetX, 0.03 * dt);
-        boss.y = Helpers.lerp(boss.y, targetY, 0.03 * dt);
+        entity.x -= Math.cos(angleToPlayer) * options.moveSpeed * (options.backoffMul || 0.22) * dt;
+        entity.y -= Math.sin(angleToPlayer) * options.moveSpeed * (options.backoffMul || 0.22) * dt;
       }
-      boss.spr.x = boss.x;
-      boss.spr.y = boss.y;
-
-      boss.aiCd -= dt;
-      if (boss.aiCd <= 0) {
-        if (boss.phase === 1) {
-          const actions = [rotatingBurst, trackingZone, () => BossBullets.safeLaneBurst(boss.x, boss.y, { randomize: false, onSchedule: boss.scheduler.schedule, laneAngle: getAngleToTrackedPlayer(boss.x, boss.y) })];
-          actions[boss.attackIndex % actions.length]();
-          boss.aiCd = boss.attackIndex % 3 === 0 ? 34 : 30;
-        } else {
-          const actions = [doubleRing, () => BossBullets.safeLaneBurst(boss.x, boss.y, { randomize: true, onSchedule: boss.scheduler.schedule, laneAngle: getAngleToTrackedPlayer(boss.x, boss.y) }), teleportBlast];
-          actions[boss.attackIndex % actions.length]();
-          boss.aiCd = boss.attackIndex % 3 === 0 ? 44 : 40;
-        }
-        boss.attackIndex += 1;
+      if (stateTime >= stateDuration || distToPlayer < options.targetDist + (options.approachSnap || 20)) {
+        sm.set("STRAFE", options.strafeDuration);
       }
+      return;
+    }
 
-      boss.core.alpha = boss.currentAction === "TELEPORT" ? 0.82 : 1;
-      boss.core.scale.set(1 + Math.sin(performance.now() * 0.012) * 0.03);
-      BossVisuals.setFrameValue(boss.core, boss.hp);
-      BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, boss.phase === 1 ? 0x9a7dff : 0xff8fab);
-    };
+    if (entity.state === "STRAFE") {
+      const side = Math.sin(performance.now() * 0.004 + (options.pulseOffset || 0)) > 0 ? 1 : -1;
+      entity.x += Math.cos(angleToPlayer + Math.PI / 2 * side) * options.moveSpeed * options.strafeSpeedMul * dt;
+      entity.y += Math.sin(angleToPlayer + Math.PI / 2 * side) * options.moveSpeed * options.strafeSpeedMul * dt;
+      if (stateTime >= stateDuration) {
+        entity.lockAngle = angleToPlayer;
+        entity.attackPattern = chooseMeleeAttackPattern(entity, distToPlayer, options.forwardThreshold);
+        sm.set("CHARGE", options.chargeDuration);
+      }
+      return;
+    }
 
-    boss.onDefeat = () => {
-      Effects.emitPulse(boss.x, boss.y, 0xffffff, 150, 24);
-      Effects.emitParticle(boss.x, boss.y, 0x9a7dff, 22, 1.5);
-      Effects.emitParticle(boss.x, boss.y, 0xff8fab, 24, 1.8);
-    };
+    if (entity.state === "CHARGE") {
+      entity.lockAngle = angleToPlayer;
+      if (!entity.dashTelegraphShown) {
+        Effects.emitLineTelegraph(
+          entity.x,
+          entity.y,
+          entity.x + Math.cos(entity.lockAngle) * options.dashDistance,
+          entity.y + Math.sin(entity.lockAngle) * options.dashDistance,
+          options.telegraphColor,
+          options.telegraphLife,
+          options.telegraphWidth
+        );
+        entity.dashTelegraphShown = true;
+      }
+      if (stateTime >= stateDuration) sm.set("ATTACK", options.attackDuration);
+      return;
+    }
 
-    return boss;
+    if (entity.state === "ATTACK") {
+      entity.x += Math.cos(entity.lockAngle) * options.attackMoveSpeed * dt;
+      entity.y += Math.sin(entity.lockAngle) * options.attackMoveSpeed * dt;
+      if (!entity.attackFxPlayed && typeof options.onAttackFx === "function") {
+        entity.attackFxPlayed = true;
+        options.onAttackFx(entity, { angleToPlayer, distToPlayer });
+      }
+      if (typeof options.onAttackTick === "function") {
+        options.onAttackTick(entity, dt, { angleToPlayer, distToPlayer });
+      }
+      if (stateTime >= stateDuration) {
+        entity.afterSlash = 0;
+        sm.set("RECOVERY", options.recoveryDuration);
+      }
+      return;
+    }
+
+    if (entity.state === "RECOVERY") {
+      entity.x -= Math.cos(angleToPlayer) * options.moveSpeed * options.recoveryBackoffMul * dt;
+      entity.y -= Math.sin(angleToPlayer) * options.moveSpeed * options.recoveryBackoffMul * dt;
+      if (stateTime >= stateDuration) sm.set("APPROACH", options.approachDuration);
+    }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-
-  function createSplitBoss() {
-    const def  = getDefinition("split");
-    const boss = createBaseBoss(def, { contactDamage: 16, collisionPush: 8.2 });
-
-    boss.phase  = 1;
-    boss.core   = BossVisuals.buildFrame({ radius: def.radius, code: def.code, bodyColor: 0xffd166, glowColor: 0xffb347 });
-    boss.hpBar  = BossVisuals.attachHpBar(boss.spr, 200);
-    boss.aiCd   = 26;
-    boss.phaseT = 0;
-    boss.children = [];
-    boss.spr.addChild(boss.core);
-
-    function makeChild(role, offsetX, offsetY) {
-      const isBlue = role === "blue";
-      const child  = {
-        role,
-        x: boss.x + offsetX,
-        y: boss.y + offsetY,
-        targetX: boss.x + offsetX,
-        targetY: boss.y + offsetY,
-        r:      22,
-        hp:     def.maxHp * 0.25,
-        maxHp:  def.maxHp * 0.25,
-        dashCd: isBlue ? 0 : 58,
-        fireCd: isBlue ? 32 : 0,
-        pulse:  Math.random() * Math.PI * 2,
-        dashTelegraphShown: false,
-        state: isBlue ? "ORBIT" : "APPROACH",
-        stateTime: 0,
-        stateDuration: isBlue ? 0 : 18,
-        lockAngle: 0,
-        attackPattern: "FORWARD_SLASH",
-        attackSide: 1,
-        attackFxPlayed: false,
-        afterSlash: 0,
-        frame: BossVisuals.buildFrame({
-          radius:    22,
-          code:      isBlue ? "B" : "R",
-          bodyColor: isBlue ? 0x7df9ff : 0xff8fab,
-          glowColor: isBlue ? 0x54d6ff : 0xff5f90,
-          useGlow: false,
-          showValue: false
-        }),
-        hpBar:     null,
-        glowColor: isBlue ? 0x54d6ff : 0xff5f90
-      };
-      child.hpBar = BossVisuals.attachMiniHpBar(child.frame, 34, -31);
-      boss.spr.addChild(child.frame);
-      return child;
-    }
-
-    function enterSplitPhase() {
-      if (boss.phase === 2) return;
-      boss.phase      = 2;
-      boss.core.visible = false;
-      if (boss.hpBar) {
-        boss.hpBar.barBg.visible = false;
-        boss.hpBar.barFill.visible = false;
-      }
-      boss.children   = [
-        makeChild("blue", -120,  18),
-        makeChild("red",   120, -14)
-      ];
-      Effects.emitPulse(boss.x, boss.y, 0xffd166, 90, 16);
-      Effects.emitParticle(boss.x, boss.y, 0xff8fab, 16, 1.3);
-      Effects.emitParticle(boss.x, boss.y, 0x7df9ff, 16, 1.3);
-      boss.hp = boss.children.reduce((sum, c) => sum + c.hp, 0);
-    }
-
-    function removeDeadChildren() {
-      boss.children = boss.children.filter((child) => {
-        if (child.hp > 0) return true;
-        if (child.frame && child.frame.parent) child.frame.parent.removeChild(child.frame);
-        return false;
-      });
-    }
-
-    function setRedState(child, next, duration) {
-      child.state = next;
-      child.stateTime = 0;
-      child.stateDuration = duration;
-      child.attackFxPlayed = false;
-      if (next !== "CHARGE") child.dashTelegraphShown = false;
-    }
-
-    function chooseRedAttackPattern(child, distToPlayer) {
-      if (distToPlayer > 170) return "FORWARD_SLASH";
-      child.attackSide *= -1;
-      return child.attackSide > 0 ? "LEFT_STEP_SLASH" : "RIGHT_STEP_SLASH";
-    }
-
-    function getRedSlashAngles(child) {
-      if (child.attackPattern === "LEFT_STEP_SLASH") return { start: child.lockAngle - Math.PI * 1.05, end: child.lockAngle - Math.PI * 0.12 };
-      if (child.attackPattern === "RIGHT_STEP_SLASH") return { start: child.lockAngle + Math.PI * 0.12, end: child.lockAngle + Math.PI * 1.05 };
-      return { start: child.lockAngle - Math.PI * 0.75, end: child.lockAngle + Math.PI * 0.15 };
-    }
-
-    function updateRedKnightChild(child, dt, alone) {
-      child.stateTime += dt;
-      const player = getStealthAwarePlayerTarget();
-      const angleToPlayer = Math.atan2(player.y - child.y, player.x - child.x);
-      const distToPlayer = Math.hypot(player.x - child.x, player.y - child.y) || 1;
-        const moveSpeed = alone ? 3.2 : 2.48;
-        const targetDist = alone ? 136 : 154;
-        const dashDistance = alone ? 176 : 152;
-
-      if (child.state === "APPROACH") {
-        if (distToPlayer > targetDist) {
-          child.x += Math.cos(angleToPlayer) * moveSpeed * dt;
-          child.y += Math.sin(angleToPlayer) * moveSpeed * dt;
-        } else {
-          child.x -= Math.cos(angleToPlayer) * moveSpeed * 0.22 * dt;
-          child.y -= Math.sin(angleToPlayer) * moveSpeed * 0.22 * dt;
-        }
-          if (child.stateTime >= child.stateDuration || distToPlayer < targetDist + 10) setRedState(child, "STRAFE", alone ? 14 : 19);
-      } else if (child.state === "STRAFE") {
-        const side = Math.sin(performance.now() * 0.004 + child.pulse) > 0 ? 1 : -1;
-        child.x += Math.cos(angleToPlayer + Math.PI / 2 * side) * moveSpeed * 0.75 * dt;
-        child.y += Math.sin(angleToPlayer + Math.PI / 2 * side) * moveSpeed * 0.75 * dt;
-        if (child.stateTime >= child.stateDuration) {
-          child.lockAngle = angleToPlayer;
-          child.attackPattern = chooseRedAttackPattern(child, distToPlayer);
-            setRedState(child, "CHARGE", alone ? 11 : 14);
-        }
-      } else if (child.state === "CHARGE") {
-        child.lockAngle = angleToPlayer;
-        if (!child.dashTelegraphShown) {
-          Effects.emitLineTelegraph(child.x, child.y, child.x + Math.cos(child.lockAngle) * dashDistance, child.y + Math.sin(child.lockAngle) * dashDistance, 0xff5f90, alone ? 10 : 12, 6);
-          child.dashTelegraphShown = true;
-        }
-          if (child.stateTime >= child.stateDuration) setRedState(child, "ATTACK", alone ? 9 : 11);
-      } else if (child.state === "ATTACK") {
-        const attackProgress = Math.min(1, child.stateTime / Math.max(0.001, child.stateDuration));
-        const stepDistance = dashDistance / Math.max(1, child.stateDuration);
-        child.x += Math.cos(child.lockAngle) * stepDistance * dt;
-        child.y += Math.sin(child.lockAngle) * stepDistance * dt;
-        if (!child.attackFxPlayed && attackProgress >= 0.72) {
-          child.attackFxPlayed = true;
-          const slash = getRedSlashAngles(child);
-          const arcX = child.x + Math.cos(child.lockAngle) * 34;
-          const arcY = child.y + Math.sin(child.lockAngle) * 34;
-          Effects.emitSlashArc(arcX, arcY, slash.start, slash.end, 0xffffff, 7, alone ? 52 : 46, 8);
-          Effects.emitSlashArc(arcX - Math.cos(child.lockAngle) * 7, arcY - Math.sin(child.lockAngle) * 7, slash.start + 0.05, slash.end - 0.05, 0xff5f90, 6, alone ? 46 : 40, 5);
-        }
-        if (child.afterSlash <= 0) {
-          child.afterSlash = alone ? 5 : 6;
-          BossBullets.aimSpread(child.x, child.y, alone ? 1 : 0, {
-            color: 0xff8fab,
-            speed: alone ? 5.8 : 5.0,
-            damage: alone ? 9 : 7,
-            radius: 6
-          });
-        } else {
-          child.afterSlash -= dt;
-        }
-        if (child.stateTime >= child.stateDuration) {
-          child.afterSlash = 0;
-            setRedState(child, "RECOVERY", alone ? 12 : 14);
-        }
-      } else if (child.state === "RECOVERY") {
-        child.x -= Math.cos(angleToPlayer) * moveSpeed * 0.45 * dt;
-        child.y -= Math.sin(angleToPlayer) * moveSpeed * 0.45 * dt;
-          if (child.stateTime >= child.stateDuration) setRedState(child, "APPROACH", alone ? 22 : 26);
-      }
-    }
-
-    boss.getHitCircles = () => {
-      if (boss.phase === 1) return [{ x: boss.x, y: boss.y, radius: boss.r }];
-      return boss.children.map((child) => ({ x: child.x, y: child.y, radius: child.r, child }));
-    };
-
-    boss.takeDamage = (damage, ctx = {}) => {
-      if (boss.phase === 1) {
-        boss.hp = Math.max(0, boss.hp - damage);
-        if (boss.hp <= boss.maxHp * 0.5) enterSplitPhase();
-        return true;
-      }
-      const target = (ctx.hitCircle && ctx.hitCircle.child) ? ctx.hitCircle.child : boss.children[0];
-      if (!target) return false;
-      target.hp = Math.max(0, target.hp - damage);
-      removeDeadChildren();
-      boss.hp = boss.children.reduce((sum, c) => sum + c.hp, 0);
-      return true;
-    };
-
-    boss.updateBoss = (dt) => {
-      const player = getStealthAwarePlayerTarget();
-      boss.phaseT += dt * 0.015;
-      const view = getCombatView();
-
-      if (boss.phase === 1) {
-        boss.x = Helpers.lerp(boss.x, view.centerX + Math.cos(boss.phaseT) * 90, 0.045 * dt);
-        boss.y = Helpers.lerp(boss.y, view.top + 110 + Math.sin(boss.phaseT * 2) * 24, 0.045 * dt);
-        boss.spr.x = boss.x;
-        boss.spr.y = boss.y;
-
-        boss.aiCd -= dt;
-        const useRadial = (((performance.now() / 220) | 0) % 2) === 0;
-
-        if (boss.aiCd <= 10 && boss.aiCd + dt > 10) {
-          if (useRadial) {
-            Effects.emitGroundTelegraph(boss.x, boss.y, 80, 0xffd166, 10);
-          } else {
-            const aim = getAngleToTrackedPlayer(boss.x, boss.y);
-            Effects.emitLineTelegraph(boss.x, boss.y, boss.x + Math.cos(aim) * 220, boss.y + Math.sin(aim) * 220, 0xff8fab, 10, 6);
-          }
-        }
-        if (boss.aiCd <= 0) {
-          if (useRadial) {
-            BossBullets.radialBurst(boss.x, boss.y, 12, 5.4, 0xffd166, 8, boss.phaseT * 0.8, 7);
-            boss.aiCd = 54;
-          } else {
-            BossBullets.aimSpread(boss.x, boss.y, 1, { color: 0xff8fab, speed: 6.4, damage: 9, radius: 8, aimAngle: getAngleToTrackedPlayer(boss.x, boss.y) });
-            boss.aiCd = 32;
-          }
-        }
-      } else {
-        // 2페이즈: 자식 유닛 업데이트
-        for (const child of boss.children) {
-          child.pulse += dt * 0.018;
-
-          if (child.role === "blue") {
-            child.targetX = view.left + view.width * 0.36 + Math.cos(child.pulse) * 70;
-            child.targetY = view.top + 148 + Math.sin(child.pulse * 2) * 30;
-            child.x = Helpers.lerp(child.x, child.targetX, 0.06 * dt);
-            child.y = Helpers.lerp(child.y, child.targetY, 0.06 * dt);
-
-            child.fireCd -= dt;
-            const alone = boss.children.length === 1;
-            if (child.fireCd <= 10 && child.fireCd + dt > 10) {
-              Effects.emitGroundTelegraph(child.x, child.y, alone ? 68 : 52, 0x7df9ff, 10);
-            }
-            if (child.fireCd <= 0) {
-              BossBullets.radialBurst(child.x, child.y, alone ? 14 : 9, alone ? 6.4 : 5.5, 0x7df9ff, 8, child.pulse, 7);
-              child.fireCd = alone ? 34 : 52;
-            }
-          } else {
-            // red: 대시 추적
-            updateRedKnightChild(child, dt, boss.children.length === 1);
-          }
-
-        }
-
-        if (boss.children.length > 0) {
-          boss.x = boss.children.reduce((sum, c) => sum + c.x, 0) / boss.children.length;
-          boss.y = boss.children.reduce((sum, c) => sum + c.y, 0) / boss.children.length;
-          boss.spr.x = boss.x;
-          boss.spr.y = boss.y;
-          for (const child of boss.children) {
-            child.frame.x = child.x - boss.x;
-            child.frame.y = child.y - boss.y;
-            BossVisuals.redrawMiniHpBar(child.hpBar, child.hp / child.maxHp, child.role === "blue" ? 0x7df9ff : 0xff8fab);
-            BossVisuals.setFrameValue(child.frame, child.hp);
-          }
-        }
-      }
-
-      if (boss.phase === 1 && boss.hpBar) {
-        boss.hpBar.barBg.visible = true;
-        boss.hpBar.barFill.visible = true;
-        BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, 0xffd166);
-      }
-      if (boss.core.visible) BossVisuals.setFrameValue(boss.core, boss.hp);
-    };
-
-    boss.onDefeat = () => {
-      for (const child of boss.children) {
-        Effects.emitParticle(child.x, child.y, child.glowColor, 16, 1.2);
-      }
-      Effects.emitPulse(boss.x, boss.y, 0xffffff, 120, 20);
-      Effects.emitParticle(boss.x, boss.y, 0xffd166, 26, 1.8);
-    };
-
-    return boss;
+  function makeShieldSilhouette(radius, color, options = {}) {
+    const g = new PIXI.Graphics();
+    const top = radius * 0.96;
+    const mid = radius * 0.8;
+    const tip = radius * 1.18;
+    g.beginFill(color, options.fillAlpha != null ? options.fillAlpha : 0.16);
+    g.lineStyle(options.lineWidth || 2, color, options.lineAlpha != null ? options.lineAlpha : 0.82);
+    g.drawPolygon([
+      -top * 0.8, -top * 0.72,
+      top * 0.8, -top * 0.72,
+      mid, 0,
+      radius * 0.48, radius * 0.82,
+      0, tip,
+      -radius * 0.48, radius * 0.82,
+      -mid, 0
+    ]);
+    g.endFill();
+    return g;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-
-  function createSummonerBoss() {
-    const def  = getDefinition("summoner");
-    const boss = createBaseBoss(def, { contactDamage: 13, collisionPush: 6.2 });
-
-    boss.phase  = 1;
-    boss.core   = BossVisuals.buildFrame({ radius: def.radius, code: def.code, bodyColor: 0x8a91ff, glowColor: 0x6e78ff });
-    boss.hpBar  = BossVisuals.attachHpBar(boss.spr, 190);
-    boss.spr.addChild(boss.core);
-    boss.orbitT = Math.random() * Math.PI * 2;
-    boss.aiCd   = 24;
-    boss.minions = [];
-    boss.totalSummons = 0;
-    boss.maxSummons = 5;
-    boss.phase2SummonBonusApplied = false;
-
-    function createMinion(role, angle) {
-      const isShooter = role === "shooter";
-      const minion = {
-        role,
-        x:      boss.x + Math.cos(angle) * 52,
-        y:      boss.y + Math.sin(angle) * 32,
-        orbit:  angle,
-        distX:  isShooter ? 76 : 58,
-        distY:  isShooter ? 42 : 30,
-        r:      isShooter ? 15 : 17,
-        hp:     isShooter ? 18 : 24,
-        maxHp:  isShooter ? 18 : 24,
-        fireCd: isShooter ? 28 : 0,
-        dashCd: isShooter ? 0  : 46,
-        dashTelegraphShown: false,
-        frame: BossVisuals.buildFrame({
-          radius:    isShooter ? 15 : 17,
-          code:      isShooter ? "S" : "C",
-          bodyColor: isShooter ? 0xd8dcff : 0xff8be4,
-          glowColor: isShooter ? 0xa2a8ff : 0xd85cf0,
-          useGlow: false,
-          showValue: false
-        }),
-        hpBar:     null,
-        glowColor: isShooter ? 0xa2a8ff : 0xd85cf0
-      };
-      minion.hpBar = BossVisuals.attachMiniHpBar(minion.frame, 28, -24);
-      boss.spr.addChild(minion.frame);
-      return minion;
-    }
-
-    function pruneMinions() {
-      boss.minions = boss.minions.filter((minion) => {
-        if (minion.hp > 0) return true;
-        if (minion.frame && minion.frame.parent) minion.frame.parent.removeChild(minion.frame);
-        return false;
-      });
-    }
-
-    function spawnWave() {
-      const limit = boss.phase === 1 ? 2 : 3;
-      if (boss.minions.length >= limit || boss.totalSummons >= boss.maxSummons) return false;
-      const missing = Math.min(limit - boss.minions.length, boss.maxSummons - boss.totalSummons);
-      const roles   = boss.phase === 1 ? ["shooter", "chaser"] : ["shooter", "chaser", "shooter"];
-      for (let i = 0; i < missing; i++) {
-        const role  = roles[(boss.minions.length + i) % roles.length];
-        const angle = boss.orbitT + (Math.PI * 2 * (i + 1)) / (missing + 1);
-        boss.minions.push(createMinion(role, angle));
-        boss.totalSummons += 1;
-      }
-      Effects.emitPulse(boss.x, boss.y, boss.phase === 1 ? 0xa2a8ff : 0xff6bd6, 64, 12);
-      Effects.emitParticle(boss.x, boss.y, boss.phase === 1 ? 0xa2a8ff : 0xff6bd6, 16, 1.1);
-      return true;
-    }
-
-    function checkPhaseTransition() {
-      if (boss.hp <= boss.maxHp * 0.5) boss.phase = 2;
-      if (boss.phase === 2 && !boss.phase2SummonBonusApplied) {
-        boss.phase2SummonBonusApplied = true;
-        boss.maxSummons += 2;
-      }
-    }
-
-    function fireShooterLaser(minion, aim) {
-      const color = boss.phase === 1 ? 0xd8dcff : 0xffd6fa;
-      const speed = boss.phase === 1 ? 8.8 : 9.8;
-      const damage = boss.phase === 1 ? 6 : 7;
-      const spacing = 18;
-      for (let i = 0; i < 4; i++) {
-        const ox = Math.cos(aim) * spacing * i;
-        const oy = Math.sin(aim) * spacing * i;
-        GameState.enemyBullets.push(BossBullets.make(minion.x + ox, minion.y + oy, aim, {
-          color,
-          speed: speed + i * 0.2,
-          damage,
-          radius: 7 + (i > 1 ? 1 : 0),
-          life: 90,
-          scaleX: 1.2,
-          scaleY: 1.45
-        }));
-      }
-      Effects.emitPulse(minion.x, minion.y, color, 24, 8);
-    }
-
-    boss.getHitCircles = () => {
-      const circles = [{ x: boss.x, y: boss.y, radius: boss.r, bossCore: true }];
-      for (const minion of boss.minions) {
-        circles.push({ x: minion.x, y: minion.y, radius: minion.r, minion });
-      }
-      return circles;
-    };
-
-    boss.takeDamage = (damage, ctx = {}) => {
-      if (ctx.hitCircle && ctx.hitCircle.minion) {
-        ctx.hitCircle.minion.hp = Math.max(0, ctx.hitCircle.minion.hp - damage);
-        pruneMinions();
-        checkPhaseTransition(); // ← 미니언 피격시에도 페이즈 체크는 boss.hp 기준으로만
-        return true;
-      }
-      if (boss.minions.length > 0) return false; // 미니언 살아있으면 코어 무적
-      boss.hp = Math.max(0, boss.hp - damage);
-      checkPhaseTransition();
-      return true;
-    };
-
-    boss.onDefeat = () => {
-      for (const minion of boss.minions) {
-        Effects.emitParticle(minion.x, minion.y, minion.glowColor, 12, 1.0);
-      }
-      Effects.emitPulse(boss.x, boss.y, 0xffffff, 120, 20);
-      Effects.emitParticle(boss.x, boss.y, 0xa2a8ff, 30, 1.7);
-      Effects.emitParticle(boss.x, boss.y, 0xff6bd6, 18, 1.3);
-    };
-
-    boss.updateBoss = (dt) => {
-      const player = getStealthAwarePlayerTarget();
-      boss.orbitT += dt * (boss.phase === 1 ? 0.011 : 0.016);
-      const view = getCombatView();
-
-      const targetX = view.centerX + Math.cos(boss.orbitT) * (boss.phase === 1 ? 84 : 132);
-      const targetY = view.top + 110 + Math.sin(boss.orbitT * 2) * (boss.phase === 1 ? 20 : 30);
-      boss.x = Helpers.lerp(boss.x, targetX, 0.05 * dt);
-      boss.y = Helpers.lerp(boss.y, targetY, 0.05 * dt);
-      boss.spr.x = boss.x;
-      boss.spr.y = boss.y;
-
-      boss.aiCd -= dt;
-      if (boss.aiCd <= 14 && boss.aiCd + dt > 14) {
-        if (boss.minions.length < (boss.phase === 1 ? 2 : 3) && boss.totalSummons < boss.maxSummons) {
-          Effects.emitGroundTelegraph(boss.x, boss.y, boss.phase === 1 ? 56 : 68, boss.phase === 1 ? 0xa2a8ff : 0xff6bd6, 14);
-        } else {
-          const aim = getAngleToTrackedPlayer(boss.x, boss.y);
-          Effects.emitLineTelegraph(boss.x, boss.y, boss.x + Math.cos(aim) * (boss.phase === 1 ? 420 : 520), boss.y + Math.sin(aim) * (boss.phase === 1 ? 420 : 520), boss.phase === 1 ? 0xa2a8ff : 0xff6bd6, 14, 6);
-        }
-      }
-      if (boss.aiCd <= 0) {
-        const didSummon = spawnWave();
-        if (!didSummon) {
-          const shotCount = boss.phase === 1 ? 3 : 5;
-          BossBullets.aimSpread(boss.x, boss.y, Math.floor(shotCount / 2), {
-            color:  boss.phase === 1 ? 0xa2a8ff : 0xff6bd6,
-            speed:  boss.phase === 1 ? 7.8 : 8.6,
-            damage: boss.phase === 1 ? 8   : 9,
-            radius: 8,
-            life: boss.phase === 1 ? 210 : 240,
-            aimAngle: getAngleToTrackedPlayer(boss.x, boss.y)
-          });
-        }
-        boss.aiCd = didSummon ? (boss.phase === 1 ? 72 : 58) : (boss.phase === 1 ? 34 : 28);
-      }
-
-      // 미니언 업데이트
-      for (const minion of boss.minions) {
-        minion.orbit += dt * (minion.role === "shooter" ? 0.02 : 0.028);
-        const orbitX  = Math.cos(minion.orbit) * minion.distX;
-        const orbitY  = Math.sin(minion.orbit * 1.3) * minion.distY;
-
-        if (minion.role === "shooter") {
-          minion.x = boss.x + orbitX;
-          minion.y = boss.y + orbitY;
-          minion.fireCd -= dt;
-          if (minion.fireCd <= 10 && minion.fireCd + dt > 10) {
-            const aim = getAngleToTrackedPlayer(minion.x, minion.y);
-            Effects.emitLineTelegraph(minion.x, minion.y, minion.x + Math.cos(aim) * 240, minion.y + Math.sin(aim) * 240, boss.phase === 1 ? 0xd8dcff : 0xffd6fa, 10, 5);
-          }
-          if (minion.fireCd <= 0) {
-            const aim = getAngleToTrackedPlayer(minion.x, minion.y);
-            fireShooterLaser(minion, aim);
-            minion.fireCd = boss.phase === 1 ? 32 : 24;
-          }
-        } else {
-          // chaser 미니언
-          minion.dashCd -= dt;
-          if (!minion.dashTelegraphShown && minion.dashCd <= 12) {
-            const angle = getAngleToTrackedPlayer(minion.x, minion.y);
-            Effects.emitLineTelegraph(minion.x, minion.y, minion.x + Math.cos(angle) * 140, minion.y + Math.sin(angle) * 140, 0xd85cf0, 12, 5);
-            minion.dashTelegraphShown = true;
-          }
-          if (minion.dashCd <= 0) {
-            const angle = getAngleToTrackedPlayer(minion.x, minion.y);
-            minion.x += Math.cos(angle) * (boss.phase === 1 ? 46 : 70);
-            minion.y += Math.sin(angle) * (boss.phase === 1 ? 46 : 70);
-            Effects.emitPulse(minion.x, minion.y, 0xd85cf0, 28, 8);
-            minion.dashCd = boss.phase === 1 ? 38 : 28;
-            minion.dashTelegraphShown = false;
-          } else {
-            minion.x = boss.x + orbitX * 0.8 + Math.cos(minion.orbit * 2.2) * 24;
-            minion.y = boss.y + orbitY * 0.8 + Math.sin(minion.orbit * 1.7) * 18;
-          }
-        }
-
-        minion.frame.x     = minion.x - boss.x;
-        minion.frame.y     = minion.y - boss.y;
-        minion.frame.alpha = minion.hp / minion.maxHp;
-        BossVisuals.redrawMiniHpBar(minion.hpBar, minion.hp / minion.maxHp, minion.role === "shooter" ? 0xd8dcff : 0xff8be4);
-        BossVisuals.setFrameValue(minion.frame, minion.hp);
-      }
-
-      boss.core.alpha = boss.minions.length > 0 ? 0.58 : 1;
-      boss.core.scale.set(1 + Math.sin(performance.now() * 0.01) * 0.03);
-      BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, boss.phase === 1 ? 0x8a91ff : 0xff8be4);
-      BossVisuals.setFrameValue(boss.core, boss.hp);
-    };
-
-    return boss;
+  function makeSplitCoreSilhouette(radius) {
+    const root = new PIXI.Container();
+    const left = new PIXI.Graphics();
+    const right = new PIXI.Graphics();
+    const crack = new PIXI.Graphics();
+    left.beginFill(0x8ed4ff, 0.2);
+    left.lineStyle(2, 0x8ed4ff, 0.65);
+    left.arc(0, 0, radius * 1.02, Math.PI / 2, Math.PI * 1.5);
+    left.lineTo(0, -radius * 1.02);
+    left.lineTo(0, radius * 1.02);
+    left.endFill();
+    right.beginFill(0xff9da8, 0.2);
+    right.lineStyle(2, 0xff9da8, 0.65);
+    right.arc(0, 0, radius * 1.02, -Math.PI / 2, Math.PI / 2);
+    right.lineTo(0, radius * 1.02);
+    right.lineTo(0, -radius * 1.02);
+    right.endFill();
+    crack.lineStyle(1.5, 0xffffff, 0.7);
+    crack.moveTo(0, -radius * 0.84);
+    crack.lineTo(0, radius * 0.84);
+    root.addChild(left, right, crack);
+    root.leftHalf = left;
+    root.rightHalf = right;
+    root.crack = crack;
+    return root;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-
-  function createKnightBoss() {
-    const def  = getDefinition("knight");
-    const boss = createBaseBoss(def, { contactDamage: 18, collisionPush: 8.8 });
-
-    boss.phase   = 1;
-    boss.core    = BossVisuals.buildFrame({ radius: def.radius, code: def.code, bodyColor: 0x7a5cff, glowColor: 0x9a7dff });
-    boss.blade   = new PIXI.Graphics();
-    boss.hpBar   = BossVisuals.attachHpBar(boss.spr, 190);
-    boss.spr.addChild(boss.core, boss.blade);
-
-    boss.state              = "APPROACH";
-    boss.stateTime          = 0;
-    boss.stateDuration      = 34;
-    boss.lockAngle          = 0;
-    boss.attackPattern      = "FORWARD_SLASH";
-    boss.attackSide         = 1;
-    boss.afterSlash         = 0;
-    boss.attackFxPlayed     = false;
-    boss.dashTelegraphShown = false;
-
-    function setState(next, duration) {
-      boss.state              = next;
-      boss.stateTime          = 0;
-      boss.stateDuration      = duration;
-      boss.attackFxPlayed     = false;
-      if (next !== "CHARGE") boss.dashTelegraphShown = false;
+  function makeTeleportAfterImage(x, y, radius, color) {
+    const ghost = new PIXI.Graphics();
+    ghost.beginFill(color, 0.08);
+    ghost.lineStyle(2, color, 0.24);
+    ghost.drawCircle(0, 0, radius);
+    ghost.endFill();
+    ghost.x = x;
+    ghost.y = y;
+    GameState.fx.addChild(ghost);
+    for (let i = 0; i < 3; i++) {
+      const ring = new PIXI.Graphics();
+      ring.lineStyle(1.5, color, 0.12 - i * 0.02);
+      ring.drawCircle(0, 0, radius + 6 + i * 8);
+      ring.x = x;
+      ring.y = y;
+      GameState.fx.addChild(ring);
+      GameState.particles.push({ spr: ring, x, y, vx: 0, vy: 0, life: 14 + i * 3, drag: 0.92 });
     }
-
-    function chooseAttackPattern(distToPlayer) {
-      if (distToPlayer > (boss.phase === 1 ? 165 : 185)) return "FORWARD_SLASH";
-      boss.attackSide *= -1;
-      return boss.attackSide > 0 ? "LEFT_STEP_SLASH" : "RIGHT_STEP_SLASH";
-    }
-
-    function getSlashAngles() {
-      if (boss.attackPattern === "LEFT_STEP_SLASH")  return { start: boss.lockAngle - Math.PI * 1.05, end: boss.lockAngle - Math.PI * 0.12 };
-      if (boss.attackPattern === "RIGHT_STEP_SLASH") return { start: boss.lockAngle + Math.PI * 0.12, end: boss.lockAngle + Math.PI * 1.05 };
-      return { start: boss.lockAngle - Math.PI * 0.75, end: boss.lockAngle + Math.PI * 0.15 };
-    }
-
-    function drawBlade() {
-      boss.blade.clear();
-      if (!(boss.state === "CHARGE" || boss.state === "ATTACK")) return;
-
-      const facing  = boss.lockAngle || 0;
-      let bladeLen  = boss.state === "CHARGE" ? 28 + Math.sin(boss.stateTime * 0.4) * 6 : 48;
-      if (boss.phase === 2) bladeLen += 6;
-
-      let bladeAngle = boss.state === "CHARGE"
-        ? facing + 0.55
-        : facing - 0.2 + Math.sin(boss.stateTime * 0.5) * 0.28;
-      if (boss.attackPattern === "LEFT_STEP_SLASH") {
-        bladeAngle = boss.state === "CHARGE" ? facing - 0.9 : facing - 0.95 + Math.sin(boss.stateTime * 0.55) * 0.16;
-      } else if (boss.attackPattern === "RIGHT_STEP_SLASH") {
-        bladeAngle = boss.state === "CHARGE" ? facing + 0.9 : facing + 0.95 - Math.sin(boss.stateTime * 0.55) * 0.16;
-      }
-
-      const bladeX1 = Math.cos(bladeAngle) * 10;
-      const bladeY1 = Math.sin(bladeAngle) * 10;
-      const bladeX2 = bladeX1 + Math.cos(bladeAngle) * bladeLen;
-      const bladeY2 = bladeY1 + Math.sin(bladeAngle) * bladeLen;
-      const glowColor = boss.phase === 1 ? 0x7df9ff : 0xff8be4;
-
-      boss.blade.lineStyle(10, glowColor, 0.22); boss.blade.moveTo(bladeX1, bladeY1); boss.blade.lineTo(bladeX2, bladeY2);
-      boss.blade.lineStyle(6,  glowColor, 0.92); boss.blade.moveTo(bladeX1, bladeY1); boss.blade.lineTo(bladeX2, bladeY2);
-      boss.blade.lineStyle(2,  0xffffff,  0.96); boss.blade.moveTo(bladeX1, bladeY1); boss.blade.lineTo(bladeX2, bladeY2);
-      boss.blade.beginFill(0xffffff, 0.95);
-      boss.blade.drawCircle(bladeX2, bladeY2, 3);
-      boss.blade.endFill();
-    }
-
-    boss.updateBoss = (dt) => {
-      const player = getStealthAwarePlayerTarget();
-      boss.stateTime += dt;
-      if (boss.hp <= boss.maxHp * 0.5) boss.phase = 2;
-
-      const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x);
-      const distToPlayer  = Math.hypot(player.x - boss.x, player.y - boss.y) || 1;
-      const moveSpeed     = boss.phase === 1 ? 3.2 : 4.1;
-
-      if (boss.state === "APPROACH") {
-        const targetDist = boss.phase === 1 ? 170 : 145;
-        if (distToPlayer > targetDist) {
-          boss.x += Math.cos(angleToPlayer) * moveSpeed * dt;
-          boss.y += Math.sin(angleToPlayer) * moveSpeed * dt;
-        } else {
-          boss.x -= Math.cos(angleToPlayer) * moveSpeed * 0.22 * dt;
-          boss.y -= Math.sin(angleToPlayer) * moveSpeed * 0.22 * dt;
-        }
-        if (boss.stateTime >= boss.stateDuration || distToPlayer < targetDist + 20) {
-          setState("STRAFE", boss.phase === 1 ? 24 : 18);
-        }
-
-      } else if (boss.state === "STRAFE") {
-        const side = Math.sin(performance.now() * 0.004) > 0 ? 1 : -1;
-        boss.x += Math.cos(angleToPlayer + Math.PI / 2 * side) * moveSpeed * 0.85 * dt;
-        boss.y += Math.sin(angleToPlayer + Math.PI / 2 * side) * moveSpeed * 0.85 * dt;
-        if (boss.stateTime >= boss.stateDuration) {
-          boss.lockAngle    = angleToPlayer;
-          boss.attackPattern = chooseAttackPattern(distToPlayer);
-          setState("CHARGE", boss.phase === 1 ? 14 : 10);
-        }
-
-      } else if (boss.state === "CHARGE") {
-        boss.lockAngle = angleToPlayer;
-        if (!boss.dashTelegraphShown) {
-          Effects.emitLineTelegraph(boss.x, boss.y, boss.x + Math.cos(boss.lockAngle) * 240, boss.y + Math.sin(boss.lockAngle) * 240, boss.phase === 1 ? 0x7df9ff : 0xff8be4, boss.phase === 1 ? 14 : 10, 7);
-          boss.dashTelegraphShown = true;
-        }
-        if (boss.stateTime >= boss.stateDuration) setState("ATTACK", boss.phase === 1 ? 10 : 8);
-
-      } else if (boss.state === "ATTACK") {
-        boss.x += Math.cos(boss.lockAngle) * (boss.phase === 1 ? 16 : 20) * dt;
-        boss.y += Math.sin(boss.lockAngle) * (boss.phase === 1 ? 16 : 20) * dt;
-
-        if (!boss.attackFxPlayed) {
-          boss.attackFxPlayed = true;
-          const arcRadius = boss.phase === 1 ? 60 : 68;
-          const accent    = boss.phase === 1 ? 0x7df9ff : 0xff8be4;
-          const slash     = getSlashAngles();
-          const arcX = boss.x + Math.cos(boss.lockAngle) * 32;
-          const arcY = boss.y + Math.sin(boss.lockAngle) * 32;
-          Effects.emitSlashArc(arcX, arcY, slash.start, slash.end, 0xffffff, 9, arcRadius, 8);
-          Effects.emitSlashArc(arcX - Math.cos(boss.lockAngle) * 8, arcY - Math.sin(boss.lockAngle) * 8, slash.start + 0.06, slash.end - 0.06, accent, 8, arcRadius - 6, 5);
-        }
-
-        // 슬래시 탄환: afterSlash가 0 이하일 때만 1회 발사 후 쿨 설정
-        if (boss.afterSlash <= 0) {
-          boss.afterSlash = boss.phase === 1 ? 4 : 3;
-          const spread = boss.phase === 1 ? 1 : 3;
-          BossBullets.aimSpread(boss.x, boss.y, spread, {
-            color:  boss.phase === 1 ? 0x7df9ff : 0xff8be4,
-            speed:  boss.phase === 1 ? 5.6 : 6.4,
-            damage: boss.phase === 1 ? 8   : 10,
-            radius: 7,
-            aimAngle: boss.lockAngle
-          });
-          Effects.emitPulse(boss.x, boss.y, boss.phase === 1 ? 0x7df9ff : 0xff8be4, boss.phase === 1 ? 34 : 42, 8);
-        } else {
-          boss.afterSlash -= dt;
-        }
-
-        if (boss.stateTime >= boss.stateDuration) {
-          boss.afterSlash = 0;
-          setState("RECOVERY", boss.phase === 1 ? 16 : 12);
-        }
-
-      } else if (boss.state === "RECOVERY") {
-        boss.x -= Math.cos(angleToPlayer) * moveSpeed * 0.55 * dt;
-        boss.y -= Math.sin(angleToPlayer) * moveSpeed * 0.55 * dt;
-        if (boss.stateTime >= boss.stateDuration) setState("APPROACH", boss.phase === 1 ? 28 : 20);
-      }
-
-      const view = getCombatView();
-      boss.x = Helpers.clamp(boss.x, view.left + 28, view.right - 28);
-      boss.y = Helpers.clamp(boss.y, view.top + 44, view.bottom - 40);
-      boss.spr.x = boss.x;
-      boss.spr.y = boss.y;
-
-      const glowColor = boss.state === "ATTACK" || boss.state === "CHARGE"
-        ? (boss.phase === 1 ? 0x7df9ff : 0xff9be8)
-        : (boss.phase === 1 ? 0x9a7dff : 0xff6bd6);
-
-      BossVisuals.redrawHpBar(boss.hpBar, boss.hp / boss.maxHp, glowColor);
-      BossVisuals.setFrameValue(boss.core, boss.hp);
-      boss.core.scale.set(1 + Math.sin(performance.now() * 0.02) * 0.02);
-      boss.core.alpha = boss.state === "RECOVERY" ? 0.82 : 1;
-      drawBlade();
-    };
-
-    boss.onDefeat = () => {
-      Effects.emitPulse(boss.x, boss.y, 0xffffff, 140, 22);
-      Effects.emitParticle(boss.x, boss.y, 0x9a7dff, 28, 1.8);
-      Effects.emitParticle(boss.x, boss.y, 0xff8be4, 24, 1.5);
-    };
-
-    return boss;
+    GameState.particles.push({ spr: ghost, x, y, vx: 0, vy: 0, life: 18, drag: 0.92 });
   }
 
-  // ─── 팩토리 레지스트리 ─────────────────────────────────────────────────────
+  function makeSummonRune(x, y, radius, color) {
+    const rune = new PIXI.Graphics();
+    const pentagon = BossVisuals.buildPolygonSilhouette(radius, 5, color, true, {
+      alpha: 0.08,
+      lineAlpha: 0.52,
+      lineWidth: 2
+    });
+    rune.addChild(pentagon);
+    rune.x = x;
+    rune.y = y;
+    GameState.fx.addChild(rune);
+    GameState.particles.push({ spr: rune, x, y, vx: 0, vy: 0, life: 24, drag: 0.94 });
+  }
 
-  const factories = {
-    basic:    createBasicBoss,
-    advanced: createAdvancedBoss,
-    knight:   createKnightBoss,
-    split:    createSplitBoss,
-    summoner: createSummonerBoss
-  };
+  function applySpawnIntro(boss) {
+    if (!boss || !boss.spr) return;
+    boss.spawnIntroT = BOSS_SPAWN_INTRO_FRAMES;
+    boss.spawnIntroAlpha = 0.12;
+    boss.spawnIntroScale = 0.86;
+    boss.spr.alpha = 0;
+    boss.spr.scale.set(0.86);
+  }
 
-  // ─── 스폰 API ──────────────────────────────────────────────────────────────
+  function tickSpawnIntro(boss, dt) {
+    if (!boss || !boss.spr) return 1;
+    if (!boss.spawnIntroT || boss.spawnIntroT <= 0) {
+      boss.spawnIntroAlpha = 1;
+      boss.spawnIntroScale = 1;
+      return 1;
+    }
+    boss.spawnIntroT = Math.max(0, boss.spawnIntroT - dt);
+    const t = 1 - (boss.spawnIntroT / BOSS_SPAWN_INTRO_FRAMES);
+    const eased = 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+    boss.spawnIntroAlpha = 0.12 + eased * 0.88;
+    const scale = 0.86 + eased * 0.14;
+    boss.spawnIntroScale = scale;
+    boss.spr.scale.set(scale);
+    if (boss.spawnIntroT <= 0) {
+      boss.spawnIntroAlpha = 1;
+      boss.spawnIntroScale = 1;
+      boss.spr.scale.set(1);
+    }
+    return boss.spawnIntroAlpha;
+  }
 
   function spawnBoss(id, options = {}) {
-      const factory = factories[id];
-      if (!factory) return null;
-      const replacingExisting = options.replaceExisting !== false;
-      if (replacingExisting) clearCurrentArena();
-      const boss = factory();
-      if (boss && boss.spr) {
-        boss.spawnIntroT = BOSS_SPAWN_INTRO_FRAMES;
-        boss.spr.alpha = 0;
-        boss.spr.scale.set(0.86);
-        const originalUpdateBoss = typeof boss.updateBoss === "function" ? boss.updateBoss.bind(boss) : null;
-        boss.updateBoss = (dt) => {
-          if (originalUpdateBoss) originalUpdateBoss(dt);
-          if (boss.spawnIntroT > 0) {
-            boss.spawnIntroT = Math.max(0, boss.spawnIntroT - dt);
-            const t = 1 - (boss.spawnIntroT / BOSS_SPAWN_INTRO_FRAMES);
-            const eased = 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
-            boss.spr.alpha = 0.12 + eased * 0.88;
-            const scale = 0.86 + eased * 0.14;
-            boss.spr.scale.set(scale);
-          } else {
-            boss.spr.alpha = 1;
-            boss.spr.scale.set(1);
-          }
-        };
-        Effects.emitPulse(boss.x, boss.y, boss.glowColor || 0xffffff, (boss.r || 60) * 1.8, 18);
-        Effects.emitParticle(boss.x, boss.y, boss.glowColor || 0xffffff, 18, 1.15);
-      }
-      GameState.enemies.push(boss);
-      if (replacingExisting) {
-        GameState.progression.waveAlive = 1;
-        GameState.progression.spawnedCount = 1;
-      } else {
-        GameState.progression.waveAlive += 1;
-        GameState.progression.spawnedCount += 1;
-      }
-      if (options.playWarning !== false) {
-        if (window.SoundSystem) SoundSystem.play("boss_alarm");
-        UI.triggerBossWarning();
+    const factory = factories[id];
+    if (!factory) return null;
+    const replacingExisting = options.replaceExisting !== false;
+    if (replacingExisting) clearCurrentArena();
+    const boss = factory();
+    if (boss && boss.spr) {
+      applySpawnIntro(boss);
+      Effects.emitPulse(boss.x, boss.y, boss.glowColor || 0xffffff, (boss.r || 60) * 1.8, 18);
+      Effects.emitParticle(boss.x, boss.y, boss.glowColor || 0xffffff, 18, 1.15);
+    }
+    GameState.enemies.push(boss);
+    if (replacingExisting) {
+      GameState.progression.waveAlive = 1;
+      GameState.progression.spawnedCount = 1;
+    } else {
+      GameState.progression.waveAlive += 1;
+      GameState.progression.spawnedCount += 1;
+    }
+    if (options.playWarning !== false) {
+      if (window.SoundSystem) SoundSystem.play("boss_alarm");
+      UI.triggerBossWarning();
     }
     UI.hudUpdate();
     return boss;
@@ -1221,7 +466,20 @@ window.BossSystem = (() => {
     return spawnBoss(getStageBossId(stage), { replaceExisting: false, playWarning: false });
   }
 
-  // ─── Public API ────────────────────────────────────────────────────────────
+  window.BossFactoryShared = {
+    createBaseBoss,
+    createStateMachine,
+    chooseMeleeAttackPattern,
+    getSlashAngles,
+    updateMeleeChaser,
+    getStealthAwarePlayerTarget,
+    getAngleToTrackedPlayer,
+    getCombatView,
+    makeShieldSilhouette,
+    makeSplitCoreSilhouette,
+    makeTeleportAfterImage,
+    makeSummonRune
+  };
 
   return {
     getActiveBoss,
@@ -1237,6 +495,9 @@ window.BossSystem = (() => {
     getStageBossId,
     shouldSuppressPracticeSpawns,
     shouldSuppressEnemySpawns,
+    registerFactory,
+    applySpawnIntro,
+    tickSpawnIntro,
     spawnBoss,
     spawnSelectedPracticeBoss,
     spawnWaveBoss,

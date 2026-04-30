@@ -412,6 +412,35 @@ canvas{
   border-color:rgba(255,196,92,.42);
   box-shadow:0 0 18px rgba(255,196,92,.18);
 }
+.activeSlot.dirSet{
+  border-color:rgba(95,245,220,.42);
+  box-shadow:0 0 20px rgba(95,245,220,.18), inset 0 0 0 1px rgba(150,255,242,.08);
+}
+.activeSlot.dirSet::after{
+  content:attr(data-float-label);
+  position:absolute;
+  right:10px;
+  top:-10px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(6,20,24,.96);
+  border:1px solid rgba(95,245,220,.38);
+  color:#b8fff2;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  white-space:nowrap;
+  box-shadow:0 0 14px rgba(95,245,220,.12);
+  animation:slotDirHint .52s ease-out;
+  pointer-events:none;
+  z-index:2;
+}
+@keyframes slotDirHint{
+  0%{ opacity:0; transform:translateY(6px) scale(.94); }
+  18%{ opacity:1; transform:translateY(0) scale(1); }
+  82%{ opacity:1; transform:translateY(-1px) scale(1); }
+  100%{ opacity:0; transform:translateY(-7px) scale(.98); }
+}
 .slotTop,.slotMeta{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
 }

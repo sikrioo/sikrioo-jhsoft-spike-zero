@@ -136,6 +136,7 @@ window.GameState = {
     levels: {
       boost: 1
     },
+    boostDirection: "forward",
     boostDir: 0,
     boostDrag: 0.9,
     boostMitigationT: 0,
