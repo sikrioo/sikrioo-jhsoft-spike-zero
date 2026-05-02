@@ -67,6 +67,10 @@ window.UI = (() => {
   const stageDurationInput = document.getElementById("stageDurationInput");
   const applyStageTestBtn = document.getElementById("btnApplyStageTest");
   const stageTestPanel = document.getElementById("stageTestPanel");
+  const enemyTestPanel = document.getElementById("enemyTestPanel");
+  const enemySelect = document.getElementById("enemySelect");
+  const enemyCountInput = document.getElementById("enemyCountInput");
+  const applyEnemyTestBtn = document.getElementById("btnApplyEnemyTest");
   const bossHud = document.getElementById("bossHud");
   const bossHudName = document.getElementById("bossHudName");
   const bossHudMeta = document.getElementById("bossHudMeta");
@@ -182,6 +186,7 @@ window.UI = (() => {
     const S = GameState;
     const P = S.progression;
     const isAsteroidMapTest = window.WaveSystem && WaveSystem.isAsteroidMapTestStage && WaveSystem.isAsteroidMapTestStage(P.stage);
+    const isEnemyTest = S.stats.practice && S.stats.practiceMode === "enemy";
     const weaponDef = WEAPON_DEFINITIONS[S.weaponState.current];
     const hudModifiers = getActiveHudModifiers();
     const baseSpeed = Math.round(S.stats.speed * 10) / 10;
@@ -200,7 +205,7 @@ window.UI = (() => {
     $stage.textContent = window.WaveSystem && WaveSystem.getStageHudLabel
       ? WaveSystem.getStageHudLabel(P.stage)
       : String(P.stage || 1);
-    $stageTime.textContent = (S.stats.practice && S.stats.practiceMode === "boss") || isAsteroidMapTest
+    $stageTime.textContent = (S.stats.practice && (S.stats.practiceMode === "boss" || S.stats.practiceMode === "enemy")) || isAsteroidMapTest
       ? "TEST"
       : formatStageTime(P.stageTime);
     $wave.textContent = String(P.wave);
@@ -227,7 +232,7 @@ window.UI = (() => {
     if (hudHpFill) hudHpFill.style.width = `${Helpers.clamp(S.stats.hp / Math.max(1, S.stats.maxHp), 0, 1) * 100}%`;
     if (hudMpFill) hudMpFill.style.width = `${Helpers.clamp(S.stats.mp / Math.max(1, S.stats.mpMax), 0, 1) * 100}%`;
     if (hudXpFill) hudXpFill.style.width = `${Helpers.clamp(P.xp / Math.max(1, P.xpToNext), 0, 1) * 100}%`;
-    if (hudTimeText) hudTimeText.textContent = ((S.stats.practice && S.stats.practiceMode === "boss") || isAsteroidMapTest) ? "TEST" : formatStageTime(P.stageTime);
+    if (hudTimeText) hudTimeText.textContent = ((S.stats.practice && (S.stats.practiceMode === "boss" || S.stats.practiceMode === "enemy")) || isAsteroidMapTest) ? "TEST" : formatStageTime(P.stageTime);
     if (hudScoreText) hudScoreText.textContent = String(Math.floor(P.score));
     if (buffHud && afterburnerTime) {
       const active = S.activeSkillState.afterburnerT > 0;
@@ -243,6 +248,7 @@ window.UI = (() => {
     const isBossTest = S.stats.practice && S.stats.practiceMode === "boss";
     const isStageTest = S.stats.practice && S.stats.practiceMode === "stage";
     if (stageTestPanel) stageTestPanel.style.display = isStageTest ? "block" : "none";
+    if (enemyTestPanel) enemyTestPanel.style.display = isEnemyTest ? "block" : "none";
     if (bossSelect && window.BossSystem) {
       bossSelect.value = BossSystem.getPracticeBossId();
     }
@@ -287,6 +293,20 @@ window.UI = (() => {
       asteroidOption.textContent = "Stage 4 - Asteroid Map Test";
       if (asteroidOption.value === selectedStage) asteroidOption.selected = true;
       stageSelect.appendChild(asteroidOption);
+    }
+    populateEnemyOptions();
+  }
+
+  function populateEnemyOptions() {
+    if (!enemySelect || !window.EnemySystem || !EnemySystem.getPracticeEnemyOptions) return;
+    const selectedEnemy = GameState.practiceEnemyTier || "normal";
+    enemySelect.innerHTML = "";
+    for (const enemy of EnemySystem.getPracticeEnemyOptions()) {
+      const option = document.createElement("option");
+      option.value = enemy.id;
+      option.textContent = enemy.name;
+      if (enemy.id === selectedEnemy) option.selected = true;
+      enemySelect.appendChild(option);
     }
   }
 
@@ -478,7 +498,7 @@ window.UI = (() => {
       if (skill.cooldown != null) meta.push(`CD ${formatFrames(skill.cooldown)}`);
       if (skill.duration && skill.duration > 1) meta.push(`Duration ${formatFrames(skill.duration)}`);
       if (data.radius != null) meta.push(`Radius ${data.radius}`);
-      if (data.range != null) meta.push(`Range ${data.range}`);
+      if (data.range != null && skill.id !== "deploy_turret") meta.push(`Range ${data.range}`);
       if (data.damage != null) meta.push(`Damage ${data.damage}`);
       if (data.bossDamage != null) meta.push(`Boss ${data.bossDamage}`);
       if (data.damageMultiplier != null) meta.push(`Damage x${data.damageMultiplier}`);
@@ -492,6 +512,13 @@ window.UI = (() => {
       if (data.slowRate != null) meta.push(`Slow ${Math.round((1 - data.slowRate) * 100)}%`);
       if (data.bossSlowRate != null) meta.push(`Boss slow ${Math.round((1 - data.bossSlowRate) * 100)}%`);
       if (data.hp != null) meta.push(`HP ${data.hp}`);
+      if (skill.id === "deploy_turret") {
+        const level = Math.max(1, GameState.activeSkillState.levels.deploy_turret || 1);
+        const count = level >= 4 ? 4 : level >= 3 ? 3 : level >= 2 ? 2 : 1;
+        meta.push(`${count} turrets`);
+        if (data.range != null) meta.push(`Range ${data.range + (level >= 5 ? 18 : level >= 4 ? 10 : level >= 3 ? 6 : level >= 2 ? 2 : 0)}`);
+        if (data.fireInterval != null) meta.push(`Rate ${(Math.max(10, Math.round(data.fireInterval * (level >= 5 ? 0.76 : 1))) / 60).toFixed(2)}s`);
+      }
       if (data.speedMultiplier != null) meta.push(`Speed ${formatPercentDelta(data.speedMultiplier)}`);
       if (data.fireRateMultiplier != null) meta.push(`Fire rate ${formatPercentDelta(data.fireRateMultiplier, true)}`);
       if (data.bulletSpeedMultiplier != null) meta.push(`Bullet speed ${formatPercentDelta(data.bulletSpeedMultiplier)}`);
@@ -521,6 +548,16 @@ window.UI = (() => {
           `Mitigation +${Math.round((nextBoostLevel - 1) * 3)}%`
         ];
       }
+      if (upgrade.id === "deploy_turret") {
+        const nextLevel = Math.max(1, Math.min(5, (level || 0) + 1));
+        const count = nextLevel >= 4 ? 4 : nextLevel >= 3 ? 3 : nextLevel >= 2 ? 2 : 1;
+        return [
+          `Turret Lv.${nextLevel}`,
+          `${count} turrets`,
+          nextLevel >= 4 ? "Rear coverage online" : nextLevel >= 3 ? "Front + side coverage" : nextLevel >= 2 ? "Dual front spread" : "Front sentry",
+          nextLevel >= 5 ? "Damage + fire rate boost" : "Coverage upgrade"
+        ];
+      }
       if (upgrade.id === "firerate" && typeof step === "number") meta.push(`Next fire interval ${formatPercentDelta(step, true)}`);
       else if (upgrade.id === "speed" && typeof step === "number") meta.push(`Next speed ${formatPercentDelta(step)}`);
       else if (upgrade.id === "dash" && typeof step === "number") meta.push(`Next dash CD ${formatPercentDelta(step, true)}`);
@@ -539,6 +576,7 @@ window.UI = (() => {
         if (step.cooldownMin != null) meta.push(`Min CD ${formatFrames(step.cooldownMin)}`);
       } else if (upgrade.id === "weapon_level") meta.push("Unlocks stronger weapon profiles up to Lv.7");
       else if (upgrade.id === "hardpoint_guns") meta.push("Lv1 dual wing guns | Lv2 quad wing guns | Lv3 tighter quad guns");
+      else if (upgrade.id === "escort_drones") meta.push("Lv1 single drone | Lv2 twin drones | Lv3 tuned fire | Lv4 tri-cover | Lv5 full 4-way screen");
 
       return meta.filter(Boolean);
     };
@@ -551,6 +589,7 @@ window.UI = (() => {
       { label: "Weapon Lv", value: `Lv.${Math.max(1, S.stats.weaponLevel || 1)}` },
       { label: "Range", value: `${Math.round((S.stats.rangeMultiplier || 1) * 100)}%` },
       { label: "Wing Guns", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
+      { label: "Escort Drones", value: `Lv.${Math.max(0, S.stats.escortDroneLevel || 0)}` },
       { label: "DEF", value: `${S.stats.defense.toFixed(1)}` },
       { label: "Fire Rate", value: `${S.stats.fireRate.toFixed(1)}` },
       { label: "Bullet Spd", value: `${S.stats.bulletSpeed.toFixed(1)}` },
@@ -741,6 +780,7 @@ window.UI = (() => {
       { label: "Weapon Lv", value: `Lv.${Math.max(1, S.stats.weaponLevel || 1)}` },
       { label: "Range", value: `${Math.round((S.stats.rangeMultiplier || 1) * 100)}%` },
       { label: "Wing Guns", value: `Lv.${Math.max(0, S.stats.hardpointLevel || 0)}` },
+      { label: "Escort Drones", value: `Lv.${Math.max(0, S.stats.escortDroneLevel || 0)}` },
       { label: "DEF", value: `${S.stats.defense.toFixed(1)}` },
       { label: "Fire Rate", value: `${S.stats.fireRate.toFixed(1)}` },
       { label: "Bullet Spd", value: `${S.stats.bulletSpeed.toFixed(1)}` },
@@ -1135,10 +1175,12 @@ window.UI = (() => {
     syncUpgradeChoiceSelection();
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onAutoAimChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onPracticeEnemy, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onApplyEnemyTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onAutoAimChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
+    const practiceEnemyBtn = document.getElementById("btnPracticeEnemy");
+    if (practiceEnemyBtn) practiceEnemyBtn.onclick = onPracticeEnemy;
     document.getElementById("btnRetry").onclick = onRetry;
     document.getElementById("btnBack").onclick = onBack;
     if (pauseBtn) pauseBtn.onclick = () => onPauseToggle && onPauseToggle();
@@ -1149,6 +1191,10 @@ window.UI = (() => {
     if (applyStageTestBtn) applyStageTestBtn.onclick = () => onApplyStageTest && onApplyStageTest({
       stageId: Number(stageSelect && stageSelect.value) || 1,
       durationSec: Number(stageDurationInput && stageDurationInput.value) || 180
+    });
+    if (applyEnemyTestBtn) applyEnemyTestBtn.onclick = () => onApplyEnemyTest && onApplyEnemyTest({
+      enemyTier: enemySelect && enemySelect.value,
+      count: Number(enemyCountInput && enemyCountInput.value) || 3
     });
     for (const radio of practiceTypeEls){
       radio.onchange = () => {

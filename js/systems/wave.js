@@ -45,6 +45,13 @@ window.WaveSystem = (() => {
     return difficulty.waveCountMultiplier || 1;
   }
 
+  function getStageWaveCountMultiplier(stage = GameState.progression.stage || 1) {
+    const normalizedStage = Math.max(1, Math.min(3, Number(stage) || 1));
+    if (normalizedStage === 2) return 1.3;
+    if (normalizedStage === 3) return 1.69;
+    return 1;
+  }
+
   function resumeCombat() {
     if (window.Boot && Boot.resetInputState) Boot.resetInputState();
     GameState.progression.waveState = "running";
@@ -183,7 +190,7 @@ window.WaveSystem = (() => {
     }
     P.stageState = P.stageState === "boss" ? "boss" : "combat";
     const baseTarget = 10 + Math.floor(P.wave * 3.1);
-    P.waveTarget = Math.max(6, Math.floor(baseTarget * getWaveCountMultiplier()));
+    P.waveTarget = Math.max(6, Math.floor(baseTarget * getWaveCountMultiplier() * getStageWaveCountMultiplier(P.stage)));
     P.waveAlive = 0;
     P.spawnT = 0;
     P.spawnedCount = 0;

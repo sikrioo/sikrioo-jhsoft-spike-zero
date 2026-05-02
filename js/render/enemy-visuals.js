@@ -337,6 +337,88 @@ window.EnemyVisuals = (() => {
     return { root, aura, frame, plating, barrel, coreRing, core };
   }
 
+  function makeSatelliteVisual(enemy, tier) {
+    const root = new PIXI.Container();
+
+    const glow = new PIXI.Graphics();
+    glow.beginFill(0x69c8ff, 0.08);
+    glow.drawCircle(0, 0, tier.radius + 12);
+    glow.endFill();
+    glow.filters = [new PIXI.filters.BlurFilter(10)];
+
+    const panelLeft = new PIXI.Graphics();
+    panelLeft.beginFill(0x3d78b3, 0.94);
+    panelLeft.lineStyle(1.2, 0xcbe9ff, 0.44);
+    panelLeft.drawRoundedRect(-tier.radius - 20, -7, 18, 14, 3);
+    panelLeft.endFill();
+    panelLeft.lineStyle(1, 0xa8dbff, 0.24);
+    panelLeft.moveTo(-tier.radius - 14, -5);
+    panelLeft.lineTo(-tier.radius - 14, 5);
+    panelLeft.moveTo(-tier.radius - 8, -5);
+    panelLeft.lineTo(-tier.radius - 8, 5);
+
+    const panelRight = new PIXI.Graphics();
+    panelRight.beginFill(0x3d78b3, 0.94);
+    panelRight.lineStyle(1.2, 0xcbe9ff, 0.44);
+    panelRight.drawRoundedRect(tier.radius + 2, -7, 18, 14, 3);
+    panelRight.endFill();
+    panelRight.lineStyle(1, 0xa8dbff, 0.24);
+    panelRight.moveTo(tier.radius + 8, -5);
+    panelRight.lineTo(tier.radius + 8, 5);
+    panelRight.moveTo(tier.radius + 14, -5);
+    panelRight.lineTo(tier.radius + 14, 5);
+
+    const strut = new PIXI.Graphics();
+    strut.lineStyle(2, 0x90a6ba, 0.8);
+    strut.moveTo(-tier.radius + 2, 0);
+    strut.lineTo(-tier.radius - 2, 0);
+    strut.moveTo(tier.radius - 2, 0);
+    strut.lineTo(tier.radius + 2, 0);
+
+    const body = new PIXI.Graphics();
+    body.beginFill(0xcfd8e2, 0.62);
+    body.lineStyle(1.8, 0x8da1b3, 0.56);
+    body.drawRoundedRect(-tier.radius + 4, -tier.radius + 5, (tier.radius - 4) * 2, (tier.radius - 5) * 2, 8);
+    body.endFill();
+
+    const lensGlow = new PIXI.Graphics();
+    lensGlow.beginFill(0xff5566, 0.18);
+    lensGlow.drawCircle(tier.radius * 0.16, 0, tier.radius * 0.28);
+    lensGlow.endFill();
+    lensGlow.filters = [new PIXI.filters.BlurFilter(6)];
+
+    const lens = new PIXI.Graphics();
+    lens.beginFill(0xff4b5f, 0.96);
+    lens.lineStyle(1, 0xffd1d8, 0.22);
+    lens.drawCircle(tier.radius * 0.16, 0, tier.radius * 0.12);
+    lens.endFill();
+    lens.beginFill(0xffffff, 0.34);
+    lens.drawCircle(tier.radius * 0.2, -tier.radius * 0.04, tier.radius * 0.04);
+    lens.endFill();
+
+    root.addChild(glow, panelLeft, panelRight, strut, body, lensGlow, lens);
+    enemy.bodySpr.addChild(root);
+    return { root, glow, panelLeft, panelRight, strut, body, lensGlow, lens };
+  }
+
+  function updateSatelliteVisuals(enemy) {
+    const visuals = enemy.visuals;
+    const state = enemy.enemyState;
+    if (!visuals || !state) return;
+    const pulse = 1 + Math.sin(performance.now() * 0.004 + (state.phase || 0)) * 0.02;
+    const warningMul = state.warn > 0 ? 1 : 0;
+    const firingMul = state.fire > 0 ? 1 : 0;
+    visuals.root.rotation = Math.sin(performance.now() * 0.0014 + (state.phase || 0)) * 0.08;
+    visuals.root.scale.set(pulse);
+    visuals.glow.alpha = 0.42 + warningMul * 0.18 + firingMul * 0.24;
+    visuals.body.alpha = 0.72 + firingMul * 0.06;
+    visuals.lensGlow.alpha = 0.26 + warningMul * 0.34 + firingMul * 0.5;
+    visuals.lens.alpha = 0.84 + warningMul * 0.1 + firingMul * 0.16;
+    visuals.lens.scale.set(1 + warningMul * 0.14 + firingMul * 0.22);
+    visuals.panelLeft.tint = firingMul ? 0x6ab4ff : 0xffffff;
+    visuals.panelRight.tint = firingMul ? 0x6ab4ff : 0xffffff;
+  }
+
   function updateTurretVisuals(enemy, target) {
     const visuals = enemy.visuals;
     const state = enemy.enemyState;
@@ -381,6 +463,8 @@ window.EnemyVisuals = (() => {
   return {
     makeEnemySprite,
     makeTurretVisual,
+    makeSatelliteVisual,
+    updateSatelliteVisuals,
     updateTurretVisuals,
     clearTurretLaserFx
   };

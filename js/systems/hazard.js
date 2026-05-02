@@ -218,6 +218,7 @@ window.HazardSystem = (() => {
   function update(dt){
     const S = GameState;
     if (!S.app || !S.player) return;
+    if (S.stats.practice && S.stats.practiceMode === "enemy") return;
     if (S.progression.stageState === "combat") {
       S.hazardTimer -= dt;
       if (S.hazardTimer <= 0) {

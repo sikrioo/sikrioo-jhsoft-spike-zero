@@ -74,6 +74,21 @@ window.ENEMY_TIERS = {
     glowInner: 0.18,
     numberFontSize: 14
   },
+  satellite: {
+    hitsMin: 12, hitsMax: 18,
+    radius: 24,
+    moveSpeedMin: 0.45, moveSpeedMax: 0.7,
+    damage: 14,
+    scoreBase: 340,
+    xpBase: 9,
+    lineColor: 0xd6e3ef,
+    fillColor: 0xbfcbd8,
+    glowColor: 0x86c7ff,
+    glowDistance: 26,
+    glowOuter: 3.0,
+    glowInner: 0.18,
+    numberFontSize: 14
+  },
   bomber: {
     hitsMin: 2, hitsMax: 4,
     radius: 15,

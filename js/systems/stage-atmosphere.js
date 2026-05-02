@@ -110,6 +110,120 @@ window.StageAtmosphere = (() => {
     return layer;
   }
 
+  function drawStage4LightGlow(target, x, y, radius, color, alpha) {
+    const glow = new PIXI.Container();
+    glow.x = x;
+    glow.y = y;
+    glow.blendMode = PIXI.BLEND_MODES.ADD;
+    for (let i = 0; i < 2; i++) {
+      const t = i / 1;
+      const g = new PIXI.Graphics();
+      g.beginFill(color, alpha * Math.pow(1 - t, 1.5));
+      g.drawCircle(0, 0, radius * (0.4 + t * 0.62));
+      g.endFill();
+      g.filters = [new PIXI.filters.BlurFilter(18 + i * 8)];
+      glow.addChild(g);
+    }
+    target.addChild(glow);
+    return glow;
+  }
+
+  function drawStage4HorizonPlanet(target, w, h) {
+    const planet = new PIXI.Container();
+    planet.x = w * 0.18;
+    planet.y = h * 1.08;
+
+    const body = new PIXI.Graphics();
+    body.beginFill(0x04070d, 0.96);
+    body.drawCircle(0, 0, h * 0.56);
+    body.endFill();
+
+    const rim = new PIXI.Graphics();
+    rim.lineStyle(9, 0x6cbcff, 0.11);
+    rim.arc(0, 0, h * 0.56, Math.PI * 1.05, Math.PI * 1.88);
+    rim.lineStyle(3, 0xc7efff, 0.18);
+    rim.arc(0, 0, h * 0.548, Math.PI * 1.08, Math.PI * 1.84);
+    rim.filters = [new PIXI.filters.BlurFilter(4)];
+
+    const haze = new PIXI.Graphics();
+    haze.beginFill(0x1f4372, 0.045);
+    haze.drawEllipse(0, -h * 0.5, h * 0.42, h * 0.09);
+    haze.endFill();
+    haze.filters = [new PIXI.filters.BlurFilter(14)];
+
+    planet.addChild(body, haze, rim);
+    target.addChild(planet);
+    return planet;
+  }
+
+  function drawStage4MidPlanet(target, config) {
+    const planet = new PIXI.Container();
+    planet.x = config.x;
+    planet.y = config.y;
+
+    const body = new PIXI.Graphics();
+    body.beginFill(config.color, 0.92);
+    body.drawCircle(0, 0, config.radius);
+    body.endFill();
+
+    const shade = new PIXI.Graphics();
+    shade.beginFill(0x02040a, 0.42);
+    shade.drawEllipse(config.radius * 0.22, config.radius * 0.08, config.radius * 0.7, config.radius * 0.84);
+    shade.endFill();
+
+    const rim = new PIXI.Graphics();
+    rim.lineStyle(4, config.rimColor, 0.12);
+    rim.arc(0, 0, config.radius, config.rimStart, config.rimEnd);
+    rim.lineStyle(1.5, 0xe6f7ff, 0.16);
+    rim.arc(0, 0, config.radius - 2, config.rimStart + 0.05, config.rimEnd - 0.05);
+    rim.filters = [new PIXI.filters.BlurFilter(2)];
+
+    planet.alpha = config.alpha;
+    planet.addChild(body, shade, rim);
+    target.addChild(planet);
+    planet.radius = config.radius;
+    planet.parallaxSpeed = config.speed;
+    planet.baseX = config.x;
+    return planet;
+  }
+
+  function buildStage4Layer() {
+    const S = GameState;
+    if (!S.app || !S.bgLayer) return null;
+
+    const w = Math.max(S.app.renderer.width, window.innerWidth || 0) + 640;
+    const h = Math.max(S.app.renderer.height, window.innerHeight || 0) + 640;
+    const layer = new PIXI.Container();
+    layer.name = "stageAtmosphere";
+    layer.x = -320;
+    layer.y = -320;
+    const staticLayer = new PIXI.Container();
+    const dynamicLayer = new PIXI.Container();
+    layer.addChild(staticLayer, dynamicLayer);
+
+    const light = drawStage4LightGlow(dynamicLayer, w * 0.86, h * 0.14, Math.min(w, h) * 0.16, 0x8ec9ff, 0.1);
+    light.alpha = 0.9;
+
+    const horizon = drawStage4HorizonPlanet(staticLayer, w, h);
+    const midPlanets = [
+      drawStage4MidPlanet(dynamicLayer, {
+        x: w * 0.63, y: h * 0.28, radius: 44, color: 0x0d1730, rimColor: 0x8cc4ff,
+        rimStart: Math.PI * 1.08, rimEnd: Math.PI * 1.9, alpha: 0.78, speed: 0.08
+      })
+    ];
+    staticLayer.cacheAsBitmap = true;
+
+    layer.stage4 = {
+      width: w,
+      height: h,
+      light,
+      horizon,
+      midPlanets,
+      staticLayer
+    };
+    return layer;
+  }
+
   function clear(){
     if (root && root.parent) root.parent.removeChild(root);
     if (root && root.destroy) root.destroy({ children:true });
@@ -122,17 +236,17 @@ window.StageAtmosphere = (() => {
   function resetForStage(stage=1){
     clear();
     activeStage = Math.max(1, stage || 1);
-    if (activeStage !== 3) return;
+    if (activeStage !== 3 && activeStage !== 4) return;
 
     seed = 3000 + activeStage * 97;
-    root = buildStage3Layer();
+    root = activeStage === 4 ? buildStage4Layer() : buildStage3Layer();
     if (!root) return;
     GameState.bgLayer.addChild(root);
-    scheduleNextFlash();
+    if (activeStage === 3) scheduleNextFlash();
   }
 
   function resize(){
-    if (activeStage === 3) resetForStage(activeStage);
+    if (activeStage === 3 || activeStage === 4) resetForStage(activeStage);
   }
 
   function beginFlash(){
@@ -142,7 +256,20 @@ window.StageAtmosphere = (() => {
   }
 
   function update(dt=1){
-    if (!root || activeStage !== 3) return;
+    if (!root) return;
+    if (activeStage === 4) {
+      const stage4 = root.stage4;
+      if (!stage4) return;
+      const t = performance.now();
+      stage4.light.alpha = 0.72 + Math.sin(t / 2400) * 0.04;
+      for (let i = 0; i < stage4.midPlanets.length; i++) {
+        const planet = stage4.midPlanets[i];
+        planet.x -= planet.parallaxSpeed * dt;
+        if (planet.x < -(planet.radius || 40) - 90) planet.x = stage4.width + (planet.radius || 40) + 90;
+      }
+      return;
+    }
+    if (activeStage !== 3) return;
 
     if (flashT <= 0) {
       nextFlashT -= dt;

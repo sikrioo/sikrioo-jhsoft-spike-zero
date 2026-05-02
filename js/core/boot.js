@@ -25,6 +25,8 @@ window.Boot = (() => {
     }
 
     for (const decoy of S.decoys) removeDisplayObject(decoy && decoy.spr);
+    for (const drone of (S.activeSkillState.escortDrones || [])) removeDisplayObject(drone && drone.spr);
+    for (const turret of (S.activeSkillState.deployTurrets || [])) removeDisplayObject(turret && turret.spr);
     for (const smoke of S.smokeClouds) removeDisplayObject(smoke && smoke.spr);
     for (const field of S.slowFields) removeDisplayObject(field && field.spr);
     for (const hazard of S.hazards) removeDisplayObject(hazard && hazard.spr);
@@ -73,6 +75,8 @@ window.Boot = (() => {
     S.stats.hardpointCooldown = 0;
     S.stats.homingMissileCd = 0;
     S.stats.slowFieldCooldown = 0;
+    S.activeSkillState.escortDrones = [];
+    S.activeSkillState.deployTurrets = [];
   }
 
   const loadingOverlay = document.getElementById("loadingOverlay");
@@ -163,6 +167,9 @@ window.Boot = (() => {
     resetInputState();
     S.progression.waveState = "running";
     S.pause.open = false;
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetEscortDrones === "function") {
+      ActiveSkillSystem.resetEscortDrones();
+    }
     UI.showCard(null);
     UI.hudUpdate();
     return true;
@@ -188,6 +195,17 @@ window.Boot = (() => {
       return parsedStageId;
     }
     return Math.min(maxStage, Math.max(1, parsedStageId));
+  }
+
+  function normalizePracticeEnemyTier(value) {
+    const options = window.EnemySystem && EnemySystem.getPracticeEnemyOptions
+      ? EnemySystem.getPracticeEnemyOptions().map((entry) => entry.id)
+      : ["normal"];
+    return options.includes(value) ? value : options[0];
+  }
+
+  function normalizePracticeEnemyCount(value) {
+    return Math.max(1, Math.min(12, Math.floor(Number(value) || 3)));
   }
 
   function normalizeDifficulty(value) {
@@ -354,6 +372,15 @@ window.Boot = (() => {
     const practiceStageDurationSec = typeof options === "object" && options
       ? Math.max(10, Math.floor(options.practiceStageDurationSec || S.practiceStageDurationSec || 180))
       : Math.max(10, Math.floor(S.practiceStageDurationSec || 180));
+    const practiceEnemyTier = typeof options === "object" && options
+      ? normalizePracticeEnemyTier(options.practiceEnemyTier || S.practiceEnemyTier || "normal")
+      : normalizePracticeEnemyTier(S.practiceEnemyTier || "normal");
+    const practiceEnemyCount = typeof options === "object" && options
+      ? normalizePracticeEnemyCount(options.practiceEnemyCount || S.practiceEnemyCount || 3)
+      : normalizePracticeEnemyCount(S.practiceEnemyCount || 3);
+    const spawnPracticeEnemies = typeof options === "object" && options
+      ? options.spawnPracticeEnemies === true
+      : false;
     const difficulty = typeof options === "object" && options
       ? normalizeDifficulty(options.difficulty || S.difficulty || "normal")
       : normalizeDifficulty(S.difficulty || "normal");
@@ -380,6 +407,7 @@ window.Boot = (() => {
     S.stats.rangeMultiplier = 1;
     S.stats.hardpointLevel = 0;
     S.stats.hardpointCooldown = 0;
+    S.stats.escortDroneLevel = 0;
     S.stats.defense = GAME_BALANCE.PLAYER.DEFENSE;
     S.stats.mp = GAME_BALANCE.PLAYER.MP_MAX;
     S.stats.mpMax = GAME_BALANCE.PLAYER.MP_MAX;
@@ -412,6 +440,8 @@ window.Boot = (() => {
     S.stats.practiceMode = practiceMode;
     S.practiceStageId = practiceStageId;
     S.practiceStageDurationSec = practiceStageDurationSec;
+    S.practiceEnemyTier = practiceEnemyTier;
+    S.practiceEnemyCount = practiceEnemyCount;
     S.difficulty = difficulty;
 
     S.progression.score = 0;
@@ -420,10 +450,10 @@ window.Boot = (() => {
     S.progression.stage = practiceMode === "stage" ? practiceStageId : 1;
     S.progression.stageDuration = practiceStageDurationSec * 60;
     S.progression.stageTime = S.progression.stageDuration;
-    S.progression.stageState = "combat";
-    S.progression.wave = 1;
+    S.progression.stageState = practiceMode === "enemy" ? "enemytest" : "combat";
+    S.progression.wave = practiceMode === "enemy" ? 0 : 1;
     S.progression.waveAlive = 0;
-    S.progression.waveTarget = 8;
+    S.progression.waveTarget = practiceMode === "enemy" ? 0 : 8;
     S.progression.waveState = "running";
     S.progression.spawnT = 0;
     S.progression.spawnedCount = 0;
@@ -453,6 +483,8 @@ window.Boot = (() => {
     S.activeSkillState.boostMitigationMul = 1;
     S.activeSkillState.boostT = 0;
     S.activeSkillState.afterburnerT = 0;
+    S.activeSkillState.escortDrones = [];
+    S.activeSkillState.deployTurrets = [];
     S.activeSkillState.stealthT = 0;
     S.activeSkillState.stealthAlpha = 1;
     S.activeSkillState.stealthLastKnownX = 0;
@@ -477,10 +509,17 @@ window.Boot = (() => {
       WaveSystem.startNextWave();
     } else if (testMode && practiceMode === "stage") {
       WaveSystem.startStage(practiceStageId, { stageDurationFrames: practiceStageDurationSec * 60 });
+    } else if (testMode && practiceMode === "enemy") {
+      if (window.BackgroundRenderer) BackgroundRenderer.drawBackground();
+      if (window.StageAtmosphere) StageAtmosphere.clear();
+      if (window.PlanetSystem) PlanetSystem.clear();
     } else {
       WaveSystem.startStage(1);
     }
     if (testMode && practiceMode === "boss" && window.BossSystem) BossSystem.spawnSelectedPracticeBoss();
+    if (testMode && practiceMode === "enemy" && spawnPracticeEnemies && window.EnemySystem && EnemySystem.spawnPracticeEnemies) {
+      EnemySystem.spawnPracticeEnemies(practiceEnemyTier, practiceEnemyCount);
+    }
     if (window.BgmSystem) BgmSystem.refresh();
     S.pause.open = false;
     UI.hudUpdate();
@@ -1083,8 +1122,9 @@ window.Boot = (() => {
       onStart: ()=>{ primeAudioSystems(); resetAll({ difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }); },
       onPracticeBoss: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"boss", playerType:S.playerType || readStoredPlayerType() }); },
       onPracticeStage: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"stage", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, playerType:S.playerType || readStoredPlayerType() }); },
+      onPracticeEnemy: ()=>{ primeAudioSystems(); resetAll({ testMode:true, practiceMode:"enemy", practiceEnemyTier:S.practiceEnemyTier || "normal", practiceEnemyCount:S.practiceEnemyCount || 3, spawnPracticeEnemies:false, playerType:S.playerType || readStoredPlayerType() }); },
       onRetry: ()=>{ primeAudioSystems(); resetAll(S.stats.practice
-        ? { testMode:true, practiceMode:S.stats.practiceMode || "boss", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }
+        ? { testMode:true, practiceMode:S.stats.practiceMode || "boss", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, practiceEnemyTier:S.practiceEnemyTier || "normal", practiceEnemyCount:S.practiceEnemyCount || 3, difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }
         : { difficulty:S.difficulty || "normal", playerType:S.playerType || readStoredPlayerType() }); },
       onBack: ()=>{
         if (window.DialogueSystem) DialogueSystem.cancel();
@@ -1103,6 +1143,7 @@ window.Boot = (() => {
         primeAudioSystems();
         if (mode === "boss") resetAll({ testMode:true, practiceMode:"boss", playerType:S.playerType || readStoredPlayerType() });
         if (mode === "stage") resetAll({ testMode:true, practiceMode:"stage", practiceStageId:S.practiceStageId || 1, practiceStageDurationSec:S.practiceStageDurationSec || 180, playerType:S.playerType || readStoredPlayerType() });
+        if (mode === "enemy") resetAll({ testMode:true, practiceMode:"enemy", practiceEnemyTier:S.practiceEnemyTier || "normal", practiceEnemyCount:S.practiceEnemyCount || 3, playerType:S.playerType || readStoredPlayerType() });
       },
       onDifficultyChange: (difficulty) => {
         S.difficulty = normalizeDifficulty(difficulty);
@@ -1142,6 +1183,17 @@ window.Boot = (() => {
           practiceMode: "stage",
           practiceStageId: normalizePracticeStageId(stageId),
           practiceStageDurationSec: Math.max(10, durationSec || 180),
+          playerType:S.playerType || readStoredPlayerType()
+        });
+      },
+      onApplyEnemyTest: ({ enemyTier, count }) => {
+        primeAudioSystems();
+        resetAll({
+          testMode: true,
+          practiceMode: "enemy",
+          practiceEnemyTier: normalizePracticeEnemyTier(enemyTier),
+          practiceEnemyCount: normalizePracticeEnemyCount(count),
+          spawnPracticeEnemies: true,
           playerType:S.playerType || readStoredPlayerType()
         });
       }

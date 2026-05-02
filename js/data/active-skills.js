@@ -1,5 +1,25 @@
 window.ACTIVE_SKILL_DEFINITIONS = [
   {
+    id: "deploy_turret",
+    name: "Sentry Turrets",
+    desc: "Deploy simple auto-turrets ahead of you. Higher levels add more turret positions, then improve damage and fire rate.",
+    type: "offense",
+    mpCost: 30,
+    cooldown: 360,
+    duration: 360,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      placementDistance: 88,
+      placementSpread: 60,
+      range: 250,
+      damage: 2.8,
+      bossDamage: 1.6,
+      fireInterval: 24
+    }
+  },
+  {
     id: "decoy_drone",
     name: "Decoy Drone",
     desc: "Deploy a decoy that pulls enemy aggro for a short time.",

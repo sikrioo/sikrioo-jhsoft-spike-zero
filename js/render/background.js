@@ -306,6 +306,26 @@ window.BackgroundRenderer = (() => {
       };
     }
 
+    if (stage === 4) {
+      return {
+        bgColor: 0x01040a,
+        nebulae: [
+          { x: w * 0.18, y: h * 0.2, r: Math.min(w, h) * 0.24, c: 0x12305a, a: 0.055, blur: 84 },
+          { x: w * 0.7, y: h * 0.16, r: Math.min(w, h) * 0.2, c: 0x16396b, a: 0.05, blur: 70 },
+          { x: w * 0.76, y: h * 0.74, r: Math.min(w, h) * 0.28, c: 0x1a214d, a: 0.05, blur: 96 },
+          { x: w * 0.34, y: h * 0.82, r: Math.min(w, h) * 0.22, c: 0x2c1f4a, a: 0.03, blur: 72 }
+        ],
+        planets: [],
+        stars: { count: 76, color: 0xd7e6ff, alphaMin: 0.16, alphaMax: 0.56, mediumBlur: 1.0, largeBlur: 1.4 },
+        grid: { color: 0x6a8dd6, alpha: 0.008, step: 112, blur: 2.4 },
+        orbitalGuide: null,
+        vignetteAlpha: 0.44,
+        dustBands: [
+          { x: w * 0.52, y: h * 0.44, length: Math.max(w, h) * 0.42, width: 22, color: 0x274a77, alpha: 0.028, rotation: -0.24, blur: 24 }
+        ]
+      };
+    }
+
     return baseTheme;
   }
 

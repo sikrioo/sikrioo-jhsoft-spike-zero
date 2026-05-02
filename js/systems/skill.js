@@ -79,6 +79,7 @@ window.SkillSystem = (() => {
     S.stats.rangeMultiplier = 1;
     S.stats.hardpointLevel = 0;
     S.stats.hardpointCooldown = 0;
+    S.stats.escortDroneLevel = 0;
     S.stats.defense = GAME_BALANCE.PLAYER.DEFENSE;
     S.stats.regen = 0;
     S.stats.shield = 0;
@@ -109,6 +110,12 @@ window.SkillSystem = (() => {
     S.smokeClouds.length = 0;
     for (const field of S.slowFields) if (field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
     S.slowFields.length = 0;
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetEscortDrones === "function") {
+      ActiveSkillSystem.resetEscortDrones();
+    }
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetDeployTurrets === "function") {
+      ActiveSkillSystem.resetDeployTurrets();
+    }
 
     CombatSystem.applyStartingWeaponLoadout(S.stats.practice);
     CombatSystem.syncWeaponStats();
@@ -127,6 +134,8 @@ window.SkillSystem = (() => {
     S.activeSkillState.boostMitigationMul = 1;
     S.activeSkillState.boostT = 0;
     S.activeSkillState.afterburnerT = 0;
+    S.activeSkillState.escortDrones = [];
+    S.activeSkillState.deployTurrets = [];
     S.activeSkillState.stealthT = 0;
     S.activeSkillState.stealthAlpha = 1;
     S.activeSkillState.stealthLastKnownX = 0;
@@ -245,11 +254,14 @@ window.SkillSystem = (() => {
       weight *= S.progression.level >= 4 ? 1.1 : 0.75;
     }
 
-    if ((upgradeState.levels.weapon_level || 0) > 0 && ["firerate", "bulletspeed", "pierce", "hardpoint_guns", "homingmissile"].includes(upgrade.id)) {
+    if ((upgradeState.levels.weapon_level || 0) > 0 && ["firerate", "bulletspeed", "pierce", "hardpoint_guns", "homingmissile", "escort_drones"].includes(upgrade.id)) {
       weight *= 1.18;
     }
-    if ((upgradeState.levels.hardpoint_guns || 0) > 0 && ["firerate", "bulletspeed", "weapon_level"].includes(upgrade.id)) {
+    if ((upgradeState.levels.hardpoint_guns || 0) > 0 && ["firerate", "bulletspeed", "weapon_level", "escort_drones"].includes(upgrade.id)) {
       weight *= 1.16;
+    }
+    if ((upgradeState.levels.escort_drones || 0) > 0 && upgrade.id === "escort_drones") {
+      weight *= 1.18;
     }
     if ((upgradeState.levels.homingmissile || 0) > 0 && upgrade.id === "homingmissile") {
       weight *= 1.18;

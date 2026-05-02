@@ -126,6 +126,10 @@
       <input type="radio" name="practiceType" value="stage" />
       <span>Test Stage</span>
     </label>
+    <label class="weaponOption">
+      <input type="radio" name="practiceType" value="enemy" />
+      <span>Test Enemy</span>
+    </label>
     <div class="weaponHead bossHead">Weapon Test</div>
     <label class="weaponOption">
       <input type="radio" name="weaponType" value="machinegun" checked />
@@ -155,6 +159,14 @@
       <label class="bossLabel" for="stageDurationInput">Boss Timer Sec</label>
       <input id="stageDurationInput" class="bossSelect" type="number" min="10" step="5" value="180" />
       <button class="btn bossBtn" id="btnApplyStageTest" type="button">Apply Stage</button>
+    </div>
+    <div class="stageTestPanel" id="enemyTestPanel" style="display:none;">
+      <div class="weaponHead bossHead">Enemy Test</div>
+      <label class="bossLabel" for="enemySelect">Target Enemy</label>
+      <select id="enemySelect" class="bossSelect"></select>
+      <label class="bossLabel" for="enemyCountInput">Enemy Count</label>
+      <input id="enemyCountInput" class="bossSelect" type="number" min="1" max="12" step="1" value="3" />
+      <button class="btn bossBtn" id="btnApplyEnemyTest" type="button">Apply Enemy Test</button>
     </div>
   </div>
 
@@ -244,6 +256,7 @@
         <button class="btn" id="btnStart">Play Mode</button>
         <button class="btn secondary" id="btnPracticeBoss">Test Boss</button>
         <button class="btn secondary" id="btnPracticeStage">Test Stage</button>
+        <button class="btn secondary" id="btnPracticeEnemy">Test Enemy</button>
       </div>
     </div>
 

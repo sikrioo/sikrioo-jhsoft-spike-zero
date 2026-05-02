@@ -1,4 +1,14 @@
 window.EnemySystem = (() => {
+  const STAGE_FOUR_SATELLITE_LAYOUT = [
+    [0.20, 0.22, "h", 90, true, 28],
+    [0.45, 0.28, "v", 75, false, 22],
+    [0.74, 0.22, "h", 110, true, 36],
+    [0.32, 0.58, "v", 95, true, 28],
+    [0.62, 0.55, "h", 85, false, 30],
+    [0.84, 0.67, "v", 70, true, 22],
+    [0.52, 0.78, "h", 115, false, 32]
+  ];
+
   const SLOW_FIELD_SPECS = [
     null,
     { interval: 180, duration: 108, width: 160, height: 90, spawnDistance: 120, slowRate: 0.62, bossSlowRate: 0.86, maxFields: 1, color: 0x72a8ff, accent: 0xc9a2ff },
@@ -160,6 +170,7 @@ window.EnemySystem = (() => {
     const bossRoll = Math.random();
     const roll = Math.min(0.999, bossRoll + (difficulty.specialThreatBonus || 0));
 
+    if (window.WaveSystem && WaveSystem.isAsteroidMapTestStage && WaveSystem.isAsteroidMapTestStage(stage)) return "satellite";
     if (stage >= 3 && wave >= 10 && bossRoll > 0.985) return "boss";
     if (stage >= 3 && wave >= 6  && bossRoll > 0.94)  return "midboss";
     if (stage >= 3 && wave >= 6  && roll > 0.89)  return "turret_laser";
@@ -214,11 +225,15 @@ window.EnemySystem = (() => {
   function updateGunnerEnemy(enemy, target, dt){
     const state = enemy.enemyState;
     const body = enemy.bodySpr;
+    const moveTarget = getEnemyApproachPoint(enemy, target, state, dt);
+    const toMoveX = moveTarget.x - enemy.x;
+    const toMoveY = moveTarget.y - enemy.y;
+    const moveDist = Math.hypot(toMoveX, toMoveY) || 1;
+    let moveDx = toMoveX / moveDist;
+    let moveDy = toMoveY / moveDist;
     const toPlayerX = target.x - enemy.x;
     const toPlayerY = target.y - enemy.y;
     const dist = Math.hypot(toPlayerX, toPlayerY) || 1;
-    let moveDx = toPlayerX / dist;
-    let moveDy = toPlayerY / dist;
     let moveSpeed = enemy.sp * (enemy.slowMul || 1);
 
     state.fireCd -= dt;
@@ -246,6 +261,59 @@ window.EnemySystem = (() => {
     if (dist <= state.attackDistance){
       tryShootGunner(enemy, target);
     }
+  }
+
+  function getTargetFacingAngle(enemy, target) {
+    const player = GameState.player;
+    if (target.player && player && player.spr) return player.spr.rotation - Math.PI / 2;
+    return Math.atan2(target.y - enemy.y, target.x - enemy.x);
+  }
+
+  function rollApproachMode(state) {
+    const modes = state && Array.isArray(state.approachModes) && state.approachModes.length
+      ? state.approachModes
+      : ["front", "side_left", "side_right", "back"];
+    return modes[Helpers.randi(0, modes.length - 1)];
+  }
+
+  function refreshApproachState(enemy, target, state) {
+    if (!state) return;
+    state.approachMode = rollApproachMode(state);
+    state.approachTimer = Helpers.randi(state.retargetMin || 36, state.retargetMax || 90);
+    state.approachRadius = Helpers.rand(state.radiusMin || 90, state.radiusMax || 170);
+    const facing = getTargetFacingAngle(enemy, target);
+    const baseRadius = state.approachRadius;
+    let angle = facing;
+    if (state.approachMode === "side_left") angle = facing - Math.PI / 2;
+    if (state.approachMode === "side_right") angle = facing + Math.PI / 2;
+    if (state.approachMode === "back") angle = facing + Math.PI;
+    state.approachAngle = angle;
+    state.approachX = target.x + Math.cos(angle) * baseRadius;
+    state.approachY = target.y + Math.sin(angle) * baseRadius;
+  }
+
+  function getEnemyApproachPoint(enemy, target, state, dt = 1) {
+    if (!state || !state.ambushStyle) return target;
+    state.approachTimer = Math.max(0, (state.approachTimer || 0) - dt);
+    const directDist = Math.hypot(target.x - enemy.x, target.y - enemy.y) || 1;
+    const closeDistance = state.refreshCloseDistance || 96;
+    if (directDist <= closeDistance) {
+      return target;
+    }
+    if (
+      !state.approachMode ||
+      state.approachTimer <= 0
+    ) {
+      refreshApproachState(enemy, target, state);
+    }
+
+    const desiredX = state.approachX != null ? state.approachX : target.x;
+    const desiredY = state.approachY != null ? state.approachY : target.y;
+    const blend = Helpers.clamp(state.approachWeight || 0.72, 0, 1);
+    return {
+      x: Helpers.lerp(target.x, desiredX, blend),
+      y: Helpers.lerp(target.y, desiredY, blend)
+    };
   }
 
   function fireTurretMachinegun(enemy, target, accuracy = 0.08, count = 1, speed = 6.2, spread = 0.12) {
@@ -347,6 +415,151 @@ window.EnemySystem = (() => {
       pulseRadius: enemy.tier === "turret_laser" ? 34 : 24,
       pulseLife: 8
     });
+  }
+
+  function drawSatelliteLaserWarning(enemy) {
+    const state = enemy.enemyState;
+    if (!state) return;
+    if (!state.warningSpr) {
+      state.warningSpr = new PIXI.Graphics();
+      GameState.fx.addChild(state.warningSpr);
+    }
+    const len = state.laserLength || 1200;
+    const endX = enemy.x + Math.cos(state.laserAngle) * len;
+    const endY = enemy.y + Math.sin(state.laserAngle) * len;
+    const alpha = 0.18 + (state.warn / Math.max(1, state.warnMax || 1)) * 0.2;
+    const g = state.warningSpr;
+    g.clear();
+    g.lineStyle(1.4, 0xff5a6e, alpha);
+    g.moveTo(enemy.x, enemy.y);
+    g.lineTo(endX, endY);
+  }
+
+  function clearSatelliteWarning(state) {
+    if (!state || !state.warningSpr) return;
+    if (state.warningSpr.parent) state.warningSpr.parent.removeChild(state.warningSpr);
+    state.warningSpr = null;
+  }
+
+  function fireSatelliteLaser(enemy) {
+    const state = enemy.enemyState;
+    if (!state) return;
+    clearSatelliteWarning(state);
+    EnemyVisuals.clearTurretLaserFx(enemy);
+    const laser = new PIXI.Graphics();
+    GameState.fx.addChild(laser);
+    state.laserSpr = laser;
+    state.laserLife = state.fire;
+    state.laserMaxLife = state.fire;
+    state.laserDamageCd = 0;
+    Effects.emitPulse(enemy.x, enemy.y, 0xff4258, 34, 10);
+    Effects.emitParticle(enemy.x, enemy.y, 0xff4258, 10, 0.8);
+  }
+
+  function redrawSatelliteLaser(enemy) {
+    const state = enemy.enemyState;
+    if (!state || !state.laserSpr) return;
+    const g = state.laserSpr;
+    const alpha = Math.max(0, Math.min(1, state.laserLife / Math.max(1, state.laserMaxLife || state.laserLife)));
+    const endX = Math.cos(state.laserAngle) * (state.laserLength || 1200);
+    const endY = Math.sin(state.laserAngle) * (state.laserLength || 1200);
+    g.x = enemy.x;
+    g.y = enemy.y;
+    g.clear();
+    g.lineStyle(8, 0xff2543, 0.16 * alpha);
+    g.moveTo(0, 0);
+    g.lineTo(endX, endY);
+    g.lineStyle(4, 0xff3b55, 0.34 * alpha);
+    g.moveTo(0, 0);
+    g.lineTo(endX, endY);
+    g.lineStyle(1.6, 0xffffff, 0.88 * alpha);
+    g.moveTo(0, 0);
+    g.lineTo(endX, endY);
+  }
+
+  function applySatelliteLaserDamage(enemy, dt) {
+    const state = enemy.enemyState;
+    if (!state || !state.laserSpr) return;
+    state.laserDamageCd -= dt;
+    if (state.laserDamageCd > 0) return;
+    state.laserDamageCd = 4;
+
+    const player = GameState.player;
+    const cos = Math.cos(state.laserAngle);
+    const sin = Math.sin(state.laserAngle);
+    const rx = player.spr.x - enemy.x;
+    const ry = player.spr.y - enemy.y;
+    const along = rx * cos + ry * sin;
+    const side = Math.abs(rx * -sin + ry * cos);
+    if (along < 0 || along > (state.laserLength || 1200) || side > (state.laserWidth || 5) + player.r) return;
+
+    EnemyCombat.hitPlayerWithEnemyDamage(state.laserDamage || enemy.dmg, 0xff4258, cos, sin, {
+      invFrames: 18,
+      push: 4.4,
+      particleCount: 12,
+      particlePower: 0.9,
+      pulseRadius: 28,
+      pulseLife: 8
+    });
+  }
+
+  function applySatelliteContactPush(enemy) {
+    const player = GameState.player;
+    if (!player || !player.spr) return;
+    const rr = enemy.r + player.r;
+    const dx = player.spr.x - enemy.x;
+    const dy = player.spr.y - enemy.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    if (dist >= rr) return;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const pushOut = rr - dist + 1;
+    player.spr.x += nx * pushOut;
+    player.spr.y += ny * pushOut;
+    player.vx += nx * 1.8;
+    player.vy += ny * 1.8;
+  }
+
+  function updateSatelliteEnemy(enemy, target, dt) {
+    const state = enemy.enemyState;
+    state.phaseT += dt;
+    const motion = Math.sin(state.phaseT * state.speed + state.phase) * state.range;
+    enemy.x = state.baseX + (state.moveType === "h" ? motion : 0);
+    enemy.y = state.baseY + (state.moveType === "v" ? motion : 0);
+    enemy.spr.x = enemy.x;
+    enemy.spr.y = enemy.y;
+    enemy.hpText.rotation = 0;
+    applySatelliteContactPush(enemy);
+
+    if (state.canLaser) {
+      if (state.fire > 0) {
+        state.fire = Math.max(0, state.fire - dt);
+        if (!state.laserSpr) fireSatelliteLaser(enemy);
+        state.laserLife = state.fire;
+        redrawSatelliteLaser(enemy);
+        applySatelliteLaserDamage(enemy, dt);
+        if (state.fire <= 0) EnemyVisuals.clearTurretLaserFx(enemy);
+      } else if (state.warn > 0) {
+        state.warn = Math.max(0, state.warn - dt);
+        state.laserAngle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+        drawSatelliteLaserWarning(enemy);
+        if (state.warn <= 0) {
+          state.fire = Helpers.randi(30, 54);
+          fireSatelliteLaser(enemy);
+        }
+      } else {
+        clearSatelliteWarning(state);
+        state.timer -= dt;
+        if (state.timer <= 0) {
+          state.warn = Helpers.randi(30, 64);
+          state.warnMax = state.warn;
+          state.laserAngle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+          state.timer = Helpers.randi(140, 320);
+        }
+      }
+    }
+
+    EnemyVisuals.updateSatelliteVisuals(enemy);
   }
 
   function updateTurretMachinegunEnemy(enemy, target, dt) {
@@ -1021,7 +1234,8 @@ window.EnemySystem = (() => {
     const c = new PIXI.Container();
     const signal = (tierKey === "rusher" || tierKey === "bomber" || tierKey === "lancer" || tierKey === "spin_lancer") ? new PIXI.Graphics() : null;
     const isTurret = tierKey === "turret_mg" || tierKey === "turret_laser" || tierKey === "turret_sniper";
-    const body = isTurret ? new PIXI.Container() : EnemyVisuals.makeEnemySprite(tierKey, tier, 0, 0);
+    const isSatellite = tierKey === "satellite";
+    const body = (isTurret || isSatellite) ? new PIXI.Container() : EnemyVisuals.makeEnemySprite(tierKey, tier, 0, 0);
 
     const hpText = new PIXI.Text(String(hits), {
       fontFamily: "Arial",
@@ -1033,6 +1247,9 @@ window.EnemySystem = (() => {
       strokeThickness: tierKey === "boss" ? 5 : 4
     });
     hpText.anchor.set(0.5);
+    if (isSatellite) {
+      hpText.visible = false;
+    }
 
     if (signal){
       signal.visible = false;
@@ -1085,6 +1302,20 @@ window.EnemySystem = (() => {
         return true;
       };
     }
+    if (isSatellite) {
+      enemy.visuals = EnemyVisuals.makeSatelliteVisual(enemy, tier);
+      enemy.destroyVisuals = () => {
+        EnemyVisuals.clearTurretLaserFx(enemy);
+        clearSatelliteWarning(enemy.enemyState);
+        if (enemy.spr && enemy.spr.parent) enemy.spr.parent.removeChild(enemy.spr);
+      };
+      enemy.takeDamage = (damage) => {
+        enemy.hp = Math.max(0, enemy.hp - damage);
+        enemy.hitT = 6;
+        enemy.hpText.text = String(Math.max(0, Math.floor(enemy.hp)));
+        return true;
+      };
+    }
 
     if (tierKey === "flanker"){
       enemy.enemyState = {
@@ -1107,7 +1338,15 @@ window.EnemySystem = (() => {
         fireInterval: 30,
         preferredDistance: 260,
         retreatDistance: 150,
-        attackDistance: 420
+        attackDistance: 420,
+        ambushStyle: true,
+        approachModes: ["side_left", "side_right", "back"],
+        approachWeight: 0.76,
+        radiusMin: 120,
+        radiusMax: 190,
+        retargetMin: 34,
+        retargetMax: 82,
+        refreshCloseDistance: 130
       };
     }
     if (tierKey === "turret_mg"){
@@ -1176,7 +1415,39 @@ window.EnemySystem = (() => {
       enemy.sp *= 0.92;
       enemy.enemyState = {
         state: "tank",
-        turnBias: Helpers.rand(-0.2, 0.2)
+        turnBias: Helpers.rand(-0.2, 0.2),
+        ambushStyle: true,
+        approachModes: ["front", "side_left", "side_right"],
+        approachWeight: 0.42,
+        radiusMin: 70,
+        radiusMax: 150,
+        retargetMin: 72,
+        retargetMax: 128,
+        refreshCloseDistance: 108
+      };
+    }
+    if (tierKey === "normal"){
+      enemy.enemyState = {
+        ambushStyle: true,
+        approachModes: ["side_left", "side_right", "back"],
+        approachWeight: 0.56,
+        radiusMin: 96,
+        radiusMax: 176,
+        retargetMin: 64,
+        retargetMax: 120,
+        refreshCloseDistance: 104
+      };
+    }
+    if (tierKey === "elite"){
+      enemy.enemyState = {
+        ambushStyle: true,
+        approachModes: ["side_left", "side_right", "back", "front"],
+        approachWeight: 0.52,
+        radiusMin: 110,
+        radiusMax: 186,
+        retargetMin: 68,
+        retargetMax: 124,
+        refreshCloseDistance: 110
       };
     }
     if (tierKey === "rusher"){
@@ -1215,6 +1486,33 @@ window.EnemySystem = (() => {
       };
       drawLancerSignal(enemy, 0.24);
     }
+    if (tierKey === "satellite") {
+      const arena = Helpers.getArenaBounds();
+      enemy.enemyState = {
+        state: "satellite",
+        baseX: arena.left + arena.width * 0.5,
+        baseY: arena.top + arena.height * 0.5,
+        moveType: "h",
+        range: 90,
+        canLaser: true,
+        phase: Math.random() * Math.PI * 2,
+        phaseT: 0,
+        speed: Helpers.rand(0.008, 0.013),
+        timer: Helpers.randi(100, 250),
+        warn: 0,
+        warnMax: 0,
+        fire: 0,
+        laserAngle: 0,
+        laserLength: Math.max(arena.width, arena.height) * 1.3,
+        laserWidth: 5,
+        laserDamage: enemy.dmg,
+        laserSpr: null,
+        laserLife: 0,
+        laserMaxLife: 0,
+        laserDamageCd: 0,
+        warningSpr: null
+      };
+    }
 
     return enemy;
   }
@@ -1230,6 +1528,82 @@ window.EnemySystem = (() => {
     P.spawnedCount++;
 
     if (tier === "boss") UI.triggerBossWarning();
+  }
+
+  function spawnStageFourSatellites() {
+    const S = GameState;
+    const arena = Helpers.getArenaBounds();
+    const difficulty = GAME_BALANCE.DIFFICULTY[S.difficulty || "normal"] || GAME_BALANCE.DIFFICULTY.normal;
+    for (const config of STAGE_FOUR_SATELLITE_LAYOUT) {
+      const enemy = makeEnemy("satellite");
+      const radius = config[5];
+      enemy.r = radius;
+      enemy.x = arena.left + arena.width * config[0];
+      enemy.y = arena.top + arena.height * config[1];
+      enemy.spr.x = enemy.x;
+      enemy.spr.y = enemy.y;
+      enemy.hp = enemy.maxHp = Math.max(1, Math.ceil((radius <= 22 ? 10 : radius >= 34 ? 18 : 14) * (difficulty.enemyHpMultiplier || 1)));
+      enemy.hpText.text = String(enemy.hp);
+      enemy.dmg = Math.ceil((radius >= 32 ? 16 : 12) * (difficulty.enemyDamageMultiplier || 1));
+      enemy.scoreBase = radius >= 32 ? 420 : 320;
+      enemy.xp = radius >= 32 ? 10 : 8;
+      enemy.enemyState.baseX = enemy.x;
+      enemy.enemyState.baseY = enemy.y;
+      enemy.enemyState.moveType = config[2];
+      enemy.enemyState.range = config[3];
+      enemy.enemyState.canLaser = config[4];
+      enemy.enemyState.phase = Math.random() * Math.PI * 2;
+      enemy.enemyState.speed = Helpers.rand(0.008, 0.013);
+      enemy.enemyState.timer = Helpers.randi(100, 250);
+      enemy.enemyState.laserLength = Math.max(arena.width, arena.height) * 1.3;
+      enemy.enemyState.laserDamage = enemy.dmg;
+      S.enemies.push(enemy);
+    }
+  }
+
+  function getPracticeEnemyOptions() {
+    return [
+      { id: "normal", name: "Normal Fighter" },
+      { id: "elite", name: "Elite Fighter" },
+      { id: "gunner", name: "Gunner" },
+      { id: "flanker", name: "Flanker" },
+      { id: "rusher", name: "Rusher" },
+      { id: "lancer", name: "Lancer" },
+      { id: "spin_lancer", name: "Spin Lancer" },
+      { id: "tank", name: "Tank" },
+      { id: "turret_mg", name: "MG Turret" },
+      { id: "turret_laser", name: "Laser Turret" },
+      { id: "turret_sniper", name: "Sniper Turret" },
+      { id: "satellite", name: "Relay Satellite" }
+    ];
+  }
+
+  function spawnPracticeEnemies(tierKey = "normal", count = 3) {
+    const S = GameState;
+    const arena = Helpers.getArenaBounds();
+    const safeCount = Math.max(1, Math.min(12, Math.floor(count || 1)));
+    const cols = Math.min(4, safeCount);
+    const rows = Math.ceil(safeCount / cols);
+    const spacingX = Math.max(96, arena.width * 0.16);
+    const spacingY = Math.max(84, arena.height * 0.16);
+    const originX = arena.left + arena.width * 0.68;
+    const originY = arena.top + arena.height * 0.28;
+
+    for (let i = 0; i < safeCount; i++) {
+      const enemy = makeEnemy(tierKey);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      enemy.x = originX + (col - (cols - 1) * 0.5) * spacingX;
+      enemy.y = originY + row * spacingY;
+      enemy.spr.x = enemy.x;
+      enemy.spr.y = enemy.y;
+      if (tierKey === "satellite" && enemy.enemyState) {
+        enemy.enemyState.baseX = enemy.x;
+        enemy.enemyState.baseY = enemy.y;
+        enemy.enemyState.range = 56 + (i % 3) * 18;
+      }
+      S.enemies.push(enemy);
+    }
   }
 
   function updateEnemies(dt){
@@ -1302,6 +1676,8 @@ window.EnemySystem = (() => {
         updateTurretLaserEnemy(e, target, dt);
       } else if (e.tier === "turret_sniper"){
         updateTurretSniperEnemy(e, target, dt);
+      } else if (e.tier === "satellite"){
+        updateSatelliteEnemy(e, target, dt);
       } else if (e.tier === "flanker"){
         updateFlankerEnemy(e, target, dt);
       } else {
@@ -1311,6 +1687,12 @@ window.EnemySystem = (() => {
           e.spr.rotation += 0.05 * dt;
           e.hpText.rotation = -e.spr.rotation;
         } else {
+        const moveTarget = getEnemyApproachPoint(e, target, e.enemyState, dt);
+        dx = moveTarget.x - e.x;
+        dy = moveTarget.y - e.y;
+        const moveDist = Math.hypot(dx, dy) || 1;
+        dx /= moveDist;
+        dy /= moveDist;
         if (e.tier === "normal"){
           const wig = Math.sin(now * 5 + i) * 0.18;
           const ca = Math.cos(wig);
@@ -1367,6 +1749,7 @@ window.EnemySystem = (() => {
 
       if (e.tier === "bomber") continue;
 
+      if (e.tier === "satellite") continue;
       const rr = e.r + target.r;
       if (Helpers.dist2(e.x, e.y, target.x, target.y) < rr * rr){
         const isDashHit = (e.tier === "rusher" || e.tier === "lancer" || e.tier === "spin_lancer") && e.enemyState && e.enemyState.state === "dash";
@@ -1415,6 +1798,9 @@ window.EnemySystem = (() => {
 
   return {
     spawnEnemy,
+    spawnStageFourSatellites,
+    getPracticeEnemyOptions,
+    spawnPracticeEnemies,
     updateEnemies,
     updateEnemyBullets: EnemyCombat.updateEnemyBullets,
     hitPlayerWithEnemyDamage: EnemyCombat.hitPlayerWithEnemyDamage

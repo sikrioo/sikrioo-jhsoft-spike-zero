@@ -33,7 +33,7 @@ window.GAME_BALANCE = {
       specialThreatBonus: 0
     },
     normal: {
-      waveCountMultiplier: 1.2,
+      waveCountMultiplier: 1.4,
       spawnRateMultiplier: 1,
       enemyHpMultiplier: 1,
       enemySpeedMultiplier: 1,
@@ -43,7 +43,7 @@ window.GAME_BALANCE = {
       specialThreatBonus: 0
     },
     hard: {
-      waveCountMultiplier: 1.56,
+      waveCountMultiplier: 1.95,
       spawnRateMultiplier: 0.85,
       enemyHpMultiplier: 1.15,
       enemySpeedMultiplier: 1.08,

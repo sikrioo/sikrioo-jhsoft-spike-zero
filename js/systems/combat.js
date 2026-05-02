@@ -604,7 +604,7 @@ window.CombatSystem = (() => {
         S.stats.bulletSpeed * WEAPON_DEFINITIONS.machinegun.projectileSpeedMul * bulletSpeedMul * 0.96,
         0,
         {
-          color: 0x7fd9ff,
+          color: 0xffc76a,
           radius: 3.4,
           kind: "hardpoint",
           spriteKind: "hardpoint",
@@ -616,10 +616,10 @@ window.CombatSystem = (() => {
         }
       );
       S.bullets.push(bullet);
-      Effects.emitParticle(barrel.muzzleX, barrel.muzzleY, getShipParticleTint(0x7fd9ff), 4, 0.55);
+      Effects.emitParticle(barrel.muzzleX, barrel.muzzleY, getShipParticleTint(0xffd27a), 4, 0.55);
     }
 
-    S.stats.hardpointCooldown = level >= 3 ? 9 : level >= 2 ? 10 : 8;
+    S.stats.hardpointCooldown = level >= 3 ? 11 : level >= 2 ? 12 : 10;
     if (window.SoundSystem) {
       SoundSystem.play("player_fire", { playbackRate: 1.18 + Helpers.rand(-0.04, 0.03), volume: 0.34, cooldownMs: 0 });
     }

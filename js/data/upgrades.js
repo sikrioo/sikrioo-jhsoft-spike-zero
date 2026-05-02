@@ -49,6 +49,22 @@
 
   window.UPGRADE_DEFINITIONS = [
     defineUpgrade({
+      id: "deploy_turret",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "dps",
+      maxLevel: 5,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["offense", "turret", "deploy"],
+      name: "Sentry Turrets",
+      desc: "Deploy auto-turrets. Levels add front, side, and rear coverage, with Lv5 boosting firepower and attack speed.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("deploy_turret");
+        GameState.activeSkillState.levels.deploy_turret = Math.max(1, Math.min(5, level));
+      }
+    }),
+    defineUpgrade({
       id: "boost_tuning",
       category: "active",
       upgradeType: "active",
@@ -94,6 +110,21 @@
       requires: (S) => !S.activeSkillState.ownedSkillIds.includes("decoy_drone"),
       apply: () => {
         ActiveSkillSystem.unlockSkill("decoy_drone");
+      }
+    }),
+    defineUpgrade({
+      id: "escort_drones",
+      category: "weapon",
+      upgradeType: "weapon",
+      subCategory: "dps",
+      maxLevel: 5,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["auxiliary", "drone", "synergy"],
+      name: "Escort Drones",
+      desc: "Mount support drones as a sub-weapon. Lv1 starts with one drone, Lv2-4 add more coverage, and Lv5 completes a four-direction escort screen.",
+      apply: (level) => {
+        GameState.stats.escortDroneLevel = Math.max(0, Math.min(5, level));
       }
     }),
     defineUpgrade({

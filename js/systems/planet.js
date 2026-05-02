@@ -131,8 +131,8 @@ window.PlanetSystem = (() => {
     const arena = Helpers.getArenaBounds();
     return [
       { size: "large", count: 3, speedMin: 0.18, speedMax: 0.34, yMin: arena.top + arena.height * 0.12, yMax: arena.top + arena.height * 0.46 },
-      { size: "medium", count: 8, speedMin: 0.34, speedMax: 0.62, yMin: arena.top + arena.height * 0.08, yMax: arena.bottom - arena.height * 0.08 },
-      { size: "small", count: 18, speedMin: 0.58, speedMax: 1.08, yMin: arena.top + arena.height * 0.05, yMax: arena.bottom - arena.height * 0.05 }
+      { size: "medium", count: 6, speedMin: 0.34, speedMax: 0.62, yMin: arena.top + arena.height * 0.08, yMax: arena.bottom - arena.height * 0.08 },
+      { size: "small", count: 12, speedMin: 0.58, speedMax: 1.08, yMin: arena.top + arena.height * 0.05, yMax: arena.bottom - arena.height * 0.05 }
     ];
   }
 
@@ -154,10 +154,11 @@ window.PlanetSystem = (() => {
           collision: true,
           blocksBullet: true,
           blocksShip: true,
-          damageOnContact: false,
+          damageOnContact: true,
+          contactDamage: group.size === "large" ? 10 : group.size === "medium" ? 7 : 5,
           gravity: false,
-          color: group.size === "large" ? 0x6a6258 : group.size === "medium" ? 0x74695d : 0x857768,
-          rimColor: group.size === "large" ? 0xe7d7bb : 0xd8c8a8,
+          color: group.size === "large" ? 0x3f434b : group.size === "medium" ? 0x343944 : 0x2b313b,
+          rimColor: group.size === "large" ? 0x8090a3 : group.size === "medium" ? 0x6b7a8f : 0x5c697d,
           rotation: Helpers.rand(0, Math.PI * 2),
           spin: Helpers.rand(-0.008, 0.008) * (group.size === "large" ? 0.45 : 1),
           vx: Helpers.rand(group.speedMin, group.speedMax),
@@ -173,10 +174,108 @@ window.PlanetSystem = (() => {
     }
   }
 
+  function resetForStageThreeFlyby() {
+    const S = GameState;
+    const arena = Helpers.getArenaBounds();
+    const configs = [
+      {
+        id: "planet_s3_flyby_a",
+        size: "medium",
+        radius: 54,
+        x: arena.left - 180,
+        y: arena.top + arena.height * 0.22,
+        color: 0x44311f,
+        rimColor: 0xffc07a,
+        craters: 8,
+        rotation: -0.3,
+        spin: 0.0021,
+        vx: 0.28,
+        vy: 0.014
+      },
+      {
+        id: "planet_s3_flyby_b",
+        size: "medium",
+        radius: 58,
+        x: arena.left - 460,
+        y: arena.top + arena.height * 0.58,
+        color: 0x252953,
+        rimColor: 0x8e9dff,
+        craters: 7,
+        rotation: 0.4,
+        spin: -0.0019,
+        vx: 0.36,
+        vy: -0.02
+      },
+      {
+        id: "planet_s3_flyby_c",
+        size: "small",
+        radius: 30,
+        x: arena.left - 760,
+        y: arena.top + arena.height * 0.8,
+        color: 0x263d4b,
+        rimColor: 0x7df9ff,
+        craters: 5,
+        rotation: 0.1,
+        spin: 0.0028,
+        vx: 0.47,
+        vy: 0.018
+      },
+      {
+        id: "planet_s3_flyby_d",
+        size: "small",
+        radius: 26,
+        x: arena.left - 980,
+        y: arena.top + arena.height * 0.36,
+        color: 0x3a274f,
+        rimColor: 0xc894ff,
+        craters: 4,
+        rotation: -0.18,
+        spin: -0.0026,
+        vx: 0.44,
+        vy: 0.011
+      },
+      {
+        id: "planet_s3_flyby_e",
+        size: "medium",
+        radius: 48,
+        x: arena.left - 1260,
+        y: arena.top + arena.height * 0.68,
+        color: 0x2a354f,
+        rimColor: 0x89c6ff,
+        craters: 6,
+        rotation: 0.22,
+        spin: 0.0017,
+        vx: 0.32,
+        vy: -0.013
+      }
+    ];
+
+    for (const config of configs) {
+      const planet = {
+        ...config,
+        collision: true,
+        blocksBullet: true,
+        blocksShip: true,
+        damageOnContact: false,
+        gravity: false,
+        spr: null,
+        seed: config.radius + Math.round(config.y),
+        isDrifter: true
+      };
+      planet.spr = makePlanetSprite(planet, planet.seed);
+      S.uiLayer.addChildAt(planet.spr, 0);
+      S.planets.push(planet);
+    }
+  }
+
   function resetForStage(stage = 1) {
     clear();
     if (Number(stage) === ASTEROID_MAP_TEST_STAGE) {
       resetForAsteroidMapTest();
+      return;
+    }
+    if (Number(stage) === 3) {
+      resetForStageThreeFlyby();
       return;
     }
     const S = GameState;
@@ -205,7 +304,7 @@ window.PlanetSystem = (() => {
   function update(dt = 1) {
     const arena = Helpers.getArenaBounds();
     for (const planet of GameState.planets) {
-      if (!planet.isAsteroid || !planet.spr) continue;
+      if ((!planet.isAsteroid && !planet.isDrifter) || !planet.spr) continue;
       planet.x += planet.vx * dt;
       planet.y += planet.vy * dt;
       planet.rotation += planet.spin * dt;
@@ -235,6 +334,9 @@ window.PlanetSystem = (() => {
     const S = GameState;
     if (!entity || !S.planets.length) return false;
     let moved = false;
+    let damagingPlanet = null;
+    let hitDx = 0;
+    let hitDy = 0;
     const x = entity.x != null ? entity.x : entity.spr.x;
     const y = entity.y != null ? entity.y : entity.spr.y;
     let nextX = x;
@@ -251,6 +353,15 @@ window.PlanetSystem = (() => {
       nextX += (dx / d) * push;
       nextY += (dy / d) * push;
       moved = true;
+      if (
+        entity === S.player &&
+        planet.damageOnContact &&
+        (!damagingPlanet || (planet.contactDamage || 0) > (damagingPlanet.contactDamage || 0))
+      ) {
+        damagingPlanet = planet;
+        hitDx = dx / d;
+        hitDy = dy / d;
+      }
     }
 
     if (moved) {
@@ -260,6 +371,28 @@ window.PlanetSystem = (() => {
         entity.spr.x = nextX;
         entity.spr.y = nextY;
       }
+    }
+    if (
+      damagingPlanet &&
+      window.EnemyCombat &&
+      typeof EnemyCombat.hitPlayerWithEnemyDamage === "function"
+    ) {
+      EnemyCombat.hitPlayerWithEnemyDamage(
+        damagingPlanet.contactDamage || 5,
+        0xffb37a,
+        hitDx,
+        hitDy,
+        {
+          invFrames: 22,
+          push: 4.6,
+          particleCount: 9,
+          particlePower: 0.72,
+          pulseRadius: 24,
+          pulseLife: 8,
+          impactRadius: 28,
+          impactShake: 3
+        }
+      );
     }
     return moved;
   }

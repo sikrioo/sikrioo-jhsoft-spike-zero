@@ -192,6 +192,7 @@ window.ActiveSkillSystem = (() => {
     const { skill } = check;
     let casted = false;
     if (skill.id === "decoy_drone") casted = castDecoyDrone(skill);
+    if (skill.id === "deploy_turret") casted = castDeployTurret(skill);
     if (skill.id === "boost") casted = castBoost(skill, context);
     if (skill.id === "afterburner") casted = castAfterburner(skill);
     if (skill.id === "nova_pulse") casted = castNovaPulse(skill);
@@ -308,6 +309,191 @@ window.ActiveSkillSystem = (() => {
     Effects.emitParticle(S.player.spr.x, S.player.spr.y, 0xff7a47, 10, 0.75);
     Effects.emitPulse(S.player.spr.x, S.player.spr.y, 0xff7a47, 46, 12);
     return true;
+  }
+
+  function makeDeployTurretSprite() {
+    const c = new PIXI.Container();
+
+    const base = new PIXI.Graphics();
+    base.beginFill(0x10161f, 0.96);
+    base.lineStyle(1.5, 0x7e93ab, 0.92);
+    base.drawRoundedRect(-9, -7, 18, 14, 5);
+    base.endFill();
+
+    const head = new PIXI.Graphics();
+    head.beginFill(0xd9e2ee, 0.9);
+    head.lineStyle(1.2, 0x8ea2bb, 0.92);
+    head.drawCircle(0, 0, 5);
+    head.endFill();
+
+    const barrel = new PIXI.Graphics();
+    barrel.beginFill(0xff6e66, 0.9);
+    barrel.drawRoundedRect(-1.2, -16, 2.4, 11, 1.2);
+    barrel.endFill();
+
+    const lens = new PIXI.Graphics();
+    lens.beginFill(0xff6a62, 0.95);
+    lens.drawCircle(0, -2, 1.6);
+    lens.endFill();
+
+    c.addChild(base, head, barrel, lens);
+    return c;
+  }
+
+  function emitDeployTurretShot(turret, target, color = 0xffd7b8) {
+    const dx = target.hitCircle.x - turret.x;
+    const dy = target.hitCircle.y - turret.y;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const angle = Math.atan2(dy, dx);
+    const bullet = Effects.makeBulletSprite(
+      turret.x + nx * 10,
+      turret.y + ny * 10,
+      angle,
+      0xffddb8,
+      { kind: "hardpoint", scale: 1, alpha: 0.98 }
+    );
+    bullet.scale.set(1.7, 1.08);
+    GameState.fx.addChild(bullet);
+    GameState.particles.push({
+      spr: bullet,
+      x: bullet.x,
+      y: bullet.y,
+      vx: nx * 7.4,
+      vy: ny * 7.4,
+      life: 10,
+      drag: 0.992
+    });
+
+    const tracer = Effects.makeTrailSprite(
+      turret.x + nx * 8,
+      turret.y + ny * 8,
+      0xffc19b,
+      0.52,
+      0.34,
+      { kind: "linear" }
+    );
+    tracer.rotation = angle;
+    tracer.scale.set(0.7, 0.52);
+    GameState.fx.addChild(tracer);
+    GameState.particles.push({
+      spr: tracer,
+      x: tracer.x,
+      y: tracer.y,
+      vx: nx * 0.8,
+      vy: ny * 0.8,
+      life: 6,
+      drag: 0.92
+    });
+    Effects.emitParticle(turret.x + nx * 10, turret.y + ny * 10, 0xff9b7f, 2, 0.14);
+    Effects.emitParticle(target.hitCircle.x, target.hitCircle.y, 0xffe6d0, 2, 0.16);
+  }
+
+  function resetDeployTurrets() {
+    const turrets = GameState.activeSkillState.deployTurrets || [];
+    for (const turret of turrets) {
+      if (turret && turret.spr && turret.spr.parent) turret.spr.parent.removeChild(turret.spr);
+    }
+    GameState.activeSkillState.deployTurrets = [];
+  }
+
+  function getDeployTurretLevel(level) {
+    const lv = Math.max(1, Math.min(5, level || 1));
+    return {
+      count: lv >= 4 ? 4 : lv >= 3 ? 3 : lv >= 2 ? 2 : 1,
+      rangeBonus: lv >= 5 ? 18 : lv >= 4 ? 10 : lv >= 3 ? 6 : lv >= 2 ? 2 : 0,
+      damageMul: lv >= 5 ? 1.35 : 1,
+      fireRateMul: lv >= 5 ? 0.76 : 1
+    };
+  }
+
+  function getDeployTurretFormation(level) {
+    if (level >= 4) return ["front", "left", "right", "back"];
+    if (level >= 3) return ["front", "left", "right"];
+    if (level >= 2) return ["front_left", "front_right"];
+    return ["front"];
+  }
+
+  function getDeployTurretOffset(slot, distance, spread) {
+    if (slot === "back") return { forward: -distance * 0.86, side: 0 };
+    if (slot === "left") return { forward: 14, side: -spread * 0.92 };
+    if (slot === "right") return { forward: 14, side: spread * 0.92 };
+    if (slot === "front_left") return { forward: distance * 0.9, side: -spread * 0.62 };
+    if (slot === "front_right") return { forward: distance * 0.9, side: spread * 0.62 };
+    return { forward: distance, side: 0 };
+  }
+
+  function castDeployTurret(skill) {
+    const S = GameState;
+    const player = S.player;
+    const level = Math.max(1, S.activeSkillState.levels.deploy_turret || 1);
+    const profile = getDeployTurretLevel(level);
+    const data = skill.effectData || {};
+    const facing = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const forwardX = Math.cos(facing);
+    const forwardY = Math.sin(facing);
+    const sideX = -forwardY;
+    const sideY = forwardX;
+    const distance = data.placementDistance || 88;
+    const spread = data.placementSpread || 60;
+    const formation = getDeployTurretFormation(level);
+
+    resetDeployTurrets();
+
+    for (let i = 0; i < formation.length; i++) {
+      const slot = formation[i];
+      const offset = getDeployTurretOffset(slot, distance, spread);
+      const x = player.spr.x + forwardX * offset.forward + sideX * offset.side;
+      const y = player.spr.y + forwardY * offset.forward + sideY * offset.side;
+      const spr = makeDeployTurretSprite();
+      spr.x = x;
+      spr.y = y;
+      spr.rotation = facing + Math.PI / 2;
+      S.uiLayer.addChild(spr);
+      S.activeSkillState.deployTurrets.push({
+        spr,
+        x,
+        y,
+        angle: facing,
+        slot,
+        life: skill.duration,
+        maxLife: skill.duration,
+        range: (data.range || 250) + profile.rangeBonus,
+        damage: (data.damage || 2.8) * profile.damageMul,
+        bossDamage: (data.bossDamage || 1.6) * profile.damageMul,
+        fireInterval: Math.max(10, Math.round((data.fireInterval || 24) * profile.fireRateMul)),
+        fireCd: 8 + i * 4,
+        pulseSeed: Math.random() * Math.PI * 2
+      });
+      Effects.emitPulse(x, y, 0xff7e72, 24, 8);
+      Effects.emitParticle(x, y, 0xff7e72, 7, 0.42);
+    }
+
+    return true;
+  }
+
+  function makeEscortDroneSprite(tint = 0x8be9ff) {
+    const c = new PIXI.Container();
+
+    const wing = new PIXI.Graphics();
+    wing.beginFill(0x10192a, 0.98);
+    wing.lineStyle(1.5, tint, 0.95);
+    wing.drawPolygon([0, -9, 8, -1, 0, 7, -8, -1]);
+    wing.endFill();
+
+    const core = new PIXI.Graphics();
+    core.beginFill(0xdffbff, 0.92);
+    core.drawCircle(0, -1, 2.4);
+    core.endFill();
+
+    const engine = new PIXI.Graphics();
+    engine.beginFill(tint, 0.85);
+    engine.drawRoundedRect(-1.4, 4.5, 2.8, 5, 1.2);
+    engine.endFill();
+
+    c.addChild(wing, core, engine);
+    return c;
   }
 
   function castNovaPulse(skill){
@@ -645,6 +831,213 @@ window.ActiveSkillSystem = (() => {
     }
   }
 
+  function getEscortDroneTarget(drone, range, taken = null) {
+    const S = GameState;
+    const rangeSq = range * range;
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (const enemy of S.enemies) {
+      if (!enemy || (taken && taken.has(enemy))) continue;
+      const circles = getEnemyHitCircles(enemy);
+      for (const circle of circles) {
+        const dx = circle.x - drone.x;
+        const dy = circle.y - drone.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > rangeSq) continue;
+        if (
+          window.PlanetSystem &&
+          PlanetSystem.blocksLineOfSight &&
+          PlanetSystem.blocksLineOfSight(drone.x, drone.y, circle.x, circle.y, Math.max(2, circle.radius * 0.2))
+        ) {
+          continue;
+        }
+        const dist = Math.sqrt(distSq) || 1;
+        const hpBias = enemy.tier === "boss" ? 0.12 : 0;
+        const score = (1 - Helpers.clamp(dist / range, 0, 1)) + hpBias;
+        if (score <= bestScore) continue;
+        best = { enemy, hitCircle: circle, dist };
+        bestScore = score;
+      }
+    }
+
+    return best;
+  }
+
+  function getDeployTurretTarget(turret, range) {
+    const S = GameState;
+    const rangeSq = range * range;
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (const enemy of S.enemies) {
+      if (!enemy) continue;
+      for (const circle of getEnemyHitCircles(enemy)) {
+        const dx = circle.x - turret.x;
+        const dy = circle.y - turret.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > rangeSq) continue;
+        if (
+          window.PlanetSystem &&
+          PlanetSystem.blocksLineOfSight &&
+          PlanetSystem.blocksLineOfSight(turret.x, turret.y, circle.x, circle.y, Math.max(2, circle.radius * 0.2))
+        ) {
+          continue;
+        }
+        const dist = Math.sqrt(distSq) || 1;
+        const angle = Math.atan2(dy, dx);
+        const angleDelta = Math.abs(Math.atan2(Math.sin(angle - turret.angle), Math.cos(angle - turret.angle)));
+        const forwardScore = 1 - Helpers.clamp(angleDelta / Math.PI, 0, 1);
+        const distScore = 1 - Helpers.clamp(dist / range, 0, 1);
+        const score = forwardScore * 0.42 + distScore * 0.58;
+        if (score <= bestScore) continue;
+        bestScore = score;
+        best = { enemy, hitCircle: circle, angle };
+      }
+    }
+
+    return best;
+  }
+
+  function updateDeployTurrets(dt) {
+    const S = GameState;
+    const turrets = S.activeSkillState.deployTurrets || [];
+    for (let i = turrets.length - 1; i >= 0; i--) {
+      const turret = turrets[i];
+      turret.life -= dt;
+      turret.fireCd = Math.max(0, (turret.fireCd || 0) - dt);
+      const lifeRatio = Math.max(0, Math.min(1, turret.life / Math.max(1, turret.maxLife)));
+      turret.spr.alpha = 0.52 + lifeRatio * 0.4;
+
+      if (turret.life <= 0) {
+        Effects.emitParticle(turret.x, turret.y, 0xff867a, 5, 0.3);
+        if (turret.spr && turret.spr.parent) turret.spr.parent.removeChild(turret.spr);
+        turrets.splice(i, 1);
+        continue;
+      }
+
+      const target = getDeployTurretTarget(turret, turret.range);
+      if (target) {
+        turret.angle = target.angle;
+      }
+
+      const pulse = 1 + Math.sin(performance.now() / 170 + turret.pulseSeed) * 0.04;
+      turret.spr.scale.set(pulse, pulse);
+      turret.spr.rotation = Helpers.lerp(turret.spr.rotation, turret.angle + Math.PI / 2, 0.18 * dt);
+
+      if (!target || turret.fireCd > 0 || !window.CombatSystem || typeof CombatSystem.damageEnemy !== "function") continue;
+
+      const damage = target.enemy.tier === "boss" ? turret.bossDamage : turret.damage;
+      CombatSystem.damageEnemy(target.enemy, damage, 0xffd7b8, target.enemy.tier === "boss" ? 6 : 4, 0.34, target.hitCircle);
+      emitDeployTurretShot(turret, target, 0xffd7b8);
+      turret.fireCd = turret.fireInterval;
+    }
+  }
+
+  function syncEscortDrones(level) {
+    const S = GameState;
+    if (!S.player || !S.player.spr || !S.uiLayer) return;
+    const drones = S.activeSkillState.escortDrones || (S.activeSkillState.escortDrones = []);
+    const desiredCount = level <= 0 ? 0 : level >= 5 ? 4 : level >= 4 ? 3 : level >= 2 ? 2 : 1;
+
+    while (drones.length > desiredCount) {
+      const drone = drones.pop();
+      if (drone && drone.spr && drone.spr.parent) drone.spr.parent.removeChild(drone.spr);
+    }
+
+    while (drones.length < desiredCount) {
+      const index = drones.length;
+      const spr = makeEscortDroneSprite(index % 2 === 0 ? 0x86e7ff : 0xc6a4ff);
+      spr.x = S.player.spr.x;
+      spr.y = S.player.spr.y;
+      S.uiLayer.addChild(spr);
+      drones.push({
+        spr,
+        index,
+        x: S.player.spr.x,
+        y: S.player.spr.y,
+        orbitAngle: (Math.PI * 2 * index) / Math.max(1, desiredCount),
+        orbitRadius: 34 + index * 4,
+        fireCd: Helpers.randi(6, 14),
+        pulseSeed: Math.random() * Math.PI * 2
+      });
+      Effects.emitParticle(S.player.spr.x, S.player.spr.y, index % 2 === 0 ? 0x8be9ff : 0xc6a4ff, 7, 0.5);
+    }
+
+    for (let i = 0; i < drones.length; i++) {
+      const drone = drones[i];
+      drone.index = i;
+      drone.orbitRadius = 34 + i * 4;
+    }
+  }
+
+  function updateEscortDrones(dt) {
+    const S = GameState;
+    if (!S.player || !S.player.spr) return;
+    const level = Math.max(0, Math.min(5, S.stats.escortDroneLevel || 0));
+    syncEscortDrones(level);
+    const drones = S.activeSkillState.escortDrones || [];
+    if (!drones.length) return;
+
+    const attackRange = level >= 5 ? 280 : level >= 4 ? 262 : level >= 3 ? 246 : level >= 2 ? 220 : 190;
+    const baseDamage = level >= 5 ? 1.7 : level >= 4 ? 1.58 : level >= 3 ? 1.42 : level >= 2 ? 1.15 : 0.9;
+    const bossDamage = level >= 5 ? 1.18 : level >= 4 ? 1.08 : level >= 3 ? 0.98 : level >= 2 ? 0.85 : 0.7;
+    const fireInterval = level >= 5 ? 16 : level >= 4 ? 18 : level >= 3 ? 22 : level >= 2 ? 28 : 36;
+    const player = S.player;
+    const aimAngle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const taken = new Set();
+    const radialFormation = level >= 4;
+    const formationCount = Math.max(1, drones.length);
+
+    for (let i = drones.length - 1; i >= 0; i--) {
+      const drone = drones[i];
+      drone.orbitAngle += (0.025 + i * 0.002) * dt;
+      const sideOffset = i % 2 === 0 ? -0.9 : 0.9;
+      const slotAngle = radialFormation
+        ? aimAngle + ((Math.PI * 2 * i) / formationCount)
+        : aimAngle + sideOffset;
+      const sway = Math.sin(performance.now() / 340 + drone.pulseSeed) * (radialFormation ? 0.04 : 0.08);
+      const anchorAngle = slotAngle + sway;
+      const orbitSwing = radialFormation ? drone.orbitAngle * 0.08 : drone.orbitAngle * 0.22;
+      const desiredX = player.spr.x + Math.cos(anchorAngle + orbitSwing) * drone.orbitRadius;
+      const desiredY = player.spr.y + Math.sin(anchorAngle + orbitSwing) * (drone.orbitRadius - (radialFormation ? 2 : 6));
+      drone.x = Helpers.lerp(drone.x != null ? drone.x : player.spr.x, desiredX, 0.16 * dt);
+      drone.y = Helpers.lerp(drone.y != null ? drone.y : player.spr.y, desiredY, 0.16 * dt);
+      drone.spr.x = drone.x;
+      drone.spr.y = drone.y;
+      drone.spr.alpha = 0.76 + Math.sin(performance.now() / 180 + drone.pulseSeed) * 0.16;
+      drone.fireCd = Math.max(0, (drone.fireCd || 0) - dt);
+
+      const target = getEscortDroneTarget(drone, attackRange, taken);
+      if (target) {
+        taken.add(target.enemy);
+        const angle = Math.atan2(target.hitCircle.y - drone.y, target.hitCircle.x - drone.x);
+        drone.spr.rotation = angle + Math.PI / 2;
+
+        if (drone.fireCd <= 0 && window.CombatSystem && typeof CombatSystem.damageEnemy === "function") {
+          const damage = target.enemy.tier === "boss" ? bossDamage : baseDamage;
+          CombatSystem.damageEnemy(target.enemy, damage, 0x8be9ff, target.enemy.tier === "boss" ? 6 : 4, 0.36, target.hitCircle);
+          if (window.Effects && Effects.emitLineTelegraph) {
+            Effects.emitLineTelegraph(drone.x, drone.y, target.hitCircle.x, target.hitCircle.y, i % 2 === 0 ? 0x8be9ff : 0xc6a4ff, 2, 2);
+          }
+          Effects.emitParticle(drone.x, drone.y, 0x8be9ff, 3, 0.25);
+          Effects.emitParticle(target.hitCircle.x, target.hitCircle.y, i % 2 === 0 ? 0x8be9ff : 0xc6a4ff, 3, 0.28);
+          drone.fireCd = fireInterval + i * 2;
+        }
+      } else {
+        drone.spr.rotation = Helpers.lerp(drone.spr.rotation, anchorAngle + Math.PI / 2, 0.12 * dt);
+      }
+    }
+  }
+
+  function resetEscortDrones() {
+    const drones = GameState.activeSkillState.escortDrones || [];
+    for (const drone of drones) {
+      if (drone && drone.spr && drone.spr.parent) drone.spr.parent.removeChild(drone.spr);
+    }
+    GameState.activeSkillState.escortDrones = [];
+  }
+
   function updateSmokeClouds(dt){
     const S = GameState;
     for (let i=S.smokeClouds.length-1; i>=0; i--){
@@ -771,6 +1164,8 @@ window.ActiveSkillSystem = (() => {
     }
 
     updateDecoys(dt);
+    updateDeployTurrets(dt);
+    updateEscortDrones(dt);
     updateSmokeClouds(dt);
     updateMagneticSlowFields(dt);
   }
@@ -792,6 +1187,8 @@ window.ActiveSkillSystem = (() => {
     cycleBoostDirection,
     tryUseSlotByKey,
     tryUseBoostDirection,
+    resetEscortDrones,
+    resetDeployTurrets,
     update
   };
 })();
