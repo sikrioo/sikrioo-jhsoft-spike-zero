@@ -2,13 +2,55 @@ window.DialogueSystem = (() => {
   const TYPE_DELAY_MS = 24;
   const LINE_HOLD_MS = 4200;
   const END_HOLD_MS = 3200;
+  const dialogueOverlay = document.getElementById("dialogueOverlay");
 
   let token = 0;
   let activeCompletion = null;
   let activeToken = 0;
+  let advanceRequested = false;
+  let pendingAdvance = null;
+  let isTypingLine = false;
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function clearAdvanceState() {
+    advanceRequested = false;
+    pendingAdvance = null;
+    isTypingLine = false;
+  }
+
+  function waitForAdvanceOrTimeout(ms, currentToken) {
+    return new Promise((resolve) => {
+      if (currentToken !== token) {
+        resolve(false);
+        return;
+      }
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (pendingAdvance === finish) pendingAdvance = null;
+        resolve(currentToken === token);
+      };
+      const timer = setTimeout(finish, ms);
+      pendingAdvance = finish;
+    });
+  }
+
+  function advance() {
+    if (GameState.progression.waveState !== "dialogue") return false;
+    if (isTypingLine) {
+      advanceRequested = true;
+      return true;
+    }
+    if (pendingAdvance) {
+      pendingAdvance();
+      return true;
+    }
+    return false;
   }
 
   async function typeLine(line, currentToken) {
@@ -28,11 +70,19 @@ window.DialogueSystem = (() => {
       }
     }
     UI.showDialogueLine(entry, "");
+    isTypingLine = true;
+    advanceRequested = false;
     for (let i = 1; i <= line.text.length; i++) {
       if (currentToken !== token) return false;
+      if (advanceRequested) {
+        UI.showDialogueLine(entry, line.text);
+        break;
+      }
       UI.showDialogueLine(entry, line.text.slice(0, i));
       await sleep(TYPE_DELAY_MS);
     }
+    isTypingLine = false;
+    advanceRequested = false;
     UI.commitDialogueLine(entry);
     if (isController && window.SoundSystem) {
       SoundSystem.play("radio_out", { playbackRate: 0.96 + Math.random() * 0.04 });
@@ -59,15 +109,16 @@ window.DialogueSystem = (() => {
     for (const line of queue) {
       const ok = await typeLine(line, currentToken);
       if (!ok) return false;
-      await sleep(LINE_HOLD_MS);
-      if (currentToken !== token) return false;
+      const shouldContinue = await waitForAdvanceOrTimeout(LINE_HOLD_MS, currentToken);
+      if (!shouldContinue) return false;
     }
 
     if (currentToken !== token) return false;
-    await sleep(END_HOLD_MS);
-    if (currentToken !== token) return false;
+    const shouldClose = await waitForAdvanceOrTimeout(END_HOLD_MS, currentToken);
+    if (!shouldClose) return false;
     UI.resetDialogueLog();
     activeCompletion = null;
+    clearAdvanceState();
     if (typeof onComplete === "function") onComplete();
     return true;
   }
@@ -105,6 +156,7 @@ window.DialogueSystem = (() => {
     token += 1;
     activeToken = 0;
     activeCompletion = null;
+    clearAdvanceState();
     if (window.BgmSystem) BgmSystem.clearOverride();
     if (window.Boot && Boot.resetInputState) Boot.resetInputState();
     UI.resetDialogueLog();
@@ -116,6 +168,7 @@ window.DialogueSystem = (() => {
     token += 1;
     activeToken = 0;
     activeCompletion = null;
+    clearAdvanceState();
     if (window.BgmSystem) BgmSystem.clearOverride();
     if (window.Boot && Boot.resetInputState) Boot.resetInputState();
     UI.resetDialogueLog();
@@ -123,7 +176,15 @@ window.DialogueSystem = (() => {
     return true;
   }
 
+  if (dialogueOverlay) {
+    dialogueOverlay.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      if (advance()) e.preventDefault();
+    });
+  }
+
   return {
+    advance,
     cancel,
     skip,
     playLines,

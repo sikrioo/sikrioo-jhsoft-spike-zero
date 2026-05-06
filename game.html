@@ -65,7 +65,7 @@
       <div class="pill"><b>Shots</b><span id="shots">1</span></div>
       <div class="pill"><b>Pierce</b><span id="pierce">0</span></div>
       <div class="pill"><b>Combo</b><span id="combo">x1</span></div>
-      <div class="pill hint">WASD move, mouse aim, auto fire, Shift dash, 1 front slide, 2 left, 3 right, 4 back</div>
+      <div class="pill hint">Move mode selectable. Keyboard: WASD + mouse aim. Mouse Flight: mouse steer + mouse aim. Shift dash, 1 front slide, 2 left, 3 right, 4 back</div>
       <button class="pauseQuickBtn" id="btnPauseMenu" type="button">Menu</button>
     </div>
   </div>
@@ -113,7 +113,7 @@
 
   <div class="dialogueOverlay" id="dialogueOverlay" hidden>
     <div class="dialogueLog" id="dialogueLog"></div>
-    <div class="dialogueSkipHint" id="dialogueSkipHint">Press Space / Enter / Esc to skip briefing</div>
+    <div class="dialogueSkipHint" id="dialogueSkipHint">Click to continue, press Space / Enter / Esc to skip briefing</div>
   </div>
 
   <div class="weaponHud" id="weaponHud">
@@ -237,6 +237,19 @@
           <input type="radio" name="autoFire" value="false" />
           <span>Manual</span>
           <small>Hold click or Space</small>
+        </label>
+      </div>
+      <div class="difficultyPanel">
+        <div class="difficultyLabel">Movement</div>
+        <label class="difficultyOption">
+          <input type="radio" name="movementMode" value="keyboard" checked />
+          <span>Keyboard</span>
+          <small>WASD move + mouse aim</small>
+        </label>
+        <label class="difficultyOption">
+          <input type="radio" name="movementMode" value="mouse_flight" />
+          <span>Mouse Flight</span>
+          <small>Experimental mouse steer</small>
         </label>
       </div>
       <div class="difficultyPanel">

@@ -4,8 +4,7 @@ window.CHARACTER_PROFILES = {
     role: "controller",
     name: "레이",
     shortName: "RH",
-    avatarSrc: "./assets/images/characters/avatar-controller.jpg",
-    avatarFallbackSrc: "./assets/images/characters/avatar-controller.png",
+    avatarSrc: "./assets/images/characters/avatar-controller.png",
     description: "기본 관제사. 필요한 정보만 간결하게 전달하며 스테이지 1~2 브리핑을 담당한다.",
     faction: "Command",
     tags: ["operator", "comms", "support"]
@@ -15,8 +14,7 @@ window.CHARACTER_PROFILES = {
     role: "controller",
     name: "서린",
     shortName: "SR",
-    avatarSrc: "./assets/images/characters/avatar-controller2.jpg",
-    avatarFallbackSrc: "./assets/images/characters/avatar-controller2.png",
+    avatarSrc: "./assets/images/characters/avatar-controller2.png",
     description: "베테랑 관제사. 짧고 단호한 지시로 전장을 통제하며 스테이지 3 브리핑을 전담한다.",
     faction: "Command",
     tags: ["operator", "comms", "veteran", "control"]

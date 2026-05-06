@@ -60,6 +60,7 @@ window.UI = (() => {
   const effectQualityEls = [...document.querySelectorAll("input[name='effectQuality']")];
   const autoFireEls = [...document.querySelectorAll("input[name='autoFire']")];
   const autoAimEls = [...document.querySelectorAll("input[name='autoAim']")];
+  const movementModeEls = [...document.querySelectorAll("input[name='movementMode']")];
   const weaponHud = document.getElementById("weaponHud");
   const bossSelect = document.getElementById("bossSelect");
   const spawnBossBtn = document.getElementById("btnSpawnBoss");
@@ -104,8 +105,7 @@ window.UI = (() => {
       role,
       name: profile && profile.name ? profile.name : (role === "player" ? "Player" : "Controller"),
       shortName: profile && profile.shortName ? profile.shortName : (role === "player" ? "P" : "C"),
-      avatarSrc: profile ? profile.avatarSrc : null,
-      avatarFallbackSrc: profile ? profile.avatarFallbackSrc : null
+      avatarSrc: profile ? profile.avatarSrc : null
     };
   }
 
@@ -244,6 +244,7 @@ window.UI = (() => {
     for (const radio of effectQualityEls) radio.checked = radio.value === (S.effectQuality || "standard");
     for (const radio of autoFireEls) radio.checked = String(S.autoFire !== false) === radio.value;
     for (const radio of autoAimEls) radio.checked = String(S.autoAim === true) === radio.value;
+    for (const radio of movementModeEls) radio.checked = radio.value === (S.movementMode || "keyboard");
     weaponHud.style.display = S.stats.practice ? "block" : "none";
     const isBossTest = S.stats.practice && S.stats.practiceMode === "boss";
     const isStageTest = S.stats.practice && S.stats.practiceMode === "stage";
@@ -1023,12 +1024,7 @@ window.UI = (() => {
 
       const avatar = document.createElement("img");
       avatar.className = "dialogueAvatar";
-      avatar.src = speaker.avatarSrc || "./assets/images/characters/avatar-controller.jpg";
-      avatar.onerror = () => {
-        if (speaker.avatarFallbackSrc && avatar.src.indexOf(speaker.avatarFallbackSrc) === -1) {
-          avatar.src = speaker.avatarFallbackSrc;
-        }
-      };
+      avatar.src = speaker.avatarSrc || "./assets/images/characters/avatar-controller.png";
       avatar.alt = speaker.name;
       avatarFrame.appendChild(avatar);
       card.appendChild(avatarFrame);
@@ -1175,7 +1171,7 @@ window.UI = (() => {
     syncUpgradeChoiceSelection();
   }
 
-  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onPracticeEnemy, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onApplyEnemyTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onAutoAimChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
+  function bindButtons({ onStart, onPracticeBoss, onPracticeStage, onPracticeEnemy, onRetry, onBack, onBossChange, onSpawnBoss, onPracticeTypeChange, onApplyStageTest, onApplyEnemyTest, onDifficultyChange, onPlayerTypeChange, onEffectQualityChange, onAutoFireChange, onAutoAimChange, onMovementModeChange, onPauseToggle, onPauseAdjustUpgrade, onPauseResetUpgrades, onPauseClearUpgrades }) {
     document.getElementById("btnStart").onclick = onStart;
     document.getElementById("btnPracticeBoss").onclick = onPracticeBoss;
     document.getElementById("btnPracticeStage").onclick = onPracticeStage;
@@ -1224,6 +1220,11 @@ window.UI = (() => {
     for (const radio of autoAimEls){
       radio.onchange = () => {
         if (radio.checked && onAutoAimChange) onAutoAimChange(radio.value === "true");
+      };
+    }
+    for (const radio of movementModeEls){
+      radio.onchange = () => {
+        if (radio.checked && onMovementModeChange) onMovementModeChange(radio.value);
       };
     }
     if (closeSkillMapBtn) closeSkillMapBtn.onclick = closeSkillMapPanel;

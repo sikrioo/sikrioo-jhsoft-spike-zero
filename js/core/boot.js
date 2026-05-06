@@ -230,6 +230,12 @@ window.Boot = (() => {
     return value === true || value === "true" || value === "on" || value === "assist";
   }
 
+  function normalizeMovementMode(value) {
+    return value === "mouse_flight" || value === "mouse" || value === "flight"
+      ? "mouse_flight"
+      : "keyboard";
+  }
+
   function readStoredPlayerType() {
     try {
       return normalizePlayerType(localStorage.getItem("spike-zero-player-type") || S.playerType || "standard");
@@ -294,6 +300,22 @@ window.Boot = (() => {
     return S.autoAim;
   }
 
+  function readStoredMovementMode() {
+    try {
+      return normalizeMovementMode(localStorage.getItem("spike-zero-movement-mode") || S.movementMode);
+    } catch (_) {
+      return normalizeMovementMode(S.movementMode);
+    }
+  }
+
+  function setMovementMode(value) {
+    S.movementMode = normalizeMovementMode(value);
+    try {
+      localStorage.setItem("spike-zero-movement-mode", S.movementMode);
+    } catch (_) {}
+    return S.movementMode;
+  }
+
   function applyPlayerTypeStats(playerType) {
     if (window.PlayerFactory && typeof PlayerFactory.applyShipStats === "function") {
       PlayerFactory.applyShipStats(S.stats, normalizePlayerType(playerType));
@@ -309,7 +331,8 @@ window.Boot = (() => {
       playerType,
       effectQuality: normalizeEffectQuality(params.get("effects") || params.get("quality") || readStoredEffectQuality()),
       autoFire: normalizeAutoFire(params.get("autofire") || readStoredAutoFire()),
-      autoAim: normalizeAutoAim(params.get("autoaim") || readStoredAutoAim())
+      autoAim: normalizeAutoAim(params.get("autoaim") || readStoredAutoAim()),
+      movementMode: normalizeMovementMode(params.get("movement") || readStoredMovementMode())
     };
   }
 
@@ -387,6 +410,9 @@ window.Boot = (() => {
     const playerType = typeof options === "object" && options
       ? setPlayerType(options.playerType || S.playerType || readStoredPlayerType())
       : setPlayerType(S.playerType || readStoredPlayerType());
+    const movementMode = typeof options === "object" && options
+      ? setMovementMode(options.movementMode || S.movementMode || readStoredMovementMode())
+      : setMovementMode(S.movementMode || readStoredMovementMode());
     if (window.DialogueSystem) DialogueSystem.cancel();
     if (window.UI) UI.resetDialogueLog();
     if (window.BgmSystem) BgmSystem.stopAll();
@@ -443,6 +469,7 @@ window.Boot = (() => {
     S.practiceEnemyTier = practiceEnemyTier;
     S.practiceEnemyCount = practiceEnemyCount;
     S.difficulty = difficulty;
+    S.movementMode = movementMode;
 
     S.progression.score = 0;
     S.progression.combo = 1;
@@ -694,15 +721,30 @@ window.Boot = (() => {
 
     let ax = 0;
     let ay = 0;
-    if (S.keys.has("KeyA") || S.keys.has("ArrowLeft")) ax -= 1;
-    if (S.keys.has("KeyD") || S.keys.has("ArrowRight")) ax += 1;
-    if (S.keys.has("KeyW") || S.keys.has("ArrowUp")) ay -= 1;
-    if (S.keys.has("KeyS") || S.keys.has("ArrowDown")) ay += 1;
+    if (S.movementMode === "mouse_flight") {
+      const dx = S.mouse.x - p.spr.x;
+      const dy = S.mouse.y - p.spr.y;
+      const dist = Math.hypot(dx, dy);
+      const deadzone = 18;
+      const fullSpeedRadius = 170;
+      if (dist > deadzone) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const throttle = Helpers.clamp((dist - deadzone) / Math.max(1, fullSpeedRadius - deadzone), 0, 1);
+        ax = nx * throttle;
+        ay = ny * throttle;
+      }
+    } else {
+      if (S.keys.has("KeyA") || S.keys.has("ArrowLeft")) ax -= 1;
+      if (S.keys.has("KeyD") || S.keys.has("ArrowRight")) ax += 1;
+      if (S.keys.has("KeyW") || S.keys.has("ArrowUp")) ay -= 1;
+      if (S.keys.has("KeyS") || S.keys.has("ArrowDown")) ay += 1;
 
-    if (ax !== 0 || ay !== 0){
-      const m = Math.hypot(ax, ay) || 1;
-      ax /= m;
-      ay /= m;
+      if (ax !== 0 || ay !== 0){
+        const m = Math.hypot(ax, ay) || 1;
+        ax /= m;
+        ay /= m;
+      }
     }
 
     doDash();
@@ -1164,6 +1206,10 @@ window.Boot = (() => {
         setAutoAim(autoAim);
         UI.hudUpdate();
       },
+      onMovementModeChange: (movementMode) => {
+        setMovementMode(movementMode);
+        UI.hudUpdate();
+      },
       onPauseToggle: (open) => {
         setPauseState(open);
       },
@@ -1205,6 +1251,7 @@ window.Boot = (() => {
     setEffectQuality(launchOptions.effectQuality);
     setAutoFire(launchOptions.autoFire);
     setAutoAim(launchOptions.autoAim);
+    setMovementMode(launchOptions.movementMode);
     for (const radio of document.querySelectorAll("input[name='difficulty']")) {
       radio.checked = radio.value === S.difficulty;
     }
@@ -1220,13 +1267,16 @@ window.Boot = (() => {
     for (const radio of document.querySelectorAll("input[name='autoAim']")) {
       radio.checked = String(S.autoAim) === radio.value;
     }
+    for (const radio of document.querySelectorAll("input[name='movementMode']")) {
+      radio.checked = radio.value === S.movementMode;
+    }
     UI.populateBossOptions();
     ActiveSkillSystem.assignStartingLoadout(false);
     UI.hudUpdate();
 
     if (launchOptions.autostartPlay) {
       S.difficulty = launchOptions.difficulty;
-      resetAll({ difficulty: launchOptions.difficulty, playerType: launchOptions.playerType });
+      resetAll({ difficulty: launchOptions.difficulty, playerType: launchOptions.playerType, movementMode: launchOptions.movementMode });
     } else {
       UI.showCard("start");
     }

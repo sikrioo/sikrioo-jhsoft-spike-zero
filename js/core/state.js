@@ -37,6 +37,7 @@ window.GameState = {
   effectQuality: "standard",
   autoFire: true,
   autoAim: false,
+  movementMode: "keyboard",
   camera: {
     x: 0,
     y: 0
