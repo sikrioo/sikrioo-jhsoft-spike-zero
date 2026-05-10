@@ -62,7 +62,8 @@ window.CombatSystem = (() => {
     for (let i=0; i<S.enemies.length; i++){
       const enemy = S.enemies[i];
       if (takenSet && takenSet.has(enemy)) continue;
-      const d2 = Helpers.dist2(x, y, enemy.x, enemy.y);
+      const priorityMul = enemy && enemy.targetPaintT > 0 ? 0.7 : 1;
+      const d2 = Helpers.dist2(x, y, enemy.x, enemy.y) * priorityMul;
       if (d2 < bestDist){
         best = enemy;
         bestDist = d2;
@@ -436,16 +437,17 @@ window.CombatSystem = (() => {
   function damageEnemy(enemy, damage, hitColor, particleCount=10, particlePower=1, hitCircle=null){
     const S = GameState;
     const P = S.progression;
+    const appliedDamage = damage * (enemy && enemy.targetPaintT > 0 ? (enemy.targetPaintAmp || 1.28) : 1);
 
     const effectX = hitCircle ? hitCircle.x : enemy.x;
     const effectY = hitCircle ? hitCircle.y : enemy.y;
 
     if (typeof enemy.takeDamage === "function"){
-      const didDamage = enemy.takeDamage(damage, { hitCircle, hitColor, particleCount, particlePower });
+      const didDamage = enemy.takeDamage(appliedDamage, { hitCircle, hitColor, particleCount, particlePower });
       if (!didDamage) return false;
       enemy.hitT = 6;
     } else {
-      enemy.hp -= damage;
+      enemy.hp -= appliedDamage;
       enemy.hitT = 6;
       enemy.hpText.text = String(Math.max(0, Math.floor(enemy.hp)));
     }
@@ -638,9 +640,6 @@ window.CombatSystem = (() => {
     const canMainFire = player.fireCd <= 0;
 
     if (!canHardpointFire && !canMainFire) return;
-    if (S.activeSkillState.stealthT > 0 && window.ActiveSkillSystem) {
-      ActiveSkillSystem.breakStealth("attack");
-    }
 
     if (canHardpointFire) {
       tryShootHardpoints(ang, bulletSpeedMul, damageMul);
@@ -792,7 +791,6 @@ window.CombatSystem = (() => {
     const S = GameState;
     if (S.stats.homingMissileLevel <= 0) return;
     if (S.stats.homingMissileCd > 0) return;
-    if (S.activeSkillState.stealthT > 0) return;
     if (S.enemies.length <= 0) return;
 
     const { damageMul } = getAfterburnerMultipliers();

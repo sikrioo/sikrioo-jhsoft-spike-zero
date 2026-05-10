@@ -166,6 +166,122 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     }
   },
   {
+    id: "swarm_command",
+    name: "Swarm Command",
+    desc: "Deploy a temporary strike swarm that circles you and tears into nearby enemies.",
+    type: "offense",
+    mpCost: 32,
+    cooldown: 420,
+    duration: 228,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      count: 4,
+      range: 228,
+      damage: 1.95,
+      bossDamage: 1.2,
+      fireInterval: 18
+    }
+  },
+  {
+    id: "trap_prism",
+    name: "Trap Prism",
+    desc: "Deploy a forward triangular trap lattice that slows, chips, and intercepts hostile shots.",
+    type: "utility",
+    mpCost: 28,
+    cooldown: 330,
+    duration: 210,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      trapCount: 3,
+      placementDistance: 126,
+      sideSpacing: 58,
+      radius: 34,
+      damage: 3.2,
+      bossDamage: 1.7,
+      pulseInterval: 20,
+      slowRate: 0.68,
+      bossSlowRate: 0.86
+    }
+  },
+  {
+    id: "target_painter",
+    name: "Target Painter",
+    desc: "Mark priority targets ahead of you. Marked enemies take bonus damage and draw allied fire.",
+    type: "support",
+    mpCost: 22,
+    cooldown: 270,
+    duration: 1,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      range: 360,
+      targetCount: 4,
+      damageAmp: 1.32,
+      markDuration: 180
+    }
+  },
+  {
+    id: "repulsor_net",
+    name: "Repulsor Net",
+    desc: "Raise a short-lived forward barrier that shoves enemies back and strips hostile shots on contact.",
+    type: "utility",
+    mpCost: 26,
+    cooldown: 300,
+    duration: 126,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      span: 224,
+      depth: 44,
+      spawnDistance: 118,
+      slowRate: 0.74,
+      bossSlowRate: 0.9,
+      knockback: 14,
+      pulseInterval: 12
+    }
+  },
+  {
+    id: "stasis_arc",
+    name: "Stasis Arc",
+    desc: "Project a forward 180-degree drag field around your ship that slows enemies passing through it.",
+    type: "utility",
+    mpCost: 28,
+    cooldown: 270,
+    duration: 192,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      radius: 154,
+      arcDegrees: 180,
+      slowRate: 0.76,
+      bossSlowRate: 0.9,
+      pulseInterval: 18
+    }
+  },
+  {
+    id: "recall_beacon",
+    name: "Recall Beacon",
+    desc: "Recall active drones and turrets into a close guard ring, refreshing their fire and boosting output briefly.",
+    type: "support",
+    mpCost: 24,
+    cooldown: 330,
+    duration: 180,
+    manualCast: true,
+    autoCast: false,
+    slotType: "active",
+    effectData: {
+      fireRateMultiplier: 0.68,
+      damageMultiplier: 1.16
+    }
+  },
+  {
     id: "stealth_field",
     name: "Stealth Field",
     desc: "Vanish for a short time. Normal enemies lose your position until you attack.",

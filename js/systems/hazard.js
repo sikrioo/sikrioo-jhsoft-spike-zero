@@ -152,6 +152,9 @@ window.HazardSystem = (() => {
     const S = GameState;
     const p = S.player;
     if (!p || p.inv > 0 || hazard.hit) return false;
+    if (S.activeSkillState.stealthT > 0 && window.ActiveSkillSystem) {
+      ActiveSkillSystem.breakStealth("hit");
+    }
 
     let damage = Math.max(1, Math.ceil(hazard.damage - S.stats.defense));
     if (S.activeSkillState.boostMitigationT > 0) {

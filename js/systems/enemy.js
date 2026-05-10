@@ -52,6 +52,43 @@ window.EnemySystem = (() => {
     return { x: S.player.spr.x, y: S.player.spr.y, r: S.player.r, player: S.player };
   }
 
+  function drawTargetPaintMarker(marker, radius) {
+    marker.clear();
+    marker.lineStyle(2, 0xffc46c, 0.92);
+    marker.drawCircle(0, 0, radius + 9);
+    marker.moveTo(-radius - 13, 0);
+    marker.lineTo(-radius - 5, 0);
+    marker.moveTo(radius + 5, 0);
+    marker.lineTo(radius + 13, 0);
+    marker.moveTo(0, -radius - 13);
+    marker.lineTo(0, -radius - 5);
+    marker.moveTo(0, radius + 5);
+    marker.lineTo(0, radius + 13);
+  }
+
+  function updateTargetPaintState(enemy, dt) {
+    if (!enemy) return;
+    if (enemy.targetPaintT > 0) {
+      enemy.targetPaintT = Math.max(0, enemy.targetPaintT - dt);
+    } else {
+      enemy.targetPaintAmp = 1;
+    }
+
+    if (!enemy.targetPaintMarker) return;
+    if (enemy.targetPaintT > 0) {
+      enemy.targetPaintMarker.visible = true;
+      enemy.targetPaintMarker.rotation += 0.014 * dt;
+      enemy.targetPaintMarker.alpha = 0.54 + Math.sin(performance.now() / 110) * 0.18;
+      const pulse = 0.96 + Math.sin(performance.now() / 160) * 0.06;
+      enemy.targetPaintMarker.scale.set(pulse, pulse);
+      return;
+    }
+    enemy.targetPaintMarker.visible = false;
+    enemy.targetPaintMarker.alpha = 0;
+    enemy.targetPaintMarker.rotation = 0;
+    enemy.targetPaintMarker.scale.set(1, 1);
+  }
+
   function clearSlowField(field) {
     if (field && field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
   }
@@ -1250,13 +1287,17 @@ window.EnemySystem = (() => {
     if (isSatellite) {
       hpText.visible = false;
     }
+    const targetPaintMarker = new PIXI.Graphics();
+    drawTargetPaintMarker(targetPaintMarker, r);
+    targetPaintMarker.visible = false;
+    targetPaintMarker.alpha = 0;
 
     if (signal){
       signal.visible = false;
       signal.alpha = 0;
       c.addChild(signal);
     }
-    c.addChild(body, hpText);
+    c.addChild(body, targetPaintMarker, hpText);
     c.x = x;
     c.y = y;
     S.uiLayer.addChild(c);
@@ -1275,6 +1316,9 @@ window.EnemySystem = (() => {
       staggerT: 0,
       slowT: 0,
       slowMul: 1,
+      targetPaintT: 0,
+      targetPaintAmp: 1,
+      targetPaintMarker,
       hpText,
       bodySpr: body,
       signalSpr: signal,
@@ -1329,7 +1373,7 @@ window.EnemySystem = (() => {
         closeDistance: 88,
         resetDistance: 188
       };
-      beginFlankerOrbit(enemy, { x:S.player.spr.x, y:S.player.spr.y });
+      beginFlankerOrbit(enemy, getTargetForEnemy(enemy));
     }
     if (tierKey === "gunner"){
       enemy.enemyState = {
@@ -1614,6 +1658,7 @@ window.EnemySystem = (() => {
     for (let i=S.enemies.length-1; i>=0; i--){
       const e = S.enemies[i];
       if (typeof e.updateBoss === "function"){
+        updateTargetPaintState(e, dt);
         if (e.slowT > 0){
           e.slowT -= dt;
         } else {
@@ -1654,6 +1699,7 @@ window.EnemySystem = (() => {
       const d = Math.hypot(dx,dy) || 1;
       dx /= d;
       dy /= d;
+      updateTargetPaintState(e, dt);
 
       if (e.slowT > 0){
         e.slowT -= dt;
@@ -1750,8 +1796,11 @@ window.EnemySystem = (() => {
       if (e.tier === "bomber") continue;
 
       if (e.tier === "satellite") continue;
-      const rr = e.r + target.r;
-      if (Helpers.dist2(e.x, e.y, target.x, target.y) < rr * rr){
+      const targetRadius = target.decoy ? target.r : p.r;
+      const targetX = target.decoy ? target.x : p.spr.x;
+      const targetY = target.decoy ? target.y : p.spr.y;
+      const rr = e.r + targetRadius;
+      if (Helpers.dist2(e.x, e.y, targetX, targetY) < rr * rr){
         const isDashHit = (e.tier === "rusher" || e.tier === "lancer" || e.tier === "spin_lancer") && e.enemyState && e.enemyState.state === "dash";
         const hitDx = isDashHit && e.enemyState ? e.enemyState.dashDx : dx;
         const hitDy = isDashHit && e.enemyState ? e.enemyState.dashDy : dy;
@@ -1759,9 +1808,6 @@ window.EnemySystem = (() => {
           target.decoy.hp -= 1;
           e.hitT = 8;
           Effects.emitParticle(target.x, target.y, isDashHit ? 0xff6b6b : 0xffd27a, isDashHit ? 16 : 10, isDashHit ? 1.15 : 0.8);
-          const impactPush = e.tier === "tank" ? 4.5 : (isDashHit ? 7 : 3.5);
-          p.vx += hitDx * impactPush;
-          p.vy += hitDy * impactPush;
           if (isDashHit){
             e.enemyState.state = "recovery";
             e.enemyState.timer = e.enemyState.recoveryTime;

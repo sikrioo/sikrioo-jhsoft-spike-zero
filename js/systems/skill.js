@@ -116,6 +116,18 @@ window.SkillSystem = (() => {
     if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetDeployTurrets === "function") {
       ActiveSkillSystem.resetDeployTurrets();
     }
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetSwarmDrones === "function") {
+      ActiveSkillSystem.resetSwarmDrones();
+    }
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetTrapPrisms === "function") {
+      ActiveSkillSystem.resetTrapPrisms();
+    }
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetRepulsorFields === "function") {
+      ActiveSkillSystem.resetRepulsorFields();
+    }
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetStasisArcFields === "function") {
+      ActiveSkillSystem.resetStasisArcFields();
+    }
 
     CombatSystem.applyStartingWeaponLoadout(S.stats.practice);
     CombatSystem.syncWeaponStats();
@@ -136,6 +148,13 @@ window.SkillSystem = (() => {
     S.activeSkillState.afterburnerT = 0;
     S.activeSkillState.escortDrones = [];
     S.activeSkillState.deployTurrets = [];
+    S.activeSkillState.swarmDrones = [];
+    S.activeSkillState.trapPrisms = [];
+    S.activeSkillState.repulsorFields = [];
+    S.activeSkillState.stasisArcFields = [];
+    S.activeSkillState.recallBoostT = 0;
+    S.activeSkillState.recallFireRateMul = 1;
+    S.activeSkillState.recallDamageMul = 1;
     S.activeSkillState.stealthT = 0;
     S.activeSkillState.stealthAlpha = 1;
     S.activeSkillState.stealthLastKnownX = 0;
@@ -265,6 +284,21 @@ window.SkillSystem = (() => {
     }
     if ((upgradeState.levels.homingmissile || 0) > 0 && upgrade.id === "homingmissile") {
       weight *= 1.18;
+    }
+    if (((upgradeState.levels.escort_drones || 0) > 0 || (upgradeState.levels.homingmissile || 0) > 0 || (upgradeState.levels.deploy_turret || 0) > 0) && ["swarm_command", "target_painter"].includes(upgrade.id)) {
+      weight *= 1.18;
+    }
+    if (((upgradeState.levels.proximity_mine || 0) > 0 || (upgradeState.levels.magnetic_slow_field || 0) > 0) && upgrade.id === "trap_prism") {
+      weight *= 1.2;
+    }
+    if (((upgradeState.levels.magnetic_slow_field || 0) > 0 || (upgradeState.levels.trap_prism || 0) > 0 || (upgradeState.levels.nova_pulse || 0) > 0) && upgrade.id === "repulsor_net") {
+      weight *= 1.18;
+    }
+    if (((upgradeState.levels.magnetic_slow_field || 0) > 0 || (upgradeState.levels.trap_prism || 0) > 0 || (upgradeState.levels.repulsor_net || 0) > 0) && upgrade.id === "stasis_arc") {
+      weight *= 1.22;
+    }
+    if (((upgradeState.levels.escort_drones || 0) > 0 || (upgradeState.levels.deploy_turret || 0) > 0 || (upgradeState.levels.swarm_command || 0) > 0) && upgrade.id === "recall_beacon") {
+      weight *= 1.24;
     }
     if (((upgradeState.levels.shield || 0) > 0 || (upgradeState.levels.defense || 0) > 0) && ["shield", "regen", "defense", "hp"].includes(upgrade.id)) {
       weight *= 1.18;

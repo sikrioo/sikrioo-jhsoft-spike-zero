@@ -21,6 +21,9 @@ window.EnemyCombat = (() => {
     const S = GameState;
     const p = S.player;
     if (p.inv > 0) return false;
+    if (S.activeSkillState.stealthT > 0 && window.ActiveSkillSystem) {
+      ActiveSkillSystem.breakStealth("hit");
+    }
 
     let remainingDamage = Math.max(1, Math.ceil(damage - S.stats.defense));
     if (S.activeSkillState.boostMitigationT > 0){

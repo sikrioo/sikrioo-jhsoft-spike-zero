@@ -75,10 +75,14 @@ window.BossBullets = (() => {
    */
   function safeLaneBurst(bossX, bossY, options = {}) {
     const { randomize = false, onSchedule, laneAngle: explicitLaneAngle } = options;
-    const player    = GameState.player;
+    const trackedPlayer = window.BossSystem && typeof BossSystem.getStealthAwarePlayerTarget === "function"
+      ? BossSystem.getStealthAwarePlayerTarget()
+      : GameState.player && GameState.player.spr
+        ? { x: GameState.player.spr.x, y: GameState.player.spr.y }
+        : { x: bossX, y: bossY };
     const baseLaneAngle = explicitLaneAngle != null
       ? explicitLaneAngle
-      : Math.atan2(player.spr.y - bossY, player.spr.x - bossX);
+      : Math.atan2(trackedPlayer.y - bossY, trackedPlayer.x - bossX);
     const laneAngle = baseLaneAngle + (randomize ? Helpers.rand(-0.45, 0.45) : 0);
     const laneWidth = randomize ? 0.4  : 0.62;
     const count     = randomize ? 40   : 34;
@@ -119,10 +123,14 @@ window.BossBullets = (() => {
    * @param {object} bulletOpts
    */
   function aimSpread(bossX, bossY, spread, bulletOpts = {}) {
-    const player = GameState.player;
+    const trackedPlayer = window.BossSystem && typeof BossSystem.getStealthAwarePlayerTarget === "function"
+      ? BossSystem.getStealthAwarePlayerTarget()
+      : GameState.player && GameState.player.spr
+        ? { x: GameState.player.spr.x, y: GameState.player.spr.y }
+        : { x: bossX, y: bossY };
     const aim    = bulletOpts.aimAngle != null
       ? bulletOpts.aimAngle
-      : Math.atan2(player.spr.y - bossY, player.spr.x - bossX);
+      : Math.atan2(trackedPlayer.y - bossY, trackedPlayer.x - bossX);
     const options = { ...bulletOpts };
     delete options.aimAngle;
     for (let i = -spread; i <= spread; i++) {

@@ -495,20 +495,28 @@ window.UI = (() => {
       if (!skill) return [];
       const data = skill.effectData || {};
       const meta = [];
+      const effectiveDuration = skill.id === "stealth_field"
+        ? (skill.duration || 180) + (Math.max(1, GameState.activeSkillState.levels.stealth_field || 1) - 1) * 60
+        : skill.duration;
       if (skill.mpCost != null) meta.push(`${skill.mpCost} MP`);
       if (skill.cooldown != null) meta.push(`CD ${formatFrames(skill.cooldown)}`);
-      if (skill.duration && skill.duration > 1) meta.push(`Duration ${formatFrames(skill.duration)}`);
+      if (effectiveDuration && effectiveDuration > 1) meta.push(`Duration ${formatFrames(effectiveDuration)}`);
       if (data.radius != null) meta.push(`Radius ${data.radius}`);
       if (data.range != null && skill.id !== "deploy_turret") meta.push(`Range ${data.range}`);
       if (data.damage != null) meta.push(`Damage ${data.damage}`);
       if (data.bossDamage != null) meta.push(`Boss ${data.bossDamage}`);
       if (data.damageMultiplier != null) meta.push(`Damage x${data.damageMultiplier}`);
       if (data.count != null) meta.push(`${data.count} shots`);
+      if (data.trapCount != null) meta.push(`${data.trapCount} nodes`);
       if (data.targetCount != null) meta.push(`${data.targetCount} targets`);
+      if (data.arcDegrees != null) meta.push(`Arc ${data.arcDegrees}\u00b0`);
       if (data.chainRange != null) meta.push(`Chain ${data.chainRange}`);
       if (data.blastRadius != null) meta.push(`Blast ${data.blastRadius}`);
       if (data.bulletClearRadius != null) meta.push(`Clear ${data.bulletClearRadius}`);
       if (data.knockback != null) meta.push(`Knockback ${data.knockback}`);
+      if (data.markDuration != null) meta.push(`Mark ${formatFrames(data.markDuration)}`);
+      if (data.damageAmp != null) meta.push(`Amp x${data.damageAmp}`);
+      if (data.span != null && data.depth != null) meta.push(`Barrier ${data.span}x${data.depth}`);
       if (data.width != null && data.height != null) meta.push(`Field ${data.width}x${data.height}`);
       if (data.slowRate != null) meta.push(`Slow ${Math.round((1 - data.slowRate) * 100)}%`);
       if (data.bossSlowRate != null) meta.push(`Boss slow ${Math.round((1 - data.bossSlowRate) * 100)}%`);
@@ -538,6 +546,9 @@ window.UI = (() => {
       if (upgrade.id.startsWith("active_")) {
         const skillId = upgrade.id.replace(/^active_/, "").replace(/_unlock$/, "");
         return getActiveSkillMeta(skillId);
+      }
+      if (upgrade.category === "active" && window.ActiveSkillSystem && ActiveSkillSystem.getDefinition(upgrade.id)) {
+        return getActiveSkillMeta(upgrade.id);
       }
       if (upgrade.id === "boost_tuning") {
         const currentLevel = Math.max(1, GameState.activeSkillState.levels.boost || 1);

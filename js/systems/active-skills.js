@@ -200,6 +200,12 @@ window.ActiveSkillSystem = (() => {
     if (skill.id === "crossfire_missiles") casted = castCrossfireMissiles(skill);
     if (skill.id === "omni_burst") casted = castOmniBurst(skill);
     if (skill.id === "magnetic_slow_field") casted = castMagneticSlowField(skill);
+    if (skill.id === "swarm_command") casted = castSwarmCommand(skill);
+    if (skill.id === "trap_prism") casted = castTrapPrism(skill);
+    if (skill.id === "target_painter") casted = castTargetPainter(skill);
+    if (skill.id === "repulsor_net") casted = castRepulsorNet(skill);
+    if (skill.id === "stasis_arc") casted = castStasisArc(skill);
+    if (skill.id === "recall_beacon") casted = castRecallBeacon(skill, slot);
     if (skill.id === "stealth_field") casted = castStealthField(skill);
     // Smoke Screen is disabled in data because the current blurred smoke
     // visual is too expensive. Keep the implementation below for later tuning.
@@ -558,6 +564,11 @@ window.ActiveSkillSystem = (() => {
     return [{ x: enemy.x, y: enemy.y, radius: enemy.r }];
   }
 
+  function getTargetPaintScoreBias(enemy) {
+    if (!enemy || enemy.targetPaintT <= 0) return 0;
+    return 0.22 + Math.min(0.12, ((enemy.targetPaintAmp || 1.28) - 1) * 0.3);
+  }
+
   function findChainLeadTarget(playerX, playerY, baseAngle, maxRange) {
     const S = GameState;
     const maxRangeSq = maxRange * maxRange;
@@ -583,7 +594,7 @@ window.ActiveSkillSystem = (() => {
         const angleDelta = Math.atan2(Math.sin(angle - baseAngle), Math.cos(angle - baseAngle));
         const forwardBias = Math.cos(Math.abs(angleDelta));
         const distanceBias = 1 - Helpers.clamp(dist / maxRange, 0, 1);
-        const score = forwardBias * 0.58 + distanceBias * 0.42;
+        const score = forwardBias * 0.58 + distanceBias * 0.42 + getTargetPaintScoreBias(enemy);
         if (score <= bestScore) continue;
         bestScore = score;
         best = { enemy, hitCircle: circle };
@@ -735,9 +746,472 @@ window.ActiveSkillSystem = (() => {
     return true;
   }
 
+  function makeSwarmDroneSprite(tint = 0xffc56e) {
+    const c = new PIXI.Container();
+
+    const wing = new PIXI.Graphics();
+    wing.beginFill(0x121a28, 0.98);
+    wing.lineStyle(1.4, tint, 0.95);
+    wing.drawPolygon([0, -10, 8, -2, 0, 8, -8, -2]);
+    wing.endFill();
+
+    const core = new PIXI.Graphics();
+    core.beginFill(0xffffff, 0.9);
+    core.drawCircle(0, -1, 2.2);
+    core.endFill();
+
+    const engine = new PIXI.Graphics();
+    engine.beginFill(tint, 0.86);
+    engine.drawRoundedRect(-1.2, 4.2, 2.4, 4.8, 1);
+    engine.endFill();
+
+    c.addChild(wing, core, engine);
+    return c;
+  }
+
+  function resetSwarmDrones() {
+    const drones = GameState.activeSkillState.swarmDrones || [];
+    for (const drone of drones) {
+      if (drone && drone.spr && drone.spr.parent) drone.spr.parent.removeChild(drone.spr);
+    }
+    GameState.activeSkillState.swarmDrones = [];
+  }
+
+  function castSwarmCommand(skill) {
+    const S = GameState;
+    const level = Math.max(1, S.activeSkillState.levels.swarm_command || 1);
+    const data = skill.effectData || {};
+    const count = Math.max(2, (data.count || 4) + (level - 1));
+
+    resetSwarmDrones();
+
+    for (let i = 0; i < count; i++) {
+      const tint = i % 2 === 0 ? 0xffc56e : 0x8ce8ff;
+      const spr = makeSwarmDroneSprite(tint);
+      spr.x = S.player.spr.x;
+      spr.y = S.player.spr.y;
+      S.uiLayer.addChild(spr);
+      S.activeSkillState.swarmDrones.push({
+        spr,
+        tint,
+        x: S.player.spr.x,
+        y: S.player.spr.y,
+        orbitAngle: (Math.PI * 2 * i) / count,
+        orbitRadius: 42 + (i % 3) * 6,
+        fireCd: 4 + i * 2,
+        life: (skill.duration || 210) + (level - 1) * 24,
+        maxLife: (skill.duration || 210) + (level - 1) * 24,
+        range: (data.range || 228) + (level - 1) * 18,
+        damage: (data.damage || 1.95) + (level - 1) * 0.45,
+        bossDamage: (data.bossDamage || 1.2) + (level - 1) * 0.24,
+        fireInterval: Math.max(10, (data.fireInterval || 18) - (level - 1) * 2),
+        pulseSeed: Math.random() * Math.PI * 2
+      });
+    }
+
+    Effects.emitPulse(S.player.spr.x, S.player.spr.y, 0xffc56e, 54, 10);
+    Effects.emitPulse(S.player.spr.x, S.player.spr.y, 0x8ce8ff, 42, 8);
+    Effects.emitParticle(S.player.spr.x, S.player.spr.y, 0xffc56e, 10, 0.6);
+    return true;
+  }
+
+  function redrawTrapPrism(prism) {
+    const lifeRatio = Math.max(0, Math.min(1, prism.life / Math.max(1, prism.maxLife)));
+    const pulse = 0.94 + Math.sin(performance.now() / 140 + prism.seed) * 0.08;
+    const g = prism.spr;
+    g.clear();
+    g.lineStyle(2.2, 0xffb56a, 0.28 + lifeRatio * 0.18);
+
+    for (let i = 0; i < prism.nodes.length; i++) {
+      const node = prism.nodes[i];
+      const next = prism.nodes[(i + 1) % prism.nodes.length];
+      g.moveTo(node.x, node.y);
+      g.lineTo(next.x, next.y);
+    }
+
+    for (const node of prism.nodes) {
+      g.beginFill(0x1a1622, 0.86);
+      g.lineStyle(2, 0xffd27a, 0.7 + lifeRatio * 0.16);
+      g.drawCircle(node.x, node.y, prism.radius * pulse);
+      g.endFill();
+      g.beginFill(0xfff3d8, 0.26 + lifeRatio * 0.18);
+      g.drawCircle(node.x, node.y, prism.radius * 0.32);
+      g.endFill();
+    }
+
+    g.alpha = 0.48 + lifeRatio * 0.26;
+  }
+
+  function resetTrapPrisms() {
+    const prisms = GameState.activeSkillState.trapPrisms || [];
+    for (const prism of prisms) {
+      if (prism && prism.spr && prism.spr.parent) prism.spr.parent.removeChild(prism.spr);
+    }
+    GameState.activeSkillState.trapPrisms = [];
+  }
+
+  function castTrapPrism(skill) {
+    const S = GameState;
+    const player = S.player;
+    const data = skill.effectData || {};
+    const level = Math.max(1, S.activeSkillState.levels.trap_prism || 1);
+    const angle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const sideX = -sin;
+    const sideY = cos;
+    const distance = (data.placementDistance || 126) + (level - 1) * 8;
+    const sideSpacing = (data.sideSpacing || 58) + (level - 1) * 6;
+    const forwardOffset = 26 + (level - 1) * 4;
+    const baseX = player.spr.x + cos * distance;
+    const baseY = player.spr.y + sin * distance;
+    const spr = new PIXI.Graphics();
+    spr.x = 0;
+    spr.y = 0;
+    S.fx.addChild(spr);
+
+    const prism = {
+      spr,
+      nodes: [
+        { x: baseX + cos * forwardOffset, y: baseY + sin * forwardOffset },
+        { x: baseX - cos * forwardOffset * 0.55 + sideX * sideSpacing, y: baseY - sin * forwardOffset * 0.55 + sideY * sideSpacing },
+        { x: baseX - cos * forwardOffset * 0.55 - sideX * sideSpacing, y: baseY - sin * forwardOffset * 0.55 - sideY * sideSpacing }
+      ],
+      radius: (data.radius || 34) + (level - 1) * 4,
+      pulseInterval: Math.max(10, (data.pulseInterval || 20) - (level - 1) * 2),
+      pulseCd: 6,
+      damage: (data.damage || 3.2) + (level - 1) * 0.75,
+      bossDamage: (data.bossDamage || 1.7) + (level - 1) * 0.35,
+      slowRate: Math.max(0.45, (data.slowRate || 0.68) - (level - 1) * 0.06),
+      bossSlowRate: Math.max(0.72, (data.bossSlowRate || 0.86) - (level - 1) * 0.04),
+      life: (skill.duration || 210) + (level - 1) * 24,
+      maxLife: (skill.duration || 210) + (level - 1) * 24,
+      seed: Math.random() * Math.PI * 2
+    };
+
+    redrawTrapPrism(prism);
+    S.activeSkillState.trapPrisms.push(prism);
+    for (const node of prism.nodes) {
+      Effects.emitPulse(node.x, node.y, 0xffb56a, prism.radius * 1.5, 8);
+      Effects.emitParticle(node.x, node.y, 0xffd27a, 4, 0.3);
+    }
+    return true;
+  }
+
+  function findPaintTargets(originX, originY, aimAngle, range, targetCount) {
+    const S = GameState;
+    const rangeSq = range * range;
+    const hits = [];
+
+    for (const enemy of S.enemies) {
+      if (!enemy) continue;
+      let bestCircle = null;
+      let bestScore = -Infinity;
+      for (const circle of getEnemyHitCircles(enemy)) {
+        const dx = circle.x - originX;
+        const dy = circle.y - originY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > rangeSq) continue;
+        if (
+          window.PlanetSystem &&
+          PlanetSystem.blocksLineOfSight &&
+          PlanetSystem.blocksLineOfSight(originX, originY, circle.x, circle.y, Math.max(2, circle.radius * 0.2))
+        ) {
+          continue;
+        }
+        const dist = Math.sqrt(distSq) || 1;
+        const angle = Math.atan2(dy, dx);
+        const angleDelta = Math.abs(Math.atan2(Math.sin(angle - aimAngle), Math.cos(angle - aimAngle)));
+        const forwardBias = Math.max(0, Math.cos(angleDelta));
+        const distanceBias = 1 - Helpers.clamp(dist / range, 0, 1);
+        const score = forwardBias * 0.62 + distanceBias * 0.38 + getTargetPaintScoreBias(enemy) * 0.4;
+        if (score <= bestScore) continue;
+        bestCircle = circle;
+        bestScore = score;
+      }
+      if (bestCircle) hits.push({ enemy, hitCircle: bestCircle, score: bestScore });
+    }
+
+    hits.sort((a, b) => b.score - a.score);
+    return hits.slice(0, targetCount);
+  }
+
+  function castTargetPainter(skill) {
+    const S = GameState;
+    const player = S.player;
+    const data = skill.effectData || {};
+    const level = Math.max(1, S.activeSkillState.levels.target_painter || 1);
+    const originX = player.spr.x;
+    const originY = player.spr.y;
+    const aimAngle = Math.atan2(S.mouse.y - originY, S.mouse.x - originX);
+    const range = (data.range || 360) + (level - 1) * 26;
+    const targetCount = Math.max(1, (data.targetCount || 4) + (level - 1));
+    const amp = (data.damageAmp || 1.32) + (level - 1) * 0.08;
+    const markDuration = (data.markDuration || 180) + (level - 1) * 30;
+    const targets = findPaintTargets(originX, originY, aimAngle, range, targetCount);
+    if (!targets.length) return false;
+
+    for (const target of targets) {
+      target.enemy.targetPaintT = Math.max(target.enemy.targetPaintT || 0, markDuration);
+      target.enemy.targetPaintAmp = Math.max(target.enemy.targetPaintAmp || 1, amp);
+      if (target.enemy.targetPaintMarker) {
+        target.enemy.targetPaintMarker.visible = true;
+        target.enemy.targetPaintMarker.alpha = 0.92;
+      }
+      Effects.emitLineTelegraph(originX, originY, target.hitCircle.x, target.hitCircle.y, 0xffb56a, 10, 2);
+      Effects.emitPulse(target.hitCircle.x, target.hitCircle.y, 0xffb56a, target.hitCircle.radius + 18, 9);
+      Effects.emitParticle(target.hitCircle.x, target.hitCircle.y, 0xffb56a, 5, 0.36);
+    }
+
+    Effects.emitPulse(originX, originY, 0xffb56a, 40, 8);
+    return true;
+  }
+
+  function redrawRepulsorField(field) {
+    const lifeRatio = Math.max(0, Math.min(1, field.life / Math.max(1, field.maxLife)));
+    const pulse = 0.98 + Math.sin(performance.now() / 90 + field.seed) * 0.04;
+    const g = field.spr;
+    const span = field.span;
+    const depth = field.depth;
+    const capRadius = Math.max(7, depth * 0.3);
+    g.clear();
+    g.lineStyle(2.4, 0xff8f70, 0.4 + lifeRatio * 0.24);
+    g.beginFill(0xffb56a, 0.1 + lifeRatio * 0.08);
+    g.drawRoundedRect(-depth * 0.5, -span * 0.5, depth, span, Math.max(10, depth * 0.48));
+    g.endFill();
+    g.lineStyle(1.4, 0xfff2d6, 0.24 + lifeRatio * 0.12);
+    g.drawRoundedRect(-depth * 0.32, -span * 0.45, depth * 0.64, span * 0.9, Math.max(7, depth * 0.3));
+    g.lineStyle(3.2, 0xfff7de, 0.38 + lifeRatio * 0.18);
+    g.moveTo(0, -span * 0.45);
+    g.lineTo(0, span * 0.45);
+    g.lineStyle(2, 0xffcf92, 0.32 + lifeRatio * 0.14);
+    g.moveTo(-depth * 0.28, -span * 0.28);
+    g.lineTo(depth * 0.28, -span * 0.28);
+    g.moveTo(-depth * 0.28, span * 0.28);
+    g.lineTo(depth * 0.28, span * 0.28);
+    g.beginFill(0xfff1c7, 0.22 + lifeRatio * 0.14);
+    g.drawCircle(0, -span * 0.5 + capRadius * 1.05, capRadius);
+    g.drawCircle(0, span * 0.5 - capRadius * 1.05, capRadius);
+    g.endFill();
+    g.scale.set(pulse, pulse);
+    g.alpha = 0.58 + lifeRatio * 0.18;
+  }
+
+  function castRepulsorNet(skill) {
+    const S = GameState;
+    const player = S.player;
+    const data = skill.effectData || {};
+    const level = Math.max(1, S.activeSkillState.levels.repulsor_net || 1);
+    const angle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const spawnDistance = (data.spawnDistance || 118) + (level - 1) * 8;
+    const spawnX = player.spr.x + Math.cos(angle) * spawnDistance;
+    const spawnY = player.spr.y + Math.sin(angle) * spawnDistance;
+    const spr = new PIXI.Graphics();
+    spr.x = spawnX;
+    spr.y = spawnY;
+    spr.rotation = angle;
+    S.fx.addChild(spr);
+
+    const field = {
+      spr,
+      x: spawnX,
+      y: spawnY,
+      angle,
+      span: (data.span || 224) + (level - 1) * 24,
+      depth: (data.depth || 44) + (level - 1) * 6,
+      life: (skill.duration || 126) + (level - 1) * 18,
+      maxLife: (skill.duration || 126) + (level - 1) * 18,
+      slowRate: Math.max(0.54, (data.slowRate || 0.74) - (level - 1) * 0.05),
+      bossSlowRate: Math.max(0.78, (data.bossSlowRate || 0.9) - (level - 1) * 0.04),
+      knockback: (data.knockback || 14) + (level - 1) * 2,
+      pulseInterval: Math.max(6, (data.pulseInterval || 12) - (level - 1) * 1.5),
+      pulseCd: 0,
+      seed: Math.random() * Math.PI * 2
+    };
+
+    redrawRepulsorField(field);
+    S.activeSkillState.repulsorFields.push(field);
+    Effects.emitPulse(spawnX, spawnY, 0xff9a70, Math.max(field.span * 0.44, field.depth * 1.5), 12);
+    Effects.emitParticle(spawnX, spawnY, 0xffc27f, 14, 0.7);
+    return true;
+  }
+
+  function drawArcBand(g, innerRadius, outerRadius, startAngle, endAngle) {
+    g.moveTo(Math.cos(startAngle) * innerRadius, Math.sin(startAngle) * innerRadius);
+    g.arc(0, 0, outerRadius, startAngle, endAngle);
+    g.lineTo(Math.cos(endAngle) * innerRadius, Math.sin(endAngle) * innerRadius);
+    g.arc(0, 0, innerRadius, endAngle, startAngle, true);
+    g.lineTo(Math.cos(startAngle) * innerRadius, Math.sin(startAngle) * innerRadius);
+  }
+
+  function redrawStasisArcField(field) {
+    const lifeRatio = Math.max(0, Math.min(1, field.life / Math.max(1, field.maxLife)));
+    const pulse = 0.98 + Math.sin(performance.now() / 110 + field.seed) * 0.035;
+    const g = field.spr;
+    const outerRadius = field.radius;
+    const innerRadius = field.innerRadius;
+    const startAngle = -field.arcAngle * 0.5;
+    const endAngle = field.arcAngle * 0.5;
+    const midRadius = innerRadius + (outerRadius - innerRadius) * 0.54;
+    g.clear();
+
+    g.lineStyle(2.2, 0x73efff, 0.24 + lifeRatio * 0.12);
+    g.beginFill(0x4ee3ff, 0.08 + lifeRatio * 0.08);
+    drawArcBand(g, innerRadius, outerRadius, startAngle, endAngle);
+    g.endFill();
+
+    g.lineStyle(2.8, 0xbef8ff, 0.28 + lifeRatio * 0.14);
+    g.arc(0, 0, outerRadius - 5, startAngle, endAngle);
+    g.lineStyle(1.6, 0x9edcff, 0.26 + lifeRatio * 0.1);
+    g.arc(0, 0, innerRadius + 5, startAngle, endAngle);
+    g.lineStyle(1.3, 0xb9ffff, 0.22 + lifeRatio * 0.08);
+    g.arc(0, 0, midRadius, startAngle, endAngle);
+
+    const ribCount = 6;
+    g.lineStyle(1.2, 0xefffff, 0.12 + lifeRatio * 0.06);
+    for (let i = 0; i <= ribCount; i++) {
+      const t = i / ribCount;
+      const ang = startAngle + (endAngle - startAngle) * t;
+      g.moveTo(Math.cos(ang) * (innerRadius + 3), Math.sin(ang) * (innerRadius + 3));
+      g.lineTo(Math.cos(ang) * (outerRadius - 7), Math.sin(ang) * (outerRadius - 7));
+    }
+
+    const chevronCount = 4;
+    g.lineStyle(1.6, 0x7fe7ff, 0.18 + lifeRatio * 0.08);
+    for (let i = 0; i < chevronCount; i++) {
+      const t = chevronCount === 1 ? 0.5 : i / (chevronCount - 1);
+      const ang = startAngle + (endAngle - startAngle) * t;
+      const baseRadius = innerRadius + (outerRadius - innerRadius) * 0.42;
+      const tipRadius = baseRadius + 18;
+      const sideRadius = baseRadius - 10;
+      g.moveTo(Math.cos(ang) * tipRadius, Math.sin(ang) * tipRadius);
+      g.lineTo(Math.cos(ang - 0.1) * sideRadius, Math.sin(ang - 0.1) * sideRadius);
+      g.moveTo(Math.cos(ang) * tipRadius, Math.sin(ang) * tipRadius);
+      g.lineTo(Math.cos(ang + 0.1) * sideRadius, Math.sin(ang + 0.1) * sideRadius);
+    }
+
+    g.scale.set(pulse, pulse);
+    g.alpha = 0.56 + lifeRatio * 0.18;
+  }
+
+  function castStasisArc(skill) {
+    const S = GameState;
+    const player = S.player;
+    const data = skill.effectData || {};
+    const level = Math.max(1, S.activeSkillState.levels.stasis_arc || 1);
+    const angle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const spr = new PIXI.Graphics();
+    spr.x = player.spr.x;
+    spr.y = player.spr.y;
+    spr.rotation = angle;
+    S.fx.addChild(spr);
+
+    const field = {
+      spr,
+      x: player.spr.x,
+      y: player.spr.y,
+      angle,
+      radius: (data.radius || 154) + (level - 1) * 26,
+      innerRadius: 44,
+      arcAngle: ((data.arcDegrees || 180) * Math.PI) / 180,
+      life: skill.duration || 192,
+      maxLife: skill.duration || 192,
+      slowRate: Math.max(0.4, (data.slowRate || 0.76) - (level - 1) * 0.1),
+      bossSlowRate: Math.max(0.72, (data.bossSlowRate || 0.9) - (level - 1) * 0.06),
+      pulseInterval: Math.max(8, (data.pulseInterval || 18) - (level - 1) * 2),
+      damagePerPulse: data.damagePerPulse || 0,
+      bossDamagePerPulse: data.bossDamagePerPulse || 0,
+      pulseCd: 0,
+      seed: Math.random() * Math.PI * 2
+    };
+
+    redrawStasisArcField(field);
+    S.activeSkillState.stasisArcFields.push(field);
+    Effects.emitPulse(field.x, field.y, 0x72ecff, field.radius * 0.76, 10);
+    Effects.emitParticle(field.x, field.y, 0x9cecff, 12, 0.5);
+    return true;
+  }
+
+  function getRecallTurretOffset(index, count) {
+    const angle = (-Math.PI / 2) + ((Math.PI * 2 * index) / Math.max(1, count));
+    return {
+      x: Math.cos(angle) * 72,
+      y: Math.sin(angle) * 56,
+      angle
+    };
+  }
+
+  function castRecallBeacon(skill, slot = null) {
+    const S = GameState;
+    const player = S.player;
+    const level = Math.max(1, S.activeSkillState.levels.recall_beacon || 1);
+    const data = skill.effectData || {};
+    const escortDrones = S.activeSkillState.escortDrones || [];
+    const swarmDrones = S.activeSkillState.swarmDrones || [];
+    const turrets = S.activeSkillState.deployTurrets || [];
+    const summonCount = escortDrones.length + swarmDrones.length + turrets.length;
+    if (summonCount <= 0) {
+      if (slot && window.UI && typeof UI.showActiveSlotHint === "function") {
+        UI.showActiveSlotHint(slot.key, "NO ACTIVE SUMMONS");
+      }
+      return false;
+    }
+
+    const fireRateMul = Math.max(0.44, (data.fireRateMultiplier || 0.68) - (level - 1) * 0.06);
+    const damageMul = (data.damageMultiplier || 1.16) + (level - 1) * 0.08;
+    const duration = (skill.duration || 180) + (level - 1) * 30;
+    S.activeSkillState.recallBoostT = Math.max(S.activeSkillState.recallBoostT || 0, duration);
+    S.activeSkillState.recallFireRateMul = Math.min(S.activeSkillState.recallFireRateMul || 1, fireRateMul);
+    S.activeSkillState.recallDamageMul = Math.max(S.activeSkillState.recallDamageMul || 1, damageMul);
+
+    for (const drone of escortDrones) {
+      drone.fireCd = 0;
+      drone.x = player.spr.x;
+      drone.y = player.spr.y;
+      drone.orbitRadius = Math.max(20, (drone.orbitRadius || 30) - 10);
+      if (drone.spr) {
+        drone.spr.x = player.spr.x;
+        drone.spr.y = player.spr.y;
+      }
+    }
+
+    for (const drone of swarmDrones) {
+      drone.fireCd = 0;
+      drone.x = player.spr.x;
+      drone.y = player.spr.y;
+      drone.orbitRadius = Math.max(24, (drone.orbitRadius || 40) - 14);
+      if (drone.spr) {
+        drone.spr.x = player.spr.x;
+        drone.spr.y = player.spr.y;
+      }
+    }
+
+    for (let i = 0; i < turrets.length; i++) {
+      const turret = turrets[i];
+      const offset = getRecallTurretOffset(i, turrets.length);
+      turret.x = player.spr.x + offset.x;
+      turret.y = player.spr.y + offset.y;
+      turret.angle = offset.angle;
+      turret.fireCd = 0;
+      if (turret.spr) {
+        turret.spr.x = turret.x;
+        turret.spr.y = turret.y;
+        turret.spr.rotation = turret.angle + Math.PI / 2;
+      }
+      Effects.emitPulse(turret.x, turret.y, 0xffbf80, 22, 8);
+    }
+
+    Effects.emitPulse(player.spr.x, player.spr.y, 0xffbf80, 58, 10);
+    Effects.emitPulse(player.spr.x, player.spr.y, 0x8ce8ff, 42, 9);
+    Effects.emitParticle(player.spr.x, player.spr.y, 0xffbf80, 16, 0.8);
+    return true;
+  }
+
   function castStealthField(skill){
     const S = GameState;
-    S.activeSkillState.stealthT = Math.max(S.activeSkillState.stealthT, skill.duration);
+    const level = Math.max(1, S.activeSkillState.levels.stealth_field || 1);
+    const duration = (skill.duration || 180) + (level - 1) * 60;
+    S.activeSkillState.stealthT = Math.max(S.activeSkillState.stealthT, duration);
     S.activeSkillState.stealthAlpha = skill.effectData.alpha || 0.42;
     S.activeSkillState.stealthLastKnownX = S.player.spr.x;
     S.activeSkillState.stealthLastKnownY = S.player.spr.y;
@@ -854,7 +1328,7 @@ window.ActiveSkillSystem = (() => {
         }
         const dist = Math.sqrt(distSq) || 1;
         const hpBias = enemy.tier === "boss" ? 0.12 : 0;
-        const score = (1 - Helpers.clamp(dist / range, 0, 1)) + hpBias;
+        const score = (1 - Helpers.clamp(dist / range, 0, 1)) + hpBias + getTargetPaintScoreBias(enemy);
         if (score <= bestScore) continue;
         best = { enemy, hitCircle: circle, dist };
         bestScore = score;
@@ -889,7 +1363,7 @@ window.ActiveSkillSystem = (() => {
         const angleDelta = Math.abs(Math.atan2(Math.sin(angle - turret.angle), Math.cos(angle - turret.angle)));
         const forwardScore = 1 - Helpers.clamp(angleDelta / Math.PI, 0, 1);
         const distScore = 1 - Helpers.clamp(dist / range, 0, 1);
-        const score = forwardScore * 0.42 + distScore * 0.58;
+        const score = forwardScore * 0.42 + distScore * 0.58 + getTargetPaintScoreBias(enemy);
         if (score <= bestScore) continue;
         bestScore = score;
         best = { enemy, hitCircle: circle, angle };
@@ -902,6 +1376,8 @@ window.ActiveSkillSystem = (() => {
   function updateDeployTurrets(dt) {
     const S = GameState;
     const turrets = S.activeSkillState.deployTurrets || [];
+    const recallDamageMul = S.activeSkillState.recallBoostT > 0 ? (S.activeSkillState.recallDamageMul || 1) : 1;
+    const recallFireRateMul = S.activeSkillState.recallBoostT > 0 ? (S.activeSkillState.recallFireRateMul || 1) : 1;
     for (let i = turrets.length - 1; i >= 0; i--) {
       const turret = turrets[i];
       turret.life -= dt;
@@ -927,10 +1403,10 @@ window.ActiveSkillSystem = (() => {
 
       if (!target || turret.fireCd > 0 || !window.CombatSystem || typeof CombatSystem.damageEnemy !== "function") continue;
 
-      const damage = target.enemy.tier === "boss" ? turret.bossDamage : turret.damage;
+      const damage = (target.enemy.tier === "boss" ? turret.bossDamage : turret.damage) * recallDamageMul;
       CombatSystem.damageEnemy(target.enemy, damage, 0xffd7b8, target.enemy.tier === "boss" ? 6 : 4, 0.34, target.hitCircle);
       emitDeployTurretShot(turret, target, 0xffd7b8);
-      turret.fireCd = turret.fireInterval;
+      turret.fireCd = turret.fireInterval * recallFireRateMul;
     }
   }
 
@@ -983,6 +1459,8 @@ window.ActiveSkillSystem = (() => {
     const baseDamage = level >= 5 ? 1.7 : level >= 4 ? 1.58 : level >= 3 ? 1.42 : level >= 2 ? 1.15 : 0.9;
     const bossDamage = level >= 5 ? 1.18 : level >= 4 ? 1.08 : level >= 3 ? 0.98 : level >= 2 ? 0.85 : 0.7;
     const fireInterval = level >= 5 ? 16 : level >= 4 ? 18 : level >= 3 ? 22 : level >= 2 ? 28 : 36;
+    const recallDamageMul = S.activeSkillState.recallBoostT > 0 ? (S.activeSkillState.recallDamageMul || 1) : 1;
+    const recallFireRateMul = S.activeSkillState.recallBoostT > 0 ? (S.activeSkillState.recallFireRateMul || 1) : 1;
     const player = S.player;
     const aimAngle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
     const taken = new Set();
@@ -999,8 +1477,9 @@ window.ActiveSkillSystem = (() => {
       const sway = Math.sin(performance.now() / 340 + drone.pulseSeed) * (radialFormation ? 0.04 : 0.08);
       const anchorAngle = slotAngle + sway;
       const orbitSwing = radialFormation ? drone.orbitAngle * 0.08 : drone.orbitAngle * 0.22;
-      const desiredX = player.spr.x + Math.cos(anchorAngle + orbitSwing) * drone.orbitRadius;
-      const desiredY = player.spr.y + Math.sin(anchorAngle + orbitSwing) * (drone.orbitRadius - (radialFormation ? 2 : 6));
+      const recallOrbitMul = S.activeSkillState.recallBoostT > 0 ? 0.72 : 1;
+      const desiredX = player.spr.x + Math.cos(anchorAngle + orbitSwing) * drone.orbitRadius * recallOrbitMul;
+      const desiredY = player.spr.y + Math.sin(anchorAngle + orbitSwing) * (drone.orbitRadius - (radialFormation ? 2 : 6)) * recallOrbitMul;
       drone.x = Helpers.lerp(drone.x != null ? drone.x : player.spr.x, desiredX, 0.16 * dt);
       drone.y = Helpers.lerp(drone.y != null ? drone.y : player.spr.y, desiredY, 0.16 * dt);
       drone.spr.x = drone.x;
@@ -1015,17 +1494,68 @@ window.ActiveSkillSystem = (() => {
         drone.spr.rotation = angle + Math.PI / 2;
 
         if (drone.fireCd <= 0 && window.CombatSystem && typeof CombatSystem.damageEnemy === "function") {
-          const damage = target.enemy.tier === "boss" ? bossDamage : baseDamage;
+          const damage = (target.enemy.tier === "boss" ? bossDamage : baseDamage) * recallDamageMul;
           CombatSystem.damageEnemy(target.enemy, damage, 0x8be9ff, target.enemy.tier === "boss" ? 6 : 4, 0.36, target.hitCircle);
           if (window.Effects && Effects.emitLineTelegraph) {
             Effects.emitLineTelegraph(drone.x, drone.y, target.hitCircle.x, target.hitCircle.y, i % 2 === 0 ? 0x8be9ff : 0xc6a4ff, 2, 2);
           }
           Effects.emitParticle(drone.x, drone.y, 0x8be9ff, 3, 0.25);
           Effects.emitParticle(target.hitCircle.x, target.hitCircle.y, i % 2 === 0 ? 0x8be9ff : 0xc6a4ff, 3, 0.28);
-          drone.fireCd = fireInterval + i * 2;
+          drone.fireCd = fireInterval * recallFireRateMul + i * 2;
         }
       } else {
         drone.spr.rotation = Helpers.lerp(drone.spr.rotation, anchorAngle + Math.PI / 2, 0.12 * dt);
+      }
+    }
+  }
+
+  function updateSwarmDrones(dt) {
+    const S = GameState;
+    if (!S.player || !S.player.spr) return;
+    const drones = S.activeSkillState.swarmDrones || [];
+    if (!drones.length) return;
+    const recallDamageMul = S.activeSkillState.recallBoostT > 0 ? (S.activeSkillState.recallDamageMul || 1) : 1;
+    const recallFireRateMul = S.activeSkillState.recallBoostT > 0 ? (S.activeSkillState.recallFireRateMul || 1) : 1;
+    const player = S.player;
+    const aimAngle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+
+    for (let i = drones.length - 1; i >= 0; i--) {
+      const drone = drones[i];
+      drone.life -= dt;
+      drone.fireCd = Math.max(0, (drone.fireCd || 0) - dt);
+      drone.orbitAngle += (0.036 + i * 0.002) * dt;
+
+      if (drone.life <= 0) {
+        Effects.emitParticle(drone.x, drone.y, drone.tint, 4, 0.24);
+        if (drone.spr && drone.spr.parent) drone.spr.parent.removeChild(drone.spr);
+        drones.splice(i, 1);
+        continue;
+      }
+
+      const lifeRatio = Math.max(0, Math.min(1, drone.life / Math.max(1, drone.maxLife)));
+      const radialAngle = aimAngle + drone.orbitAngle + (Math.PI * 2 * i) / Math.max(1, drones.length);
+      const recallOrbitMul = S.activeSkillState.recallBoostT > 0 ? 0.66 : 1;
+      const anchorX = player.spr.x + Math.cos(radialAngle) * drone.orbitRadius * recallOrbitMul;
+      const anchorY = player.spr.y + Math.sin(radialAngle) * drone.orbitRadius * recallOrbitMul;
+      drone.x = Helpers.lerp(drone.x != null ? drone.x : player.spr.x, anchorX, 0.18 * dt);
+      drone.y = Helpers.lerp(drone.y != null ? drone.y : player.spr.y, anchorY, 0.18 * dt);
+      drone.spr.x = drone.x;
+      drone.spr.y = drone.y;
+      drone.spr.alpha = 0.42 + lifeRatio * 0.5 + Math.sin(performance.now() / 180 + drone.pulseSeed) * 0.08;
+
+      const target = getEscortDroneTarget(drone, drone.range);
+      if (target) {
+        const angle = Math.atan2(target.hitCircle.y - drone.y, target.hitCircle.x - drone.x);
+        drone.spr.rotation = angle + Math.PI / 2;
+        if (drone.fireCd <= 0 && window.CombatSystem && typeof CombatSystem.damageEnemy === "function") {
+          const damage = (target.enemy.tier === "boss" ? drone.bossDamage : drone.damage) * recallDamageMul;
+          CombatSystem.damageEnemy(target.enemy, damage, drone.tint, target.enemy.tier === "boss" ? 5 : 3, 0.28, target.hitCircle);
+          Effects.emitLineTelegraph(drone.x, drone.y, target.hitCircle.x, target.hitCircle.y, drone.tint, 4, 1.5);
+          Effects.emitParticle(drone.x, drone.y, drone.tint, 2, 0.18);
+          drone.fireCd = drone.fireInterval * recallFireRateMul;
+        }
+      } else {
+        drone.spr.rotation = Helpers.lerp(drone.spr.rotation, radialAngle + Math.PI / 2, 0.12 * dt);
       }
     }
   }
@@ -1036,6 +1566,240 @@ window.ActiveSkillSystem = (() => {
       if (drone && drone.spr && drone.spr.parent) drone.spr.parent.removeChild(drone.spr);
     }
     GameState.activeSkillState.escortDrones = [];
+  }
+
+  function updateTrapPrisms(dt) {
+    const S = GameState;
+    const prisms = S.activeSkillState.trapPrisms || [];
+    for (let i = prisms.length - 1; i >= 0; i--) {
+      const prism = prisms[i];
+      prism.life -= dt;
+      prism.pulseCd = Math.max(0, prism.pulseCd - dt);
+      redrawTrapPrism(prism);
+
+      if (prism.life <= 0) {
+        if (prism.spr && prism.spr.parent) prism.spr.parent.removeChild(prism.spr);
+        prisms.splice(i, 1);
+        continue;
+      }
+
+      if (prism.pulseCd > 0) continue;
+      prism.pulseCd = prism.pulseInterval;
+
+      const hits = new Set();
+      const radiusSq = prism.radius * prism.radius;
+      for (const node of prism.nodes) {
+        Effects.emitPulse(node.x, node.y, 0xffb56a, prism.radius * 1.24, 8);
+
+        for (let bulletIndex = S.enemyBullets.length - 1; bulletIndex >= 0; bulletIndex--) {
+          const bullet = S.enemyBullets[bulletIndex];
+          if (Helpers.dist2(node.x, node.y, bullet.x, bullet.y) > radiusSq) continue;
+          Effects.emitParticle(bullet.x, bullet.y, 0xffd27a, 4, 0.35);
+          if (bullet.spr && bullet.spr.parent) bullet.spr.parent.removeChild(bullet.spr);
+          S.enemyBullets.splice(bulletIndex, 1);
+        }
+
+        for (const enemy of S.enemies) {
+          if (!enemy || hits.has(enemy)) continue;
+          const hitCircle = getEnemyHitCircles(enemy).find((circle) => {
+            const rr = prism.radius + circle.radius;
+            return Helpers.dist2(node.x, node.y, circle.x, circle.y) <= rr * rr;
+          });
+          if (!hitCircle) continue;
+          hits.add(enemy);
+          enemy.slowMul = Math.min(enemy.slowMul || 1, enemy.tier === "boss" ? prism.bossSlowRate : prism.slowRate);
+          enemy.slowT = Math.max(enemy.slowT || 0, 16);
+          if (window.CombatSystem && typeof CombatSystem.damageEnemy === "function") {
+            CombatSystem.damageEnemy(
+              enemy,
+              enemy.tier === "boss" ? prism.bossDamage : prism.damage,
+              0xffd27a,
+              enemy.tier === "boss" ? 6 : 4,
+              0.34,
+              hitCircle
+            );
+          }
+        }
+      }
+    }
+  }
+
+  function resetRepulsorFields() {
+    const fields = GameState.activeSkillState.repulsorFields || [];
+    for (const field of fields) {
+      if (field && field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+    }
+    GameState.activeSkillState.repulsorFields = [];
+  }
+
+  function resetStasisArcFields() {
+    const fields = GameState.activeSkillState.stasisArcFields || [];
+    for (const field of fields) {
+      if (field && field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+    }
+    GameState.activeSkillState.stasisArcFields = [];
+  }
+
+  function getRectFieldHitCircle(field, enemy, forwardHalf, sideHalf) {
+    const cos = Math.cos(field.angle);
+    const sin = Math.sin(field.angle);
+    for (const circle of getEnemyHitCircles(enemy)) {
+      const rx = circle.x - field.x;
+      const ry = circle.y - field.y;
+      const forward = rx * cos + ry * sin;
+      const side = rx * -sin + ry * cos;
+      if (Math.abs(forward) > forwardHalf + circle.radius) continue;
+      if (Math.abs(side) > sideHalf + circle.radius) continue;
+      return { circle, forward, side };
+    }
+    return null;
+  }
+
+  function getSectorFieldHitCircle(field, enemy) {
+    const halfArc = field.arcAngle * 0.5;
+    for (const circle of getEnemyHitCircles(enemy)) {
+      const dx = circle.x - field.x;
+      const dy = circle.y - field.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > field.radius + circle.radius) continue;
+      if (dist + circle.radius < field.innerRadius) continue;
+      const angle = Math.atan2(dy, dx);
+      const angleDelta = Math.abs(Math.atan2(Math.sin(angle - field.angle), Math.cos(angle - field.angle)));
+      const anglePadding = Math.asin(Math.min(1, circle.radius / Math.max(dist, circle.radius + 1)));
+      if (angleDelta > halfArc + anglePadding) continue;
+      return { circle, dist, angleDelta };
+    }
+    return null;
+  }
+
+  function updateRepulsorFields(dt) {
+    const S = GameState;
+    const fields = S.activeSkillState.repulsorFields || [];
+    for (let i = fields.length - 1; i >= 0; i--) {
+      const field = fields[i];
+      field.life -= dt;
+      field.pulseCd = Math.max(0, field.pulseCd - dt);
+      redrawRepulsorField(field);
+
+      if (field.life <= 0) {
+        if (field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+        fields.splice(i, 1);
+        continue;
+      }
+
+      const pulseNow = field.pulseCd <= 0;
+      const cos = Math.cos(field.angle);
+      const sin = Math.sin(field.angle);
+      const forwardHalf = field.depth * 0.5;
+      const sideHalf = field.span * 0.5;
+      if (pulseNow) field.pulseCd = field.pulseInterval;
+
+      for (const enemy of S.enemies) {
+        if (!enemy) continue;
+        const hit = getRectFieldHitCircle(field, enemy, forwardHalf, sideHalf);
+        if (!hit) continue;
+
+        enemy.slowMul = Math.min(enemy.slowMul || 1, enemy.tier === "boss" ? field.bossSlowRate : field.slowRate);
+        enemy.slowT = Math.max(enemy.slowT || 0, 6);
+
+        if (pulseNow) {
+          const push = enemy.tier === "boss" ? field.knockback * 0.35 : field.knockback;
+          enemy.x += cos * push;
+          enemy.y += sin * push;
+          if (enemy.spr) {
+            enemy.spr.x = enemy.x;
+            enemy.spr.y = enemy.y;
+          }
+          Effects.emitParticle(hit.circle.x, hit.circle.y, 0xffb56a, 2, 0.18);
+        }
+      }
+
+      if (pulseNow) {
+        const sparkleCount = 6;
+        for (let j = 0; j < sparkleCount; j++) {
+          const t = sparkleCount === 1 ? 0.5 : j / (sparkleCount - 1);
+          const sideOffset = (t - 0.5) * field.span * 0.88;
+          const px = field.x + (-sin * sideOffset) + (cos * Helpers.rand(-field.depth * 0.16, field.depth * 0.16));
+          const py = field.y + (cos * sideOffset) + (sin * Helpers.rand(-field.depth * 0.16, field.depth * 0.16));
+          Effects.emitParticle(px, py, 0xffcf8d, 2, 0.22);
+        }
+      }
+
+      for (let bulletIndex = S.enemyBullets.length - 1; bulletIndex >= 0; bulletIndex--) {
+        const bullet = S.enemyBullets[bulletIndex];
+        const rx = bullet.x - field.x;
+        const ry = bullet.y - field.y;
+        const forward = rx * cos + ry * sin;
+        const side = rx * -sin + ry * cos;
+        if (Math.abs(forward) > forwardHalf || Math.abs(side) > sideHalf) continue;
+        Effects.emitParticle(bullet.x, bullet.y, 0xffcf8d, 3, 0.26);
+        if (bullet.spr && bullet.spr.parent) bullet.spr.parent.removeChild(bullet.spr);
+        S.enemyBullets.splice(bulletIndex, 1);
+      }
+    }
+  }
+
+  function updateStasisArcFields(dt) {
+    const S = GameState;
+    const fields = S.activeSkillState.stasisArcFields || [];
+    for (let i = fields.length - 1; i >= 0; i--) {
+      const field = fields[i];
+      field.life -= dt;
+      field.pulseCd = Math.max(0, field.pulseCd - dt);
+      field.x = S.player.spr.x;
+      field.y = S.player.spr.y;
+      field.angle = Math.atan2(S.mouse.y - field.y, S.mouse.x - field.x);
+      field.spr.x = field.x;
+      field.spr.y = field.y;
+      field.spr.rotation = field.angle;
+      redrawStasisArcField(field);
+
+      if (field.life <= 0) {
+        if (field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
+        fields.splice(i, 1);
+        continue;
+      }
+
+      const pulseNow = field.pulseCd <= 0;
+      if (pulseNow) field.pulseCd = field.pulseInterval;
+
+      for (const enemy of S.enemies) {
+        if (!enemy) continue;
+        const hit = getSectorFieldHitCircle(field, enemy);
+        if (!hit) continue;
+
+        const slowMul = enemy.tier === "boss" ? field.bossSlowRate : field.slowRate;
+        enemy.slowMul = Math.min(enemy.slowMul || 1, slowMul);
+        enemy.slowT = Math.max(enemy.slowT || 0, 7);
+
+        if (pulseNow) {
+          Effects.emitParticle(hit.circle.x, hit.circle.y, enemy.tier === "boss" ? 0xb6f7ff : 0x78ebff, 2, 0.2);
+          const damage = enemy.tier === "boss" ? field.bossDamagePerPulse : field.damagePerPulse;
+          if (damage > 0 && window.CombatSystem && typeof CombatSystem.damageEnemy === "function") {
+            CombatSystem.damageEnemy(
+              enemy,
+              damage,
+              0x78ebff,
+              enemy.tier === "boss" ? 7 : 4,
+              0.28,
+              hit.circle
+            );
+          }
+        }
+      }
+
+      if (!pulseNow) continue;
+      const arcSteps = 7;
+      for (let j = 0; j < arcSteps; j++) {
+        const t = arcSteps === 1 ? 0.5 : j / (arcSteps - 1);
+        const localAngle = (-field.arcAngle * 0.5) + field.arcAngle * t;
+        const worldAngle = field.angle + localAngle;
+        const radius = Helpers.rand(field.innerRadius + 8, field.radius - 8);
+        const px = field.x + Math.cos(worldAngle) * radius;
+        const py = field.y + Math.sin(worldAngle) * radius;
+        Effects.emitParticle(px, py, 0x97efff, 2, 0.22);
+      }
+    }
   }
 
   function updateSmokeClouds(dt){
@@ -1145,6 +1909,14 @@ window.ActiveSkillSystem = (() => {
       }
     }
 
+    if (S.activeSkillState.recallBoostT > 0) {
+      S.activeSkillState.recallBoostT = Math.max(0, S.activeSkillState.recallBoostT - dt);
+      if (S.activeSkillState.recallBoostT <= 0) {
+        S.activeSkillState.recallFireRateMul = 1;
+        S.activeSkillState.recallDamageMul = 1;
+      }
+    }
+
     if (S.activeSkillState.stealthT > 0){
       S.activeSkillState.stealthT = Math.max(0, S.activeSkillState.stealthT - dt);
       if ((performance.now() | 0) % 4 === 0){
@@ -1166,8 +1938,12 @@ window.ActiveSkillSystem = (() => {
     updateDecoys(dt);
     updateDeployTurrets(dt);
     updateEscortDrones(dt);
+    updateSwarmDrones(dt);
     updateSmokeClouds(dt);
     updateMagneticSlowFields(dt);
+    updateTrapPrisms(dt);
+    updateRepulsorFields(dt);
+    updateStasisArcFields(dt);
   }
 
   return {
@@ -1189,6 +1965,10 @@ window.ActiveSkillSystem = (() => {
     tryUseBoostDirection,
     resetEscortDrones,
     resetDeployTurrets,
+    resetSwarmDrones,
+    resetTrapPrisms,
+    resetRepulsorFields,
+    resetStasisArcFields,
     update
   };
 })();

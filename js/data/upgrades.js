@@ -180,15 +180,16 @@
       category: "active",
       upgradeType: "active",
       subCategory: "mobility",
-      maxLevel: 1,
+      maxLevel: 3,
       baseWeight: 3,
       minLevel: 3,
       tags: ["mobility", "unlock", "rare"],
       name: "Unlock Stealth Field",
-      desc: "Gain Stealth Field for short repositioning. It ends immediately when you attack.",
-      requires: (S) => !S.activeSkillState.ownedSkillIds.includes("stealth_field"),
-      apply: () => {
+      desc: "Gain Stealth Field for repositioning. Lv2 and Lv3 extend it from 3s to 4s and 5s. It ends when you manually attack.",
+      requires: (S) => Math.max(0, (S.activeSkillState.levels && S.activeSkillState.levels.stealth_field) || 0) < 3,
+      apply: (level) => {
         ActiveSkillSystem.unlockSkill("stealth_field");
+        GameState.activeSkillState.levels.stealth_field = Math.max(1, Math.min(3, level));
       }
     }),
     // Smoke Screen unlock is disabled with the skill prototype.
@@ -474,6 +475,102 @@
       apply: (level) => {
         ActiveSkillSystem.unlockSkill("magnetic_slow_field");
         GameState.activeSkillState.levels.magnetic_slow_field = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "swarm_command",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "dps",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["drone", "offense", "support", "unlock"],
+      name: "Unlock Swarm Command",
+      desc: "Gain Swarm Command, a temporary assault drone wing. Further levels add drones and increase pressure.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("swarm_command");
+        GameState.activeSkillState.levels.swarm_command = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "trap_prism",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "control",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["trap", "area-control", "survival", "unlock"],
+      name: "Unlock Trap Prism",
+      desc: "Gain Trap Prism, a forward trap lattice that slows and punishes anything pushing into it.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("trap_prism");
+        GameState.activeSkillState.levels.trap_prism = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "target_painter",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "dps",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["support", "mark", "synergy", "unlock"],
+      name: "Unlock Target Painter",
+      desc: "Gain Target Painter to mark enemies for bonus damage and better allied focus fire. Further levels extend and strengthen the mark.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("target_painter");
+        GameState.activeSkillState.levels.target_painter = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "repulsor_net",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "control",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["control", "field", "survival", "unlock"],
+      name: "Unlock Repulsor Net",
+      desc: "Gain Repulsor Net, a forward barrier that bats enemies and shots away from your line. Further levels widen and reinforce it.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("repulsor_net");
+        GameState.activeSkillState.levels.repulsor_net = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "stasis_arc",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "control",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["control", "field", "slow", "unlock"],
+      name: "Unlock Stasis Arc",
+      desc: "Gain Stasis Arc, a forward half-ring field that slows enemies around you. Further levels expand the field and deepen the slow.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("stasis_arc");
+        GameState.activeSkillState.levels.stasis_arc = Math.max(1, level);
+      }
+    }),
+    defineUpgrade({
+      id: "recall_beacon",
+      category: "active",
+      upgradeType: "active",
+      subCategory: "support",
+      maxLevel: 3,
+      baseWeight: 4,
+      minLevel: 2,
+      tags: ["drone", "turret", "support", "unlock"],
+      name: "Unlock Recall Beacon",
+      desc: "Gain Recall Beacon to regroup active summons around you and overclock them for a short burst.",
+      apply: (level) => {
+        ActiveSkillSystem.unlockSkill("recall_beacon");
+        GameState.activeSkillState.levels.recall_beacon = Math.max(1, level);
       }
     }),
     defineUpgrade({
