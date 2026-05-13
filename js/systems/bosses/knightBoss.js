@@ -80,9 +80,10 @@
         strafeSpeedMul: 0.85,
         recoveryBackoffMul: 0.55,
         attackMoveSpeed: boss.phase === 1 ? 16 : 20,
-        telegraphColor: boss.phase === 1 ? 0x7df9ff : 0xff8be4,
-        telegraphLife: boss.phase === 1 ? 14 : 10,
-        telegraphWidth: 7,
+        telegraphColor: boss.phase === 1 ? 0xff6a72 : 0xff4f66,
+        telegraphLife: boss.phase === 1 ? 16 : 14,
+        telegraphWidth: boss.phase === 1 ? 22 : 24,
+        telegraphStyle: "warningWide",
         forwardThreshold: boss.phase === 1 ? 165 : 185,
         onAttackFx(entity) {
           const slash = Shared.getSlashAngles(entity);

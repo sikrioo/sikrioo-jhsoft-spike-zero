@@ -897,21 +897,26 @@ window.Boot = (() => {
         const nx = -dy / len;
         const ny = dx / len;
         const flicker = Math.sin(performance.now() * 0.024) * 0.5 + 0.5;
+        const isWarningWide = p.telegraphLine.style === "warningWide";
         p.spr.x = p.telegraphLine.x1;
         p.spr.y = p.telegraphLine.y1;
         p.spr.clear();
-        p.spr.lineStyle(p.telegraphLine.width + 10, p.telegraphLine.color, alpha * 0.06);
+        p.spr.lineStyle(p.telegraphLine.width + (isWarningWide ? 18 : 10), p.telegraphLine.color, alpha * (isWarningWide ? 0.035 : 0.06));
         p.spr.moveTo(0, 0);
         p.spr.lineTo(dx, dy);
-        p.spr.lineStyle(p.telegraphLine.width + 3, p.telegraphLine.color, alpha * 0.18);
-        p.spr.moveTo(nx * 2, ny * 2);
-        p.spr.lineTo(dx + nx * 2, dy + ny * 2);
-        p.spr.moveTo(-nx * 2, -ny * 2);
-        p.spr.lineTo(dx - nx * 2, dy - ny * 2);
-        p.spr.lineStyle(p.telegraphLine.width, p.telegraphLine.color, alpha * (0.72 + flicker * 0.18));
+        p.spr.lineStyle(p.telegraphLine.width + (isWarningWide ? 8 : 3), p.telegraphLine.color, alpha * (isWarningWide ? 0.1 : 0.18));
+        p.spr.moveTo(nx * (isWarningWide ? 4 : 2), ny * (isWarningWide ? 4 : 2));
+        p.spr.lineTo(dx + nx * (isWarningWide ? 4 : 2), dy + ny * (isWarningWide ? 4 : 2));
+        p.spr.moveTo(-nx * (isWarningWide ? 4 : 2), -ny * (isWarningWide ? 4 : 2));
+        p.spr.lineTo(dx - nx * (isWarningWide ? 4 : 2), dy - ny * (isWarningWide ? 4 : 2));
+        p.spr.lineStyle(p.telegraphLine.width, p.telegraphLine.color, alpha * (isWarningWide ? (0.28 + flicker * 0.08) : (0.72 + flicker * 0.18)));
         p.spr.moveTo(0, 0);
         p.spr.lineTo(dx, dy);
-        p.spr.lineStyle(Math.max(1.25, p.telegraphLine.width * 0.22), 0xffffff, alpha * 0.92);
+        p.spr.lineStyle(
+          Math.max(isWarningWide ? 1.1 : 1.25, p.telegraphLine.width * (isWarningWide ? 0.14 : 0.22)),
+          isWarningWide ? 0xffd7dc : 0xffffff,
+          alpha * (isWarningWide ? 0.22 : 0.92)
+        );
         p.spr.moveTo(0, 0);
         p.spr.lineTo(dx, dy);
       } else if (p.telegraphRing){

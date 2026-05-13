@@ -424,7 +424,7 @@ window.UI = (() => {
       extra = ` | Cores ${boss.children.length}`;
     } else if (boss.bossId === "knight" && boss.state) {
       extra = ` | ${boss.state}`;
-    } else if (boss.bossId === "advanced" && boss.currentAction) {
+    } else if (boss.currentAction) {
       extra = ` | ${boss.currentAction}`;
     }
     bossHud.classList.add("visible");

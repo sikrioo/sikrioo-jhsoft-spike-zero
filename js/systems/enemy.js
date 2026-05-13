@@ -89,6 +89,28 @@ window.EnemySystem = (() => {
     enemy.targetPaintMarker.scale.set(1, 1);
   }
 
+  function applyEnemyStatusVisuals(enemy) {
+    if (!enemy || !enemy.bodySpr || enemy.bodySpr.tint == null) return;
+    if (enemy.staggerT > 0) {
+      enemy.bodySpr.tint = ((performance.now() | 0) % 6 < 3) ? 0xc9fbff : 0xe1c7ff;
+      return;
+    }
+    if (enemy.slowT > 0 && (enemy.slowMul || 1) < 0.98) {
+      enemy.bodySpr.tint = ((performance.now() | 0) % 10 < 5) ? 0x8fe9ff : 0xdffcff;
+      if (((performance.now() + enemy.x * 7 + enemy.y * 5) | 0) % 18 === 0) {
+        Effects.emitParticle(
+          enemy.x + Helpers.rand(-enemy.r * 0.45, enemy.r * 0.45),
+          enemy.y + Helpers.rand(-enemy.r * 0.45, enemy.r * 0.45),
+          0x8fe9ff,
+          1,
+          0.12
+        );
+      }
+      return;
+    }
+    enemy.bodySpr.tint = 0xffffff;
+  }
+
   function clearSlowField(field) {
     if (field && field.spr && field.spr.parent) field.spr.parent.removeChild(field.spr);
   }
@@ -1675,6 +1697,7 @@ window.EnemySystem = (() => {
           renderAlpha = Math.min(renderAlpha, BossSystem.tickSpawnIntro(e, dt));
         }
         e.spr.alpha = renderAlpha;
+        applyEnemyStatusVisuals(e);
 
         for (const hitCircle of getHitCircles(e)){
           const rr = hitCircle.radius + p.r;
@@ -1789,9 +1812,7 @@ window.EnemySystem = (() => {
       if (window.PlanetSystem && e.tier !== "boss") {
         PlanetSystem.resolveShipCollision(e, e.r);
       }
-      if (e.staggerT > 0 && e.bodySpr && e.bodySpr.tint != null) {
-        e.bodySpr.tint = ((performance.now() | 0) % 6 < 3) ? 0xc9fbff : 0xe1c7ff;
-      }
+      applyEnemyStatusVisuals(e);
 
       if (e.tier === "bomber") continue;
 

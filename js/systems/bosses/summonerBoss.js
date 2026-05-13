@@ -146,9 +146,6 @@
       if (boss.aiCd <= 14 && boss.aiCd + dt > 14) {
         if (boss.minions.length < (boss.phase === 1 ? 2 : 3) && boss.totalSummons < boss.maxSummons) {
           Effects.emitGroundTelegraph(boss.x, boss.y, boss.phase === 1 ? 56 : 68, boss.phase === 1 ? 0xa2a8ff : 0xff6bd6, 14);
-        } else {
-          const aim = Shared.getAngleToTrackedPlayer(boss.x, boss.y);
-          Effects.emitLineTelegraph(boss.x, boss.y, boss.x + Math.cos(aim) * (boss.phase === 1 ? 420 : 520), boss.y + Math.sin(aim) * (boss.phase === 1 ? 420 : 520), boss.phase === 1 ? 0xa2a8ff : 0xff6bd6, 14, 6);
         }
       }
       if (boss.aiCd <= 0) {
@@ -176,21 +173,13 @@
           minion.x = boss.x + orbitX;
           minion.y = boss.y + orbitY;
           minion.fireCd -= dt;
-          if (minion.fireCd <= 10 && minion.fireCd + dt > 10) {
-            const aim = Shared.getAngleToTrackedPlayer(minion.x, minion.y);
-            Effects.emitLineTelegraph(minion.x, minion.y, minion.x + Math.cos(aim) * 240, minion.y + Math.sin(aim) * 240, boss.phase === 1 ? 0xd8dcff : 0xffd6fa, 10, 5);
-          }
           if (minion.fireCd <= 0) {
             fireShooterLaser(minion, Shared.getAngleToTrackedPlayer(minion.x, minion.y));
             minion.fireCd = boss.phase === 1 ? 32 : 24;
           }
         } else {
           minion.dashCd -= dt;
-          if (!minion.dashTelegraphShown && minion.dashCd <= 12) {
-            const angle = Shared.getAngleToTrackedPlayer(minion.x, minion.y);
-            Effects.emitLineTelegraph(minion.x, minion.y, minion.x + Math.cos(angle) * 140, minion.y + Math.sin(angle) * 140, 0xd85cf0, 12, 5);
-            minion.dashTelegraphShown = true;
-          }
+          if (!minion.dashTelegraphShown && minion.dashCd <= 12) minion.dashTelegraphShown = true;
           if (minion.dashCd <= 0) {
             const angle = Shared.getAngleToTrackedPlayer(minion.x, minion.y);
             minion.x += Math.cos(angle) * (boss.phase === 1 ? 46 : 70);

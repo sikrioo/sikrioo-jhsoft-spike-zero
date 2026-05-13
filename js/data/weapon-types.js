@@ -30,15 +30,15 @@ window.WEAPON_DEFINITIONS = {
   shotgun: {
     id: "shotgun",
     name: "Shotgun",
-    projectileSpeedMul: 0.94,
+    projectileSpeedMul: 1.02,
     levels: [
-      { damage: 0.95, pellets: 4, spread: 0.22, pelletDamageMul: 0.92, projectileLife: 17 },
-      { damage: 1.08, pellets: 5, spread: 0.23, pelletDamageMul: 0.95, projectileLife: 18 },
-      { damage: 1.22, pellets: 6, spread: 0.24, pelletDamageMul: 0.98, projectileLife: 19 },
-      { damage: 1.38, pellets: 8, spread: 0.255, pelletDamageMul: 1.0, projectileLife: 21 },
-      { damage: 1.54, pellets: 9, spread: 0.27, pelletDamageMul: 1.03, projectileLife: 22 },
-      { damage: 1.72, pellets: 10, spread: 0.285, pelletDamageMul: 1.06, projectileLife: 23 },
-      { damage: 1.92, pellets: 12, spread: 0.305, pelletDamageMul: 1.1, projectileLife: 24 }
+      { damage: 0.95, pellets: 8, spread: 0.26, pelletDamageMul: 0.92, projectileLife: 15 },
+      { damage: 1.08, pellets: 10, spread: 0.275, pelletDamageMul: 0.95, projectileLife: 16 },
+      { damage: 1.22, pellets: 12, spread: 0.29, pelletDamageMul: 0.98, projectileLife: 17 },
+      { damage: 1.38, pellets: 16, spread: 0.315, pelletDamageMul: 1.0, projectileLife: 18 },
+      { damage: 1.54, pellets: 18, spread: 0.335, pelletDamageMul: 1.03, projectileLife: 19 },
+      { damage: 1.72, pellets: 20, spread: 0.355, pelletDamageMul: 1.06, projectileLife: 20 },
+      { damage: 1.92, pellets: 24, spread: 0.38, pelletDamageMul: 1.1, projectileLife: 21 }
     ]
   }
 };

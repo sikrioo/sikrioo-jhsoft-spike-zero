@@ -249,7 +249,7 @@ window.ACTIVE_SKILL_DEFINITIONS = [
   {
     id: "stasis_arc",
     name: "Stasis Arc",
-    desc: "Project a forward 180-degree drag field around your ship that slows enemies passing through it.",
+    desc: "Deploy a forward 180-degree drag field that slows enemies passing through the area.",
     type: "utility",
     mpCost: 28,
     cooldown: 270,
@@ -259,9 +259,10 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     slotType: "active",
     effectData: {
       radius: 154,
+      spawnDistance: 138,
       arcDegrees: 180,
-      slowRate: 0.76,
-      bossSlowRate: 0.9,
+      slowRate: 0.62,
+      bossSlowRate: 0.88,
       pulseInterval: 18
     }
   },

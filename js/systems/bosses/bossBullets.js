@@ -90,13 +90,6 @@ window.BossBullets = (() => {
     const color     = randomize ? 0xff6bb5 : 0x7df9ff;
     const damage    = randomize ? 9    : 8;
 
-    Effects.emitLineTelegraph(
-      bossX, bossY,
-      bossX + Math.cos(laneAngle) * 220,
-      bossY + Math.sin(laneAngle) * 220,
-      color, 12, 7
-    );
-
     const fire = () => {
       for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count;

@@ -217,9 +217,36 @@ window.CombatSystem = (() => {
     g.x = x;
     g.y = y;
     GameState.fx.addChild(g);
-    const beam = { spr:g, x, y, ang, length, width, color, life:7, maxLife:7 };
+    const beam = { spr:g, x, y, ang, length, width, color, life:7, maxLife:7, seed: Math.random() * Math.PI * 2 };
     redrawBeam(beam, 1);
     return beam;
+  }
+
+  function drawJaggedBeamStroke(g, beam, width, color, alpha, offsetMul = 1, segmentCount = 10, wobblePhase = 0) {
+    const cos = Math.cos(beam.ang);
+    const sin = Math.sin(beam.ang);
+    const nx = -sin;
+    const ny = cos;
+    const now = performance.now();
+    const points = [];
+    for (let i = 0; i <= segmentCount; i++) {
+      const t = i / segmentCount;
+      const along = beam.length * t;
+      const envelope = Math.sin(Math.PI * t);
+      const waveA = Math.sin(now * 0.035 + beam.seed * 5 + wobblePhase + t * 19);
+      const waveB = Math.sin(now * 0.061 + beam.seed * 3.2 + wobblePhase * 1.7 + t * 31);
+      const lateral = (waveA * 0.7 + waveB * 0.3) * beam.width * offsetMul * envelope;
+      points.push({
+        x: cos * along + nx * lateral,
+        y: sin * along + ny * lateral
+      });
+    }
+
+    g.lineStyle(width, color, alpha);
+    g.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      g.lineTo(points[i].x, points[i].y);
+    }
   }
 
   function redrawBeam(beam, alpha=1){
@@ -231,14 +258,18 @@ window.CombatSystem = (() => {
     const sin = Math.sin(beam.ang);
     const nx = -sin;
     const ny = cos;
-    const flicker = Math.sin(performance.now() * 0.05) * 1.6;
+    const flicker = Math.sin(performance.now() * 0.05 + beam.seed) * 1.6;
     const arcJitter = beam.width * 0.45 + flicker;
     const endX = cos * beam.length;
     const endY = sin * beam.length;
+    const branchCount = Math.max(4, Math.round(beam.length / 120));
 
     g.lineStyle(beam.width + 14, beam.color, 0.06 * alpha);
     g.moveTo(0, 0);
     g.lineTo(endX, endY);
+
+    drawJaggedBeamStroke(g, beam, beam.width + 10, beam.color, 0.09 * alpha, 1.35, 9, 0.2);
+    drawJaggedBeamStroke(g, beam, beam.width + 6, 0xc5f1ff, 0.16 * alpha, 0.92, 11, 1.7);
 
     g.lineStyle(beam.width + 8, beam.color, 0.14 * alpha);
     g.moveTo(nx * arcJitter, ny * arcJitter);
@@ -246,16 +277,35 @@ window.CombatSystem = (() => {
     g.moveTo(-nx * arcJitter, -ny * arcJitter);
     g.quadraticCurveTo(endX * 0.42 - nx * arcJitter * 1.9, endY * 0.42 - ny * arcJitter * 1.9, endX + nx * arcJitter * 0.7, endY + ny * arcJitter * 0.7);
 
+    for (let i = 0; i < branchCount; i++) {
+      const t = (i + 1) / (branchCount + 1);
+      const branchLen = beam.length * (0.05 + ((i % 3) * 0.018));
+      const branchJitter = Math.sin(performance.now() * 0.08 + beam.seed * 11 + i * 1.7) * beam.width * 1.2;
+      const anchorX = cos * beam.length * t + nx * branchJitter * 0.18;
+      const anchorY = sin * beam.length * t + ny * branchJitter * 0.18;
+      const side = i % 2 === 0 ? 1 : -1;
+      const branchNx = nx * side;
+      const branchNy = ny * side;
+      g.lineStyle(Math.max(1, beam.width * 0.22), 0xcfffff, 0.24 * alpha);
+      g.moveTo(anchorX, anchorY);
+      g.lineTo(
+        anchorX + branchNx * (beam.width * 1.5 + Math.abs(branchJitter) * 0.22) + cos * branchLen * 0.22,
+        anchorY + branchNy * (beam.width * 1.5 + Math.abs(branchJitter) * 0.22) + sin * branchLen * 0.22
+      );
+    }
+
     g.lineStyle(beam.width + 3, beam.color, 0.26 * alpha);
     g.moveTo(nx * (arcJitter * 0.45), ny * (arcJitter * 0.45));
     g.lineTo(endX + nx * (arcJitter * 0.3), endY + ny * (arcJitter * 0.3));
     g.moveTo(-nx * (arcJitter * 0.45), -ny * (arcJitter * 0.45));
     g.lineTo(endX - nx * (arcJitter * 0.3), endY - ny * (arcJitter * 0.3));
 
+    drawJaggedBeamStroke(g, beam, beam.width + 1.8, beam.color, 0.38 * alpha, 0.42, 12, 3.2);
     g.lineStyle(beam.width + 1, beam.color, 0.78 * alpha);
     g.moveTo(0, 0);
     g.lineTo(endX, endY);
 
+    drawJaggedBeamStroke(g, beam, Math.max(2, beam.width * 0.52), 0xffffff, 0.72 * alpha, 0.18, 13, 4.6);
     g.lineStyle(Math.max(2, beam.width * 0.36), 0xffffff, 0.96 * alpha);
     g.moveTo(0, 0);
     g.lineTo(endX, endY);
@@ -265,6 +315,9 @@ window.CombatSystem = (() => {
     g.endFill();
     g.beginFill(0xffffff, 0.82 * alpha);
     g.drawCircle(0, 0, Math.max(2, beam.width * 0.46));
+    g.endFill();
+    g.beginFill(0xb8f4ff, 0.18 * alpha);
+    g.drawCircle(endX, endY, Math.max(3, beam.width * 0.85));
     g.endFill();
   }
 
@@ -756,28 +809,36 @@ window.CombatSystem = (() => {
     const px = S.player.spr.x;
     const py = S.player.spr.y;
     const spec = getWeaponProfile("shotgun");
-    const pelletCount = Math.min(12, Math.max(4, spec.pellets || 4));
+    const pelletCount = Math.min(24, Math.max(8, spec.pellets || 8));
     const spread = spec.spread || 0.24;
     const pelletDamage = Math.max(0.72, (spec.damage || S.stats.bulletDamage) * damageMul * (spec.pelletDamageMul || 1));
+    const baseSpeed = S.stats.bulletSpeed * WEAPON_DEFINITIONS.shotgun.projectileSpeedMul * bulletSpeedMul;
+    const half = pelletCount <= 1 ? 1 : (pelletCount - 1) / 2;
 
     for (let i=0; i<pelletCount; i++){
-      const shotAng = ang + Helpers.rand(-spread, spread);
+      const t = half === 0 ? 0 : (i - half) / half;
+      const edgeBias = Math.sign(t) * Math.pow(Math.abs(t), 0.82);
+      const jitter = Helpers.rand(-0.02, 0.02);
+      const shotAng = ang + edgeBias * spread + jitter;
+      const speedMul = 1.04 - Math.min(0.22, Math.abs(t) * 0.16) + Helpers.rand(-0.025, 0.015);
+      const lifeMul = 0.84 - Math.min(0.18, Math.abs(t) * 0.1) + Helpers.rand(-0.03, 0.02);
+      const radiusMul = 0.76 - Math.min(0.12, Math.abs(t) * 0.08);
       const bullet = makeBullet(
         px + Math.cos(shotAng) * 18,
         py + Math.sin(shotAng) * 18,
         shotAng,
         pelletDamage,
-        S.stats.bulletSpeed * WEAPON_DEFINITIONS.shotgun.projectileSpeedMul * bulletSpeedMul,
+        baseSpeed * speedMul,
         0,
         {
           color:0xffbf7a,
-          radius:8.5,
-          life:(spec.projectileLife || 24) * getRangeMultiplier(),
+          radius:5.2 * radiusMul,
+          life:(spec.projectileLife || 24) * lifeMul * getRangeMultiplier(),
           kind:"shotgun",
           spriteKind:"shotgun",
-          scaleX:1.25,
-          scaleY:1.3,
-          trailAlpha:0.26
+          scaleX:0.92 + Math.min(0.12, Math.abs(t) * 0.08),
+          scaleY:0.62,
+          trailAlpha:0.14
         }
       );
       S.bullets.push(bullet);

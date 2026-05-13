@@ -124,22 +124,36 @@ window.Effects = (() => {
       const accent = new PIXI.Graphics();
 
       if (kind === "shotgun") {
-        shell.beginFill(0xffffff, 0.08);
-        shell.drawCircle(16, 16, 14);
+        shell.beginFill(0xffffff, 0.05);
+        shell.drawPolygon([
+          16, 5,
+          23, 16,
+          16, 27,
+          9, 16
+        ]);
         shell.endFill();
-        shell.beginFill(0xffffff, 0.22);
-        shell.drawCircle(16, 16, 12);
+        shell.beginFill(0xffffff, 0.16);
+        shell.drawPolygon([
+          16, 7,
+          20.5, 16,
+          16, 25,
+          11.5, 16
+        ]);
         shell.endFill();
-        shell.beginFill(0xffffff, 0.96);
-        shell.drawCircle(16, 16, 7);
+        shell.beginFill(0xffffff, 0.92);
+        shell.drawRoundedRect(14.2, 8, 3.6, 16, 2);
         shell.endFill();
 
-        core.beginFill(0xffffff, 0.95);
-        core.drawCircle(16, 16, 4);
+        core.beginFill(0xffffff, 0.98);
+        core.drawRoundedRect(15.1, 6, 1.8, 7.5, 1);
         core.endFill();
 
-        accent.lineStyle(2, 0xffffff, 0.75);
-        accent.drawCircle(16, 16, 9);
+        accent.lineStyle(1.8, 0xffffff, 0.52);
+        accent.moveTo(16, 8);
+        accent.lineTo(16, 22);
+        accent.moveTo(12.6, 12.5);
+        accent.lineTo(16, 8);
+        accent.lineTo(19.4, 12.5);
       } else if (kind === "hardpoint") {
         shell.beginFill(0xffffff, 0.06);
         shell.drawRoundedRect(8, 1, 16, 26, 7);
@@ -251,7 +265,7 @@ window.Effects = (() => {
     });
   }
 
-  function emitLineTelegraph(x1, y1, x2, y2, color=0xffffff, life=18, width=8){
+  function emitLineTelegraph(x1, y1, x2, y2, color=0xffffff, life=18, width=8, options = {}){
     const S = GameState;
     const g = new PIXI.Graphics();
     S.fx.addChild(g);
@@ -263,7 +277,7 @@ window.Effects = (() => {
       vy: 0,
       life,
       maxLife: life,
-      telegraphLine: { x1, y1, x2, y2, color, width }
+      telegraphLine: { x1, y1, x2, y2, color, width, style: options.style || "default" }
     });
   }
 

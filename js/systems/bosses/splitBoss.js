@@ -163,9 +163,6 @@
         if (boss.aiCd <= 10 && boss.aiCd + dt > 10) {
           if (useRadial) {
             Effects.emitGroundTelegraph(boss.x, boss.y, 80, 0xffd166, 10);
-          } else {
-            const aim = Shared.getAngleToTrackedPlayer(boss.x, boss.y);
-            Effects.emitLineTelegraph(boss.x, boss.y, boss.x + Math.cos(aim) * 220, boss.y + Math.sin(aim) * 220, 0xff8fab, 10, 6);
           }
         }
         if (boss.aiCd <= 0) {

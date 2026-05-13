@@ -551,7 +551,7 @@
       minLevel: 2,
       tags: ["control", "field", "slow", "unlock"],
       name: "Unlock Stasis Arc",
-      desc: "Gain Stasis Arc, a forward half-ring field that slows enemies around you. Further levels expand the field and deepen the slow.",
+      desc: "Gain Stasis Arc, a deployed forward half-ring field that slows enemies in the area. Further levels expand the field and deepen the slow.",
       apply: (level) => {
         ActiveSkillSystem.unlockSkill("stasis_arc");
         GameState.activeSkillState.levels.stasis_arc = Math.max(1, level);

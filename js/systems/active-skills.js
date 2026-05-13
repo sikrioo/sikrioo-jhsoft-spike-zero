@@ -1055,20 +1055,20 @@ window.ActiveSkillSystem = (() => {
     const midRadius = innerRadius + (outerRadius - innerRadius) * 0.54;
     g.clear();
 
-    g.lineStyle(2.2, 0x73efff, 0.24 + lifeRatio * 0.12);
-    g.beginFill(0x4ee3ff, 0.08 + lifeRatio * 0.08);
+    g.lineStyle(1.6, 0x8de6ff, 0.14 + lifeRatio * 0.08);
+    g.beginFill(0x4ee3ff, 0.09 + lifeRatio * 0.09);
     drawArcBand(g, innerRadius, outerRadius, startAngle, endAngle);
     g.endFill();
 
-    g.lineStyle(2.8, 0xbef8ff, 0.28 + lifeRatio * 0.14);
+    g.lineStyle(1.8, 0xbef8ff, 0.18 + lifeRatio * 0.1);
     g.arc(0, 0, outerRadius - 5, startAngle, endAngle);
-    g.lineStyle(1.6, 0x9edcff, 0.26 + lifeRatio * 0.1);
+    g.lineStyle(1.2, 0x9edcff, 0.18 + lifeRatio * 0.08);
     g.arc(0, 0, innerRadius + 5, startAngle, endAngle);
-    g.lineStyle(1.3, 0xb9ffff, 0.22 + lifeRatio * 0.08);
+    g.lineStyle(1, 0xb9ffff, 0.16 + lifeRatio * 0.06);
     g.arc(0, 0, midRadius, startAngle, endAngle);
 
-    const ribCount = 6;
-    g.lineStyle(1.2, 0xefffff, 0.12 + lifeRatio * 0.06);
+    const ribCount = 5;
+    g.lineStyle(0.9, 0xefffff, 0.08 + lifeRatio * 0.04);
     for (let i = 0; i <= ribCount; i++) {
       const t = i / ribCount;
       const ang = startAngle + (endAngle - startAngle) * t;
@@ -1076,22 +1076,19 @@ window.ActiveSkillSystem = (() => {
       g.lineTo(Math.cos(ang) * (outerRadius - 7), Math.sin(ang) * (outerRadius - 7));
     }
 
-    const chevronCount = 4;
-    g.lineStyle(1.6, 0x7fe7ff, 0.18 + lifeRatio * 0.08);
-    for (let i = 0; i < chevronCount; i++) {
-      const t = chevronCount === 1 ? 0.5 : i / (chevronCount - 1);
+    const swirlCount = 4;
+    g.lineStyle(1.1, 0x7fe7ff, 0.12 + lifeRatio * 0.05);
+    for (let i = 0; i < swirlCount; i++) {
+      const t = swirlCount === 1 ? 0.5 : i / (swirlCount - 1);
       const ang = startAngle + (endAngle - startAngle) * t;
-      const baseRadius = innerRadius + (outerRadius - innerRadius) * 0.42;
-      const tipRadius = baseRadius + 18;
-      const sideRadius = baseRadius - 10;
-      g.moveTo(Math.cos(ang) * tipRadius, Math.sin(ang) * tipRadius);
-      g.lineTo(Math.cos(ang - 0.1) * sideRadius, Math.sin(ang - 0.1) * sideRadius);
-      g.moveTo(Math.cos(ang) * tipRadius, Math.sin(ang) * tipRadius);
-      g.lineTo(Math.cos(ang + 0.1) * sideRadius, Math.sin(ang + 0.1) * sideRadius);
+      const baseRadius = innerRadius + (outerRadius - innerRadius) * (0.32 + t * 0.18);
+      const start = ang - 0.12;
+      const end = ang + 0.12;
+      g.arc(0, 0, baseRadius, start, end);
     }
 
     g.scale.set(pulse, pulse);
-    g.alpha = 0.56 + lifeRatio * 0.18;
+    g.alpha = 0.46 + lifeRatio * 0.14;
   }
 
   function castStasisArc(skill) {
@@ -1100,24 +1097,27 @@ window.ActiveSkillSystem = (() => {
     const data = skill.effectData || {};
     const level = Math.max(1, S.activeSkillState.levels.stasis_arc || 1);
     const angle = Math.atan2(S.mouse.y - player.spr.y, S.mouse.x - player.spr.x);
+    const spawnDistance = data.spawnDistance || 138;
+    const spawnX = player.spr.x + Math.cos(angle) * spawnDistance;
+    const spawnY = player.spr.y + Math.sin(angle) * spawnDistance;
     const spr = new PIXI.Graphics();
-    spr.x = player.spr.x;
-    spr.y = player.spr.y;
+    spr.x = spawnX;
+    spr.y = spawnY;
     spr.rotation = angle;
     S.fx.addChild(spr);
 
     const field = {
       spr,
-      x: player.spr.x,
-      y: player.spr.y,
+      x: spawnX,
+      y: spawnY,
       angle,
       radius: (data.radius || 154) + (level - 1) * 26,
-      innerRadius: 44,
+      innerRadius: data.innerRadius == null ? 10 : data.innerRadius,
       arcAngle: ((data.arcDegrees || 180) * Math.PI) / 180,
       life: skill.duration || 192,
       maxLife: skill.duration || 192,
-      slowRate: Math.max(0.4, (data.slowRate || 0.76) - (level - 1) * 0.1),
-      bossSlowRate: Math.max(0.72, (data.bossSlowRate || 0.9) - (level - 1) * 0.06),
+      slowRate: Math.max(0.3, (data.slowRate || 0.62) - (level - 1) * 0.12),
+      bossSlowRate: Math.max(0.68, (data.bossSlowRate || 0.88) - (level - 1) * 0.06),
       pulseInterval: Math.max(8, (data.pulseInterval || 18) - (level - 1) * 2),
       damagePerPulse: data.damagePerPulse || 0,
       bossDamagePerPulse: data.bossDamagePerPulse || 0,
@@ -1746,12 +1746,6 @@ window.ActiveSkillSystem = (() => {
       const field = fields[i];
       field.life -= dt;
       field.pulseCd = Math.max(0, field.pulseCd - dt);
-      field.x = S.player.spr.x;
-      field.y = S.player.spr.y;
-      field.angle = Math.atan2(S.mouse.y - field.y, S.mouse.x - field.x);
-      field.spr.x = field.x;
-      field.spr.y = field.y;
-      field.spr.rotation = field.angle;
       redrawStasisArcField(field);
 
       if (field.life <= 0) {

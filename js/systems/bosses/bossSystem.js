@@ -1,7 +1,7 @@
 window.BossSystem = (() => {
   const PRACTICE_DEFAULT = "basic";
   const STAGE_BOSS_ORDER = ["basic", "knight", "split"];
-  const WAVE_BOSS_ORDER = ["basic", "advanced", "knight", "split", "summoner"];
+  const WAVE_BOSS_ORDER = ["basic", "advanced", "knight", "split", "summoner", "vortex", "bulwark", "weaver"];
   const BOSS_SPAWN_INTRO_FRAMES = 72;
 
   const factories = Object.create(null);
@@ -281,7 +281,8 @@ window.BossSystem = (() => {
           entity.y + Math.sin(entity.lockAngle) * options.dashDistance,
           options.telegraphColor,
           options.telegraphLife,
-          options.telegraphWidth
+          options.telegraphWidth,
+          { style: options.telegraphStyle || "default" }
         );
         entity.dashTelegraphShown = true;
       }
