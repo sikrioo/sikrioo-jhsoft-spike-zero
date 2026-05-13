@@ -303,7 +303,8 @@ window.ActiveSkillSystem = (() => {
     const lv = Math.max(1, level || 1);
     const bonus = lv - 1;
     return {
-      speed: (profile.speed || 0) + bonus * 1.5,
+      // Boost travel distance is primarily driven by launch speed over its fixed sustain window.
+      speed: ((profile.speed || 0) + bonus * 1.5) * 1.3,
       drag: Math.min(0.97, (profile.drag || 0.9) + bonus * 0.01),
       mitigationMul: Math.max(0.72, (profile.mitigationMul || 1) - bonus * 0.03)
     };

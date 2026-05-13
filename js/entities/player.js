@@ -171,7 +171,7 @@ window.PlayerFactory = (() => {
     c.addChild(targetRing, halo, shield, engineFlare, wings, tail, body, nozzle, nozzleCore, accentRing, core);
     makeContainerGlow(c, C, 20, 2.6);
 
-    return { shield, collisionR: 14 };
+    return { shield, collisionR: 14, engineFlare, halo, targetRing, accentRing, core };
   }
 
   // ══════════════════════════════════════════════════════════
@@ -254,7 +254,7 @@ window.PlayerFactory = (() => {
     c.addChild(targetRing, halo, shield, engineFlare, wings, body, podL, flameL, podR, flameR, podC, flameC, accentRing, core);
     makeContainerGlow(c, C, 22, 2.8);
 
-    return { shield, collisionR: 16 };
+    return { shield, collisionR: 16, engineFlare, halo, targetRing, accentRing, core };
   }
 
   // ══════════════════════════════════════════════════════════
@@ -357,7 +357,7 @@ window.PlayerFactory = (() => {
     c.addChild(targetRing, halo, shield, engineFlare, wings, fin, body, nozzle, nozzleCore, accentRing, core);
     makeContainerGlow(c, C, 18, 2.4);
 
-    return { shield, collisionR: 12 };
+    return { shield, collisionR: 12, engineFlare, halo, targetRing, accentRing, core };
   }
 
   // ══════════════════════════════════════════════════════════
@@ -375,7 +375,15 @@ window.PlayerFactory = (() => {
     };
 
     const build = builders[shipType] ?? buildStandard;
-    const { shield, collisionR } = build(c);
+    const {
+      shield,
+      collisionR,
+      engineFlare,
+      halo,
+      targetRing,
+      accentRing,
+      core
+    } = build(c);
     const afterburnerSpr = makeAfterburnerOverlay();
     c.addChildAt(afterburnerSpr, 0);
 
@@ -388,12 +396,19 @@ window.PlayerFactory = (() => {
       spr:       c,
       shieldSpr: shield,
       afterburnerSpr,
+      engineFlareSpr: engineFlare,
+      haloSpr: halo,
+      targetRingSpr: targetRing,
+      accentRingSpr: accentRing,
+      coreSpr: core,
       r:         collisionR,
       vx: 0, vy: 0,
       inv:    0,
       fireCd: 0,
       dashT:  0,
-      engineTrailT: 0
+      engineTrailT: 0,
+      idleT: Math.random() * Math.PI * 2,
+      idleWakeT: 2 + Math.random() * 4
     };
   }
 

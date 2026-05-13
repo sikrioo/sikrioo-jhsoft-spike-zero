@@ -773,16 +773,70 @@ window.Boot = (() => {
     const ang = window.CombatSystem && CombatSystem.getPlayerAimAngle
       ? CombatSystem.getPlayerAimAngle({ maxStrength: 0.36 })
       : Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
+    const now = performance.now();
     p.spr.rotation = ang + Math.PI / 2;
     p.spr.tint = afterburnerActive ? 0xffc087 : 0xffffff;
     if (p.afterburnerSpr) {
-      p.afterburnerSpr.alpha = afterburnerActive ? 0.72 + Math.sin(performance.now() / 55) * 0.12 : 0;
-      const flameScale = afterburnerActive ? 1.08 + Math.sin(performance.now() / 70) * 0.08 : 1;
+      p.afterburnerSpr.alpha = afterburnerActive ? 0.72 + Math.sin(now / 55) * 0.12 : 0;
+      const flameScale = afterburnerActive ? 1.08 + Math.sin(now / 70) * 0.08 : 1;
       p.afterburnerSpr.scale.set(flameScale, afterburnerActive ? 1.22 : 1);
     }
     p.engineTrailT = Math.max(0, (p.engineTrailT || 0) - dt);
+    p.idleWakeT = Math.max(0, (p.idleWakeT || 0) - dt);
     const moveSpeed = Math.hypot(p.vx, p.vy);
-    const isMoving = (ax !== 0 || ay !== 0) && moveSpeed > 0.35;
+    const isMoving = moveSpeed > 0.35;
+    p.idleT = (p.idleT || 0) + dt * (isMoving ? 0.08 : 0.18);
+    const thrustRatio = Helpers.clamp(moveSpeed / Math.max(2, S.stats.speed * afterburnerBoost), 0, 1);
+    const idleVisualActive = !isMoving && !afterburnerActive;
+    const idleWave = Math.sin(now / 220 + p.idleT);
+    const idleWave2 = Math.sin(now / 145 + p.idleT * 1.7);
+    if (p.engineFlareSpr) {
+      let flareAlpha = 0.14 + thrustRatio * 0.2;
+      let flareScaleX = 0.88 + thrustRatio * 0.16;
+      let flareScaleY = 0.84 + thrustRatio * 0.28;
+      if (idleVisualActive) {
+        flareAlpha = 0.26 + idleWave2 * 0.05;
+        flareScaleX = 0.92 + idleWave * 0.02;
+        flareScaleY = 0.88 + idleWave2 * 0.035;
+      }
+      if (afterburnerActive) {
+        flareAlpha = 0.62 + Math.sin(now / 60) * 0.1;
+        flareScaleX = 1.04 + Math.sin(now / 85) * 0.06;
+        flareScaleY = 1.24 + Math.sin(now / 72) * 0.12;
+      }
+      p.engineFlareSpr.alpha = Helpers.clamp(flareAlpha, 0.08, 0.84);
+      p.engineFlareSpr.scale.set(flareScaleX, flareScaleY);
+    }
+    if (p.haloSpr) {
+      const haloScale = 1 + (idleVisualActive ? idleWave * 0.008 : thrustRatio * 0.01);
+      const haloAlpha = 0.26 + thrustRatio * 0.08 + (idleVisualActive ? idleWave2 * 0.03 : 0);
+      p.haloSpr.scale.set(haloScale, haloScale);
+      p.haloSpr.alpha = Helpers.clamp(haloAlpha + (afterburnerActive ? 0.08 : 0), 0.18, 0.52);
+    }
+    if (p.targetRingSpr) {
+      p.targetRingSpr.rotation += (idleVisualActive ? 0.0052 : 0.0028) * dt;
+      const ringScale = 1 + (idleVisualActive ? idleWave2 * 0.007 : thrustRatio * 0.008);
+      const ringAlpha = 0.22 + thrustRatio * 0.08 + Math.sin(now / 260 + p.idleT) * 0.04;
+      p.targetRingSpr.scale.set(ringScale, ringScale);
+      p.targetRingSpr.alpha = Helpers.clamp(ringAlpha, 0.14, 0.4);
+    }
+    if (p.accentRingSpr) {
+      p.accentRingSpr.rotation -= (idleVisualActive ? 0.0066 : 0.0038) * dt;
+      const accentScale = afterburnerActive
+        ? 1.08 + Math.sin(now / 85) * 0.04
+        : 0.99 + (idleVisualActive ? idleWave * 0.016 : thrustRatio * 0.03);
+      const accentAlpha = 0.72 + (idleVisualActive ? idleWave2 * 0.04 : thrustRatio * 0.05) + (afterburnerActive ? 0.12 : 0);
+      p.accentRingSpr.scale.set(accentScale, accentScale);
+      p.accentRingSpr.alpha = Helpers.clamp(accentAlpha, 0.6, 1);
+    }
+    if (p.coreSpr) {
+      const coreScale = afterburnerActive
+        ? 1.16 + Math.sin(now / 72) * 0.08
+        : 1 + (idleVisualActive ? idleWave * 0.035 : thrustRatio * 0.04);
+      const coreAlpha = 0.76 + (idleVisualActive ? idleWave2 * 0.05 : thrustRatio * 0.06) + (afterburnerActive ? 0.12 : 0);
+      p.coreSpr.scale.set(coreScale, coreScale);
+      p.coreSpr.alpha = Helpers.clamp(coreAlpha, 0.64, 1);
+    }
     if (isMoving && p.engineTrailT <= 0 && S.particles.length < 180) {
       const emitAngle = Math.atan2(-p.vy, -p.vx);
       const rearBaseX = p.spr.x + Math.cos(emitAngle) * 18;
@@ -834,7 +888,37 @@ window.Boot = (() => {
       });
       p.engineTrailT = afterburnerActive ? 1.1 : 1.6;
     }
-    if (afterburnerActive && ((performance.now() | 0) % 2 === 0)) {
+    if (idleVisualActive && p.idleWakeT <= 0 && S.particles.length < 180) {
+      const rearX = p.spr.x - Math.cos(ang) * 18;
+      const rearY = p.spr.y - Math.sin(ang) * 18;
+      const sideX = -Math.sin(ang);
+      const sideY = Math.cos(ang);
+      for (let i = 0; i < 2; i++) {
+        const side = i === 0 ? -1 : 1;
+        const drift = Helpers.rand(0.9, 2.2);
+        const puff = Effects.makeTrailSprite(
+          rearX + sideX * side * 3 + Helpers.rand(-0.8, 0.8),
+          rearY + sideY * side * 3 + Helpers.rand(-0.8, 0.8),
+          side === -1 ? 0xffdfcf : 0xbcecff,
+          Helpers.rand(0.16, 0.24),
+          0.14,
+          { kind: "linear" }
+        );
+        puff.rotation = ang + Math.PI + Helpers.rand(-0.18, 0.18);
+        S.fx.addChild(puff);
+        S.particles.push({
+          spr: puff,
+          x: puff.x,
+          y: puff.y,
+          vx: -Math.cos(ang) * drift * 0.08 + sideX * side * Helpers.rand(0.01, 0.03),
+          vy: -Math.sin(ang) * drift * 0.08 + sideY * side * Helpers.rand(0.01, 0.03),
+          life: Helpers.rand(9, 14),
+          drag: 0.92
+        });
+      }
+      p.idleWakeT = 5.5 + Math.random() * 2.5;
+    }
+    if (afterburnerActive && ((now | 0) % 2 === 0)) {
       const rearX = p.spr.x - Math.cos(ang) * 18;
       const rearY = p.spr.y - Math.sin(ang) * 18;
       const sideX = -Math.sin(ang);
@@ -853,12 +937,12 @@ window.Boot = (() => {
         S.fx.addChild(t);
         S.particles.push({ spr:t, x:t.x, y:t.y, vx:-Math.cos(ang) * 0.25, vy:-Math.sin(ang) * 0.25, life:8, drag:0.9 });
       }
-      if ((performance.now() | 0) % 4 === 0) {
+      if ((now | 0) % 4 === 0) {
         Effects.emitParticle(rearX, rearY, 0xffa24d, 3, 0.48);
       }
     }
     const stealthAlpha = S.activeSkillState.stealthT > 0
-      ? S.activeSkillState.stealthAlpha + Math.sin(performance.now() / 90) * 0.06
+      ? S.activeSkillState.stealthAlpha + Math.sin(now / 90) * 0.06
       : 1;
     p.spr.alpha = Helpers.clamp(stealthAlpha, 0.22, 1);
     if (p.shieldSpr) p.shieldSpr.alpha *= p.spr.alpha;

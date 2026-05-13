@@ -1,7 +1,7 @@
 window.BossSystem = (() => {
   const PRACTICE_DEFAULT = "basic";
   const STAGE_BOSS_ORDER = ["basic", "knight", "split"];
-  const WAVE_BOSS_ORDER = ["basic", "advanced", "knight", "split", "summoner", "vortex", "bulwark", "weaver"];
+  const WAVE_BOSS_ORDER = ["basic", "advanced", "knight", "split", "summoner", "vortex", "bulwark", "weaver", "overmind"];
   const BOSS_SPAWN_INTRO_FRAMES = 72;
 
   const factories = Object.create(null);

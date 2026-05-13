@@ -78,5 +78,15 @@ window.BOSS_DEFINITIONS = {
     scoreBase: 430,
     xp: 39,
     glowColor: 0x7ee7ff
+  },
+  overmind: {
+    id: "overmind",
+    name: "AION Overmind",
+    code: "AION-PRM",
+    radius: 46,
+    maxHp: 440,
+    scoreBase: 520,
+    xp: 48,
+    glowColor: 0x86d6ff
   }
 };
