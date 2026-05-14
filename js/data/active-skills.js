@@ -22,16 +22,19 @@ window.ACTIVE_SKILL_DEFINITIONS = [
   {
     id: "decoy_drone",
     name: "Decoy Drone",
-    desc: "Deploy a decoy that pulls enemy aggro for a short time.",
+    desc: "Deploy decoy drones that pull enemy aggro. Higher levels increase duration and decoy count.",
     type: "support",
     mpCost: 30,
     cooldown: 240,
-    duration: 210,
+    duration: 300,
     manualCast: true,
     autoCast: false,
     slotType: "active",
     effectData: {
-      hp: 3
+      hp: 3,
+      count: 1,
+      sideSpacing: 22,
+      forwardOffset: 40
     }
   },
   {
@@ -72,20 +75,23 @@ window.ACTIVE_SKILL_DEFINITIONS = [
   {
     id: "nova_pulse",
     name: "Nova Pulse",
-    desc: "Emit a close-range shockwave that damages nearby enemies and wipes hostile shots.",
+    desc: "Release a 360-degree electromagnetic nova. Higher levels expand the field, extend the lingering pulse, and increase damage.",
     type: "offense",
     mpCost: 28,
     cooldown: 300,
-    duration: 1,
+    duration: 28,
     manualCast: true,
     autoCast: false,
     slotType: "active",
     effectData: {
-      radius: 56,
+      radius: 72,
       damage: 8,
       bossDamage: 5,
-      bulletClearRadius: 68,
-      knockback: 18
+      bulletClearRadius: 90,
+      knockback: 18,
+      pulseInterval: 7,
+      pulseDamage: 1.5,
+      pulseBossDamage: 0.9
     }
   },
   {
@@ -249,7 +255,7 @@ window.ACTIVE_SKILL_DEFINITIONS = [
   {
     id: "stasis_arc",
     name: "Stasis Arc",
-    desc: "Deploy a forward 180-degree drag field that slows enemies passing through the area.",
+    desc: "Deploy a drag field that slows enemies passing through the area.",
     type: "utility",
     mpCost: 28,
     cooldown: 270,
@@ -260,7 +266,7 @@ window.ACTIVE_SKILL_DEFINITIONS = [
     effectData: {
       radius: 154,
       spawnDistance: 138,
-      arcDegrees: 180,
+      arcDegrees: 360,
       slowRate: 0.62,
       bossSlowRate: 0.88,
       pulseInterval: 18

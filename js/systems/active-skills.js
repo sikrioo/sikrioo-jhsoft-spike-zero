@@ -218,42 +218,107 @@ window.ActiveSkillSystem = (() => {
     return true;
   }
 
-  function castDecoyDrone(skill){
-    const S = GameState;
-    const angle = Math.atan2(S.mouse.y - S.player.spr.y, S.mouse.x - S.player.spr.x);
-    const spawnX = S.player.spr.x + Math.cos(angle) * 40;
-    const spawnY = S.player.spr.y + Math.sin(angle) * 40;
-
+  function makeDecoyDroneSprite(tint = 0xffd27a, variant = 0) {
     const c = new PIXI.Container();
+    const halo = new PIXI.Graphics();
+    halo.beginFill(tint, 0.08);
+    halo.drawCircle(0, 1, 14);
+    halo.endFill();
+    halo.filters = [new PIXI.filters.BlurFilter(6)];
+
+    const wingLeft = new PIXI.Graphics();
+    wingLeft.beginFill(0x16233d, 0.96);
+    wingLeft.lineStyle(1.2, 0xbfe9ff, 0.28);
+    wingLeft.drawRoundedRect(-14, -3, 8, 12, 2);
+    wingLeft.endFill();
+    wingLeft.lineStyle(0.8, 0x8ad4ff, 0.18);
+    wingLeft.moveTo(-10, -1);
+    wingLeft.lineTo(-10, 7);
+
+    const wingRight = new PIXI.Graphics();
+    wingRight.beginFill(0x16233d, 0.96);
+    wingRight.lineStyle(1.2, 0xbfe9ff, 0.28);
+    wingRight.drawRoundedRect(6, -3, 8, 12, 2);
+    wingRight.endFill();
+    wingRight.lineStyle(0.8, 0x8ad4ff, 0.18);
+    wingRight.moveTo(10, -1);
+    wingRight.lineTo(10, 7);
+
     const body = new PIXI.Graphics();
     body.beginFill(0x10162a, 1);
-    body.lineStyle(2, 0xffd27a, 0.95);
-    body.drawPolygon([ 0,-11, 9,8, 0,4, -9,8 ]);
+    body.lineStyle(2, tint, 0.95);
+    body.drawPolygon([ 0,-12, 8,5, 4,11, -4,11, -8,5 ]);
+    body.endFill();
+    body.beginFill(0x1d2946, 0.95);
+    body.lineStyle(0.8, 0xffffff, 0.22);
+    body.drawPolygon([ 0,-8, 3,-1, 0,3, -3,-1 ]);
     body.endFill();
 
+    const tail = new PIXI.Graphics();
+    tail.beginFill(0x0f1424, 1);
+    tail.lineStyle(1, tint, 0.48);
+    tail.drawPolygon([ -2,10, -5,14, 0,12, 5,14, 2,10 ]);
+    tail.endFill();
+
     const core = new PIXI.Graphics();
-    core.beginFill(0xffd27a, 0.9);
-    core.drawCircle(0, 1, 3);
+    core.beginFill(tint, 0.92);
+    core.drawCircle(0, 2, 3.2);
     core.endFill();
 
-    c.addChild(body, core);
-    c.x = spawnX;
-    c.y = spawnY;
-    c.rotation = angle + Math.PI / 2;
-    S.uiLayer.addChild(c);
+    const orb = new PIXI.Graphics();
+    orb.beginFill(0xffffff, 0.66);
+    orb.drawCircle(0.8, 1.2, 1.2);
+    orb.endFill();
 
-    S.decoys.push({
-      spr: c,
-      x: spawnX,
-      y: spawnY,
-      r: 12,
-      hp: skill.effectData.hp,
-      life: skill.duration,
-      angle
-    });
+    c.addChild(halo, wingLeft, wingRight, body, tail, core, orb);
+    c.pulseSeed = variant * 0.9 + Math.random() * Math.PI * 2;
+    return c;
+  }
 
-    Effects.emitParticle(spawnX, spawnY, 0xffd27a, 16, 1.1);
-    Effects.emitPulse(spawnX, spawnY, 0xffd27a, 48, 14);
+  function castDecoyDrone(skill){
+    const S = GameState;
+    const level = Math.max(1, S.activeSkillState.levels.decoy_drone || 1);
+    const data = skill.effectData || {};
+    const angle = Math.atan2(S.mouse.y - S.player.spr.y, S.mouse.x - S.player.spr.x);
+    const count = Math.max(1, Math.min(3, (data.count || 1) + (level - 1)));
+    const forwardOffset = data.forwardOffset || 40;
+    const sideSpacing = data.sideSpacing || 22;
+    const duration = (skill.duration || 300) + (level - 1) * 90;
+    const hp = (data.hp || 3) + (level - 1);
+    const forwardX = Math.cos(angle);
+    const forwardY = Math.sin(angle);
+    const sideX = -Math.sin(angle);
+    const sideY = Math.cos(angle);
+
+    for (let i = 0; i < count; i++) {
+      const slot = count === 1 ? 0 : i - (count - 1) * 0.5;
+      const spawnX = S.player.spr.x + forwardX * (forwardOffset + i * 4) + sideX * slot * sideSpacing;
+      const spawnY = S.player.spr.y + forwardY * (forwardOffset + i * 4) + sideY * slot * sideSpacing;
+      const tint = i % 2 === 0 ? 0xffd27a : 0x8fe0ff;
+      const c = makeDecoyDroneSprite(tint, i);
+      c.x = spawnX;
+      c.y = spawnY;
+      c.rotation = angle + Math.PI / 2;
+      S.uiLayer.addChild(c);
+
+      S.decoys.push({
+        spr: c,
+        x: spawnX,
+        y: spawnY,
+        anchorX: spawnX,
+        anchorY: spawnY,
+        r: 12,
+        hp,
+        life: duration,
+        maxLife: duration,
+        angle,
+        tint,
+        pulseSeed: c.pulseSeed || Math.random() * Math.PI * 2
+      });
+
+      Effects.emitParticle(spawnX, spawnY, tint, 12, 0.8);
+      Effects.emitPulse(spawnX, spawnY, tint, 40, 12);
+    }
     return true;
   }
 
@@ -507,26 +572,25 @@ window.ActiveSkillSystem = (() => {
     const S = GameState;
     const px = S.player.spr.x;
     const py = S.player.spr.y;
-    const radius = skill.effectData.radius || 140;
-    const bulletClearRadius = skill.effectData.bulletClearRadius || radius + 30;
-    const damage = skill.effectData.damage || 6;
-    const bossDamage = skill.effectData.bossDamage || Math.max(1, damage - 2);
-    const knockback = skill.effectData.knockback || 22;
-    const radiusSq = radius * radius;
-    const bulletRadiusSq = bulletClearRadius * bulletClearRadius;
+    const level = Math.max(1, S.activeSkillState.levels.nova_pulse || 1);
+    const profile = getNovaPulseProfile(skill, level);
+    const bulletRadiusSq = profile.bulletClearRadius * profile.bulletClearRadius;
 
-    Effects.emitPulse(px, py, 0x7df9ff, radius, 14);
-    Effects.emitPulse(px, py, 0xffffff, Math.max(54, radius * 0.62), 9);
-    Effects.emitParticle(px, py, 0x7df9ff, 22, 1.35);
-    Effects.emitParticle(px, py, 0xff9ae8, 12, 1.0);
+    Effects.emitPulse(px, py, 0x7df9ff, profile.radius, 22);
+    Effects.emitPulse(px, py, 0xffffff, Math.max(58, profile.radius * 0.66), 15);
+    Effects.emitPulse(px, py, 0x8e7dff, Math.max(48, profile.radius * 0.48), 18);
+    Effects.emitParticle(px, py, 0x7df9ff, 28, 1.45);
+    Effects.emitParticle(px, py, 0xff9ae8, 16, 1.1);
     S.shake = Math.min(24, S.shake + 4);
+
+    spawnNovaPulseField(px, py, profile);
 
     for (const enemy of [...S.enemies]){
       const hitCircles = enemy && typeof enemy.getHitCircles === "function"
         ? enemy.getHitCircles()
         : [{ x: enemy.x, y: enemy.y, radius: enemy.r }];
       const hitCircle = hitCircles.find((circle) => {
-        const rr = radius + circle.radius;
+        const rr = profile.radius + circle.radius;
         return Helpers.dist2(px, py, circle.x, circle.y) <= rr * rr;
       });
       if (!hitCircle) continue;
@@ -535,15 +599,15 @@ window.ActiveSkillSystem = (() => {
       const dx = (hitCircle.x - px) / dist;
       const dy = (hitCircle.y - py) / dist;
 
-      if (enemy.x != null) enemy.x += dx * knockback;
-      if (enemy.y != null) enemy.y += dy * knockback;
+      if (enemy.x != null) enemy.x += dx * profile.knockback;
+      if (enemy.y != null) enemy.y += dy * profile.knockback;
       if (enemy.spr) {
         enemy.spr.x = enemy.x;
         enemy.spr.y = enemy.y;
       }
       if (enemy.hpText) enemy.hpText.rotation = -enemy.spr.rotation;
 
-      const appliedDamage = enemy.tier === "boss" ? bossDamage : damage;
+      const appliedDamage = enemy.tier === "boss" ? profile.bossDamage : profile.damage;
       CombatSystem.damageEnemy(enemy, appliedDamage, 0x7df9ff, enemy.tier === "boss" ? 16 : 10, 1.0, hitCircle);
     }
 
@@ -558,6 +622,98 @@ window.ActiveSkillSystem = (() => {
 
     UI.hudUpdate();
     return true;
+  }
+
+  function getNovaPulseProfile(skill, level) {
+    const data = skill.effectData || {};
+    const lv = Math.max(1, Math.min(3, level || 1));
+    return {
+      radius: (data.radius || 72) + (lv - 1) * 16,
+      bulletClearRadius: (data.bulletClearRadius || 90) + (lv - 1) * 18,
+      damage: (data.damage || 8) + (lv - 1) * 2,
+      bossDamage: (data.bossDamage || 5) + (lv - 1) * 1.4,
+      knockback: (data.knockback || 18) + (lv - 1) * 2,
+      duration: (skill.duration || 28) + (lv - 1) * 10,
+      pulseInterval: Math.max(5, (data.pulseInterval || 7) - (lv - 1)),
+      pulseDamage: (data.pulseDamage || 1.5) + (lv - 1) * 0.7,
+      pulseBossDamage: (data.pulseBossDamage || 0.9) + (lv - 1) * 0.45,
+      slowRate: Math.max(0.7, 0.9 - (lv - 1) * 0.08)
+    };
+  }
+
+  function spawnNovaPulseField(x, y, profile) {
+    const S = GameState;
+    const spr = new PIXI.Graphics();
+    spr.x = x;
+    spr.y = y;
+    S.fx.addChild(spr);
+    S.activeSkillState.novaPulses.push({
+      spr,
+      x,
+      y,
+      radius: profile.radius,
+      bulletClearRadius: profile.bulletClearRadius,
+      life: profile.duration,
+      maxLife: profile.duration,
+      pulseCd: profile.pulseInterval,
+      pulseInterval: profile.pulseInterval,
+      damagePerPulse: profile.pulseDamage,
+      bossDamagePerPulse: profile.pulseBossDamage,
+      slowRate: profile.slowRate,
+      seed: Math.random() * Math.PI * 2,
+      spin: Helpers.rand(-0.03, 0.03)
+    });
+  }
+
+  function redrawNovaPulseField(field) {
+    const g = field.spr;
+    const lifeRatio = Math.max(0, Math.min(1, field.life / Math.max(1, field.maxLife || field.life)));
+    const pulseWave = 0.5 + 0.5 * Math.sin(performance.now() / 110 + field.seed);
+    const ringAlpha = 0.18 + lifeRatio * 0.18;
+    const coreAlpha = 0.08 + lifeRatio * 0.1;
+    const rippleRadius = field.radius * (0.76 + pulseWave * 0.18);
+    const innerRadius = Math.max(20, field.radius * 0.36);
+    g.clear();
+
+    g.beginFill(0x8e6dff, coreAlpha);
+    g.drawCircle(0, 0, rippleRadius);
+    g.endFill();
+
+    g.lineStyle(4, 0x79f0ff, ringAlpha + 0.1);
+    g.drawCircle(0, 0, rippleRadius);
+    g.lineStyle(2, 0xe6ffff, 0.2 + lifeRatio * 0.12);
+    g.drawCircle(0, 0, Math.max(innerRadius, rippleRadius * 0.66));
+    g.lineStyle(1.5, 0xc78dff, 0.2 + lifeRatio * 0.1);
+    g.drawCircle(0, 0, Math.max(16, rippleRadius * 0.42));
+
+    const arcCount = 7;
+    for (let i = 0; i < arcCount; i++) {
+      const base = field.seed + field.spin * performance.now() / 16 + (Math.PI * 2 * i) / arcCount;
+      const arcSpan = 0.42 + Math.sin(field.seed * 0.7 + i) * 0.08;
+      const arcRadius = field.radius * (0.58 + (i % 3) * 0.12);
+      g.lineStyle(2.2, i % 2 === 0 ? 0x9fe9ff : 0xd69cff, 0.18 + lifeRatio * 0.12);
+      g.arc(0, 0, arcRadius, base - arcSpan * 0.5, base + arcSpan * 0.5);
+    }
+
+    const spokeCount = 10;
+    for (let i = 0; i < spokeCount; i++) {
+      const angle = field.seed * 0.4 + field.spin * performance.now() / 18 + (Math.PI * 2 * i) / spokeCount;
+      const start = innerRadius * 0.62;
+      const end = rippleRadius * (0.82 + (i % 2) * 0.08);
+      g.lineStyle(1.25, i % 2 === 0 ? 0xbaf3ff : 0xc893ff, 0.12 + lifeRatio * 0.08);
+      g.moveTo(Math.cos(angle) * start, Math.sin(angle) * start);
+      g.lineTo(Math.cos(angle) * end, Math.sin(angle) * end);
+    }
+
+    g.alpha = 0.72 + lifeRatio * 0.22;
+  }
+
+  function resetNovaPulses() {
+    const pulses = GameState.activeSkillState.novaPulses || [];
+    for (const pulse of pulses) {
+      if (pulse && pulse.spr && pulse.spr.parent) pulse.spr.parent.removeChild(pulse.spr);
+    }
+    GameState.activeSkillState.novaPulses = [];
   }
 
   function getEnemyHitCircles(enemy) {
@@ -1051,6 +1207,7 @@ window.ActiveSkillSystem = (() => {
     const g = field.spr;
     const outerRadius = field.radius;
     const innerRadius = field.innerRadius;
+    const isFullCircle = field.arcAngle >= Math.PI * 1.99;
     const startAngle = -field.arcAngle * 0.5;
     const endAngle = field.arcAngle * 0.5;
     const midRadius = innerRadius + (outerRadius - innerRadius) * 0.54;
@@ -1058,17 +1215,27 @@ window.ActiveSkillSystem = (() => {
 
     g.lineStyle(1.6, 0x8de6ff, 0.14 + lifeRatio * 0.08);
     g.beginFill(0x4ee3ff, 0.09 + lifeRatio * 0.09);
-    drawArcBand(g, innerRadius, outerRadius, startAngle, endAngle);
+    if (isFullCircle) {
+      g.drawCircle(0, 0, outerRadius);
+      g.beginHole();
+      g.drawCircle(0, 0, innerRadius);
+      g.endHole();
+    } else {
+      drawArcBand(g, innerRadius, outerRadius, startAngle, endAngle);
+    }
     g.endFill();
 
     g.lineStyle(1.8, 0xbef8ff, 0.18 + lifeRatio * 0.1);
-    g.arc(0, 0, outerRadius - 5, startAngle, endAngle);
+    if (isFullCircle) g.drawCircle(0, 0, outerRadius - 5);
+    else g.arc(0, 0, outerRadius - 5, startAngle, endAngle);
     g.lineStyle(1.2, 0x9edcff, 0.18 + lifeRatio * 0.08);
-    g.arc(0, 0, innerRadius + 5, startAngle, endAngle);
+    if (isFullCircle) g.drawCircle(0, 0, innerRadius + 5);
+    else g.arc(0, 0, innerRadius + 5, startAngle, endAngle);
     g.lineStyle(1, 0xb9ffff, 0.16 + lifeRatio * 0.06);
-    g.arc(0, 0, midRadius, startAngle, endAngle);
+    if (isFullCircle) g.drawCircle(0, 0, midRadius);
+    else g.arc(0, 0, midRadius, startAngle, endAngle);
 
-    const ribCount = 5;
+    const ribCount = isFullCircle ? 10 : 5;
     g.lineStyle(0.9, 0xefffff, 0.08 + lifeRatio * 0.04);
     for (let i = 0; i <= ribCount; i++) {
       const t = i / ribCount;
@@ -1077,7 +1244,7 @@ window.ActiveSkillSystem = (() => {
       g.lineTo(Math.cos(ang) * (outerRadius - 7), Math.sin(ang) * (outerRadius - 7));
     }
 
-    const swirlCount = 4;
+    const swirlCount = isFullCircle ? 6 : 4;
     g.lineStyle(1.1, 0x7fe7ff, 0.12 + lifeRatio * 0.05);
     for (let i = 0; i < swirlCount; i++) {
       const t = swirlCount === 1 ? 0.5 : i / (swirlCount - 1);
@@ -1296,10 +1463,19 @@ window.ActiveSkillSystem = (() => {
     for (let i=S.decoys.length-1; i>=0; i--){
       const d = S.decoys[i];
       d.life -= dt;
-      d.spr.rotation += 0.02 * dt;
-      d.spr.alpha = 0.78 + Math.sin(performance.now() / 180 + i) * 0.18;
+      const lifeRatio = Math.max(0, Math.min(1, d.life / Math.max(1, d.maxLife || d.life)));
+      const hoverX = Math.sin(performance.now() / 260 + d.pulseSeed) * 1.4;
+      const hoverY = Math.cos(performance.now() / 210 + d.pulseSeed * 0.8) * 1.8;
+      d.x = d.anchorX + hoverX;
+      d.y = d.anchorY + hoverY;
+      d.spr.x = d.x;
+      d.spr.y = d.y;
+      d.spr.rotation = d.angle + Math.PI / 2 + Math.sin(performance.now() / 320 + d.pulseSeed) * 0.08;
+      d.spr.alpha = 0.62 + lifeRatio * 0.26 + Math.sin(performance.now() / 180 + i) * 0.12;
+      const pulse = 0.98 + Math.sin(performance.now() / 150 + d.pulseSeed) * 0.05;
+      d.spr.scale.set(pulse, pulse);
       if (d.life <= 0 || d.hp <= 0){
-        Effects.emitParticle(d.x, d.y, 0xffd27a, 14, 1.0);
+        Effects.emitParticle(d.x, d.y, d.tint || 0xffd27a, 14, 1.0);
         S.uiLayer.removeChild(d.spr);
         S.decoys.splice(i, 1);
       }
@@ -1657,6 +1833,7 @@ window.ActiveSkillSystem = (() => {
   }
 
   function getSectorFieldHitCircle(field, enemy) {
+    const isFullCircle = field.arcAngle >= Math.PI * 1.99;
     const halfArc = field.arcAngle * 0.5;
     for (const circle of getEnemyHitCircles(enemy)) {
       const dx = circle.x - field.x;
@@ -1664,6 +1841,7 @@ window.ActiveSkillSystem = (() => {
       const dist = Math.hypot(dx, dy);
       if (dist > field.radius + circle.radius) continue;
       if (dist + circle.radius < field.innerRadius) continue;
+      if (isFullCircle) return { circle, dist, angleDelta: 0 };
       const angle = Math.atan2(dy, dx);
       const angleDelta = Math.abs(Math.atan2(Math.sin(angle - field.angle), Math.cos(angle - field.angle)));
       const anglePadding = Math.asin(Math.min(1, circle.radius / Math.max(dist, circle.radius + 1)));
@@ -1671,6 +1849,72 @@ window.ActiveSkillSystem = (() => {
       return { circle, dist, angleDelta };
     }
     return null;
+  }
+
+  function updateNovaPulses(dt) {
+    const S = GameState;
+    const pulses = S.activeSkillState.novaPulses || [];
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const pulse = pulses[i];
+      pulse.life -= dt;
+      pulse.pulseCd = Math.max(0, pulse.pulseCd - dt);
+      redrawNovaPulseField(pulse);
+
+      if (pulse.life <= 0) {
+        if (pulse.spr && pulse.spr.parent) pulse.spr.parent.removeChild(pulse.spr);
+        pulses.splice(i, 1);
+        continue;
+      }
+
+      const pulseNow = pulse.pulseCd <= 0;
+      if (!pulseNow) continue;
+      pulse.pulseCd = pulse.pulseInterval;
+
+      const radiusSq = pulse.radius * pulse.radius;
+      const bulletRadiusSq = pulse.bulletClearRadius * pulse.bulletClearRadius;
+
+      Effects.emitPulse(pulse.x, pulse.y, 0x80eaff, pulse.radius * 0.96, 10);
+      Effects.emitParticle(pulse.x, pulse.y, 0xb692ff, 10, 0.6);
+
+      for (const enemy of S.enemies) {
+        if (!enemy) continue;
+        const hitCircle = getEnemyHitCircles(enemy).find((circle) => {
+          const rr = pulse.radius + circle.radius;
+          return Helpers.dist2(pulse.x, pulse.y, circle.x, circle.y) <= rr * rr;
+        });
+        if (!hitCircle) continue;
+
+        enemy.slowMul = Math.min(enemy.slowMul || 1, pulse.slowRate);
+        enemy.slowT = Math.max(enemy.slowT || 0, 8);
+        Effects.emitParticle(hitCircle.x, hitCircle.y, enemy.tier === "boss" ? 0xe4b3ff : 0x82ecff, 2, 0.18);
+
+        const damage = enemy.tier === "boss" ? pulse.bossDamagePerPulse : pulse.damagePerPulse;
+        if (damage > 0 && window.CombatSystem && typeof CombatSystem.damageEnemy === "function") {
+          CombatSystem.damageEnemy(enemy, damage, 0x82ecff, enemy.tier === "boss" ? 6 : 3, 0.22, hitCircle);
+        }
+      }
+
+      for (let bulletIndex = S.enemyBullets.length - 1; bulletIndex >= 0; bulletIndex--) {
+        const bullet = S.enemyBullets[bulletIndex];
+        if (Helpers.dist2(pulse.x, pulse.y, bullet.x, bullet.y) > bulletRadiusSq) continue;
+        Effects.emitParticle(bullet.x, bullet.y, 0x8ef0ff, 3, 0.24);
+        if (bullet.spr && bullet.spr.parent) bullet.spr.parent.removeChild(bullet.spr);
+        S.enemyBullets.splice(bulletIndex, 1);
+      }
+
+      const arcBurstCount = 14;
+      for (let j = 0; j < arcBurstCount; j++) {
+        const angle = (Math.PI * 2 * j) / arcBurstCount + pulse.seed * 0.6 + performance.now() / 900;
+        const radius = Helpers.rand(pulse.radius * 0.42, pulse.radius * 0.92);
+        Effects.emitParticle(
+          pulse.x + Math.cos(angle) * radius,
+          pulse.y + Math.sin(angle) * radius,
+          j % 2 === 0 ? 0x83ebff : 0xd79eff,
+          1,
+          0.14
+        );
+      }
+    }
   }
 
   function updateRepulsorFields(dt) {
@@ -1934,6 +2178,7 @@ window.ActiveSkillSystem = (() => {
     updateDeployTurrets(dt);
     updateEscortDrones(dt);
     updateSwarmDrones(dt);
+    updateNovaPulses(dt);
     updateSmokeClouds(dt);
     updateMagneticSlowFields(dt);
     updateTrapPrisms(dt);
@@ -1962,6 +2207,7 @@ window.ActiveSkillSystem = (() => {
     resetDeployTurrets,
     resetSwarmDrones,
     resetTrapPrisms,
+    resetNovaPulses,
     resetRepulsorFields,
     resetStasisArcFields,
     update

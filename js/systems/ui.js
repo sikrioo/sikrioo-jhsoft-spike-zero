@@ -317,12 +317,14 @@ window.UI = (() => {
       const skill = slot ? ActiveSkillSystem.getSlotSkill(slot) : null;
       const nameEl = el.querySelector(".slotName");
       const typeEl = el.querySelector(".slotType");
+      const levelEl = el.querySelector(".slotLevel");
       const costEl = el.querySelector(".slotCost");
       const cdEl = el.querySelector(".slotCd");
 
       if (!slot || !skill){
         nameEl.textContent = "Empty";
         typeEl.textContent = "-";
+        if (levelEl) levelEl.textContent = "Lv.0";
         costEl.textContent = "0 MP";
         cdEl.textContent = "READY";
         el.classList.remove("cooldown");
@@ -338,6 +340,10 @@ window.UI = (() => {
       typeEl.textContent = skill.type.toUpperCase();
       if (skill.id === "boost" && window.ActiveSkillSystem && ActiveSkillSystem.getBoostDirectionLabel) {
         typeEl.textContent = `BOOST ${ActiveSkillSystem.getBoostDirectionLabel()}`;
+      }
+      if (levelEl) {
+        const level = Math.max(1, GameState.activeSkillState.levels[skill.id] || 1);
+        levelEl.textContent = `Lv.${level}`;
       }
       costEl.textContent = `${skill.mpCost} MP`;
       cdEl.textContent = slot.cooldown > 0 ? `${(slot.cooldown / 60).toFixed(1)}s` : "READY";
@@ -493,18 +499,21 @@ window.UI = (() => {
         ? ActiveSkillSystem.getDefinition(skillId)
         : null;
       if (!skill) return [];
+      const activeLevel = Math.max(1, (GameState.activeSkillState.levels && GameState.activeSkillState.levels[skillId]) || 1);
       const data = skill.effectData || {};
       const meta = [];
       const effectiveDuration = skill.id === "stealth_field"
         ? (skill.duration || 180) + (Math.max(1, GameState.activeSkillState.levels.stealth_field || 1) - 1) * 60
+        : skill.id === "nova_pulse"
+          ? (skill.duration || 28) + (activeLevel - 1) * 10
         : skill.duration;
       if (skill.mpCost != null) meta.push(`${skill.mpCost} MP`);
       if (skill.cooldown != null) meta.push(`CD ${formatFrames(skill.cooldown)}`);
       if (effectiveDuration && effectiveDuration > 1) meta.push(`Duration ${formatFrames(effectiveDuration)}`);
-      if (data.radius != null) meta.push(`Radius ${data.radius}`);
+      if (data.radius != null) meta.push(`Radius ${skill.id === "nova_pulse" ? data.radius + (activeLevel - 1) * 16 : data.radius}`);
       if (data.range != null && skill.id !== "deploy_turret") meta.push(`Range ${data.range}`);
-      if (data.damage != null) meta.push(`Damage ${data.damage}`);
-      if (data.bossDamage != null) meta.push(`Boss ${data.bossDamage}`);
+      if (data.damage != null) meta.push(`Damage ${skill.id === "nova_pulse" ? (data.damage + (activeLevel - 1) * 2).toFixed(1).replace(/\.0$/, "") : data.damage}`);
+      if (data.bossDamage != null) meta.push(`Boss ${skill.id === "nova_pulse" ? (data.bossDamage + (activeLevel - 1) * 1.4).toFixed(1).replace(/\.0$/, "") : data.bossDamage}`);
       if (data.damageMultiplier != null) meta.push(`Damage x${data.damageMultiplier}`);
       if (data.count != null) meta.push(`${data.count} shots`);
       if (data.trapCount != null) meta.push(`${data.trapCount} nodes`);
@@ -543,8 +552,19 @@ window.UI = (() => {
         ? table[Math.max(0, Math.min(table.length - 1, nextLevel - 1))]
         : null;
 
+      if (upgrade.id === "active_nova_unlock") {
+        const nextNovaLevel = Math.max(1, Math.min(3, (level || 0) + 1));
+        return [
+          `Nova Lv.${nextNovaLevel}`,
+          `Radius ${72 + (nextNovaLevel - 1) * 16}`,
+          `Damage ${(8 + (nextNovaLevel - 1) * 2).toFixed(1).replace(/\.0$/, "")}`,
+          `Duration ${formatFrames(28 + (nextNovaLevel - 1) * 10)}`
+        ];
+      }
       if (upgrade.id.startsWith("active_")) {
-        const skillId = upgrade.id.replace(/^active_/, "").replace(/_unlock$/, "");
+        let skillId = upgrade.id.replace(/^active_/, "").replace(/_unlock$/, "");
+        if (skillId === "nova") skillId = "nova_pulse";
+        if (skillId === "stealth") skillId = "stealth_field";
         return getActiveSkillMeta(skillId);
       }
       if (upgrade.category === "active" && window.ActiveSkillSystem && ActiveSkillSystem.getDefinition(upgrade.id)) {

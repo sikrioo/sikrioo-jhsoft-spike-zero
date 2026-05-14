@@ -27,6 +27,7 @@ window.Boot = (() => {
     for (const decoy of S.decoys) removeDisplayObject(decoy && decoy.spr);
     for (const drone of (S.activeSkillState.escortDrones || [])) removeDisplayObject(drone && drone.spr);
     for (const turret of (S.activeSkillState.deployTurrets || [])) removeDisplayObject(turret && turret.spr);
+    for (const pulse of (S.activeSkillState.novaPulses || [])) removeDisplayObject(pulse && pulse.spr);
     for (const smoke of S.smokeClouds) removeDisplayObject(smoke && smoke.spr);
     for (const field of S.slowFields) removeDisplayObject(field && field.spr);
     for (const hazard of S.hazards) removeDisplayObject(hazard && hazard.spr);
@@ -77,6 +78,7 @@ window.Boot = (() => {
     S.stats.slowFieldCooldown = 0;
     S.activeSkillState.escortDrones = [];
     S.activeSkillState.deployTurrets = [];
+    S.activeSkillState.novaPulses = [];
   }
 
   const loadingOverlay = document.getElementById("loadingOverlay");

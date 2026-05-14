@@ -101,15 +101,15 @@
       category: "active",
       upgradeType: "active",
       subCategory: "survival",
-      maxLevel: 1,
+      maxLevel: 3,
       baseWeight: 4,
       minLevel: 2,
       tags: ["survival", "unlock"],
       name: "Unlock Decoy Drone",
-      desc: "Gain Decoy Drone. Extra active skills stay owned even when every slot is full.",
-      requires: (S) => !S.activeSkillState.ownedSkillIds.includes("decoy_drone"),
-      apply: () => {
+      desc: "Gain Decoy Drone. Further levels increase decoy count and duration.",
+      apply: (level) => {
         ActiveSkillSystem.unlockSkill("decoy_drone");
+        GameState.activeSkillState.levels.decoy_drone = Math.max(1, level);
       }
     }),
     defineUpgrade({
@@ -132,15 +132,15 @@
       category: "active",
       upgradeType: "active",
       subCategory: "dps",
-      maxLevel: 1,
+      maxLevel: 3,
       baseWeight: 3,
       minLevel: 3,
       tags: ["close-range", "unlock", "rare"],
-      name: "Unlock Nova Pulse",
-      desc: "Gain Nova Pulse, a close-range emergency shockwave for clearing pressure.",
-      requires: (S) => !S.activeSkillState.ownedSkillIds.includes("nova_pulse"),
-      apply: () => {
+      name: "Nova Pulse",
+      desc: "Gain a 360-degree electromagnetic nova. Further levels expand the field and strengthen the lingering pulse.",
+      apply: (level) => {
         ActiveSkillSystem.unlockSkill("nova_pulse");
+        GameState.activeSkillState.levels.nova_pulse = Math.max(1, Math.min(3, level));
       }
     }),
     defineUpgrade({
@@ -551,7 +551,7 @@
       minLevel: 2,
       tags: ["control", "field", "slow", "unlock"],
       name: "Unlock Stasis Arc",
-      desc: "Gain Stasis Arc, a deployed forward half-ring field that slows enemies in the area. Further levels expand the field and deepen the slow.",
+      desc: "Gain Stasis Arc, a deployed stasis field that slows enemies in the area. Further levels expand the field and deepen the slow.",
       apply: (level) => {
         ActiveSkillSystem.unlockSkill("stasis_arc");
         GameState.activeSkillState.levels.stasis_arc = Math.max(1, level);

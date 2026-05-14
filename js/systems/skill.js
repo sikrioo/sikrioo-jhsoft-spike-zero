@@ -122,6 +122,9 @@ window.SkillSystem = (() => {
     if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetTrapPrisms === "function") {
       ActiveSkillSystem.resetTrapPrisms();
     }
+    if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetNovaPulses === "function") {
+      ActiveSkillSystem.resetNovaPulses();
+    }
     if (window.ActiveSkillSystem && typeof ActiveSkillSystem.resetRepulsorFields === "function") {
       ActiveSkillSystem.resetRepulsorFields();
     }
@@ -150,6 +153,7 @@ window.SkillSystem = (() => {
     S.activeSkillState.deployTurrets = [];
     S.activeSkillState.swarmDrones = [];
     S.activeSkillState.trapPrisms = [];
+    S.activeSkillState.novaPulses = [];
     S.activeSkillState.repulsorFields = [];
     S.activeSkillState.stasisArcFields = [];
     S.activeSkillState.recallBoostT = 0;

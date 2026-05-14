@@ -151,6 +151,7 @@ window.GameState = {
     deployTurrets: [],
     swarmDrones: [],
     trapPrisms: [],
+    novaPulses: [],
     repulsorFields: [],
     stasisArcFields: [],
     recallBoostT: 0,

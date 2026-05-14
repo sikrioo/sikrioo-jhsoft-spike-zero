@@ -962,6 +962,8 @@ window.CombatSystem = (() => {
     const S = GameState;
     const blastRadius = options.blastRadius || m.blastRadius || 0;
     const splashMultiplier = options.splashMultiplier || 0.55;
+    const isCrossfire = m.pattern === "crossfire";
+    const isOmniBurst = m.pattern === "omni_burst";
 
     if (blastRadius > 0){
       const radiusSq = blastRadius * blastRadius;
@@ -974,10 +976,68 @@ window.CombatSystem = (() => {
         const directMul = enemy === options.directTarget ? 1 : splashMultiplier;
         damageEnemy(enemy, Math.max(1, m.dmg * directMul), m.color || 0xffb347, enemy.tier === "boss" ? 18 : 10, 1.05, hitCircle);
       }
-      Effects.emitPulse(m.x, m.y, m.color || 0xffb347, blastRadius, options.pulseLife || 20);
+      Effects.emitPulse(
+        m.x,
+        m.y,
+        m.color || 0xffb347,
+        blastRadius,
+        options.pulseLife || (isOmniBurst ? 36 : isCrossfire ? 28 : 20)
+      );
     }
 
-    Effects.emitParticle(m.x, m.y, m.color || 0xffb347, options.heavy ? 22 : 14, options.heavy ? 1.8 : 1.25);
+    Effects.emitParticle(
+      m.x,
+      m.y,
+      m.color || 0xffb347,
+      options.heavy ? 22 : (isOmniBurst ? 18 : isCrossfire ? 16 : 14),
+      options.heavy ? 1.8 : (isOmniBurst ? 1.45 : isCrossfire ? 1.35 : 1.25)
+    );
+    if (isCrossfire) {
+      for (let j = 0; j < 2; j++) {
+        const spark = Effects.makeTrailSprite(
+          m.x + Helpers.rand(-6, 6),
+          m.y + Helpers.rand(-6, 6),
+          m.color || 0xffb347,
+          Helpers.rand(0.28, 0.4),
+          0.2,
+          { kind: "linear" }
+        );
+        spark.rotation = Helpers.rand(0, Math.PI * 2);
+        S.fx.addChild(spark);
+        S.particles.push({
+          spr: spark,
+          x: spark.x,
+          y: spark.y,
+          vx: Helpers.rand(-0.08, 0.08),
+          vy: Helpers.rand(-0.08, 0.08),
+          life: Helpers.randi(10, 16),
+          drag: 0.9
+        });
+      }
+    }
+    if (isOmniBurst) {
+      for (let j = 0; j < 3; j++) {
+        const spark = Effects.makeTrailSprite(
+          m.x + Helpers.rand(-8, 8),
+          m.y + Helpers.rand(-8, 8),
+          m.color || 0xffb347,
+          Helpers.rand(0.32, 0.46),
+          0.24,
+          { kind: "linear" }
+        );
+        spark.rotation = Helpers.rand(0, Math.PI * 2);
+        S.fx.addChild(spark);
+        S.particles.push({
+          spr: spark,
+          x: spark.x,
+          y: spark.y,
+          vx: Helpers.rand(-0.12, 0.12),
+          vy: Helpers.rand(-0.12, 0.12),
+          life: Helpers.randi(14, 22),
+          drag: 0.9
+        });
+      }
+    }
     destroyProjectile(S.missiles, index);
   }
 
