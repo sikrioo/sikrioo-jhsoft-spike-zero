@@ -257,6 +257,70 @@ canvas{
   font-size:14px;
   letter-spacing:.4px;
 }
+.movementDebugHud{
+  position:fixed;
+  left:14px;
+  bottom:14px;
+  z-index:19;
+  width:min(320px, calc(100vw - 28px));
+  padding:10px 12px;
+  border-radius:14px;
+  background:linear-gradient(180deg, rgba(8,12,24,.9), rgba(5,8,18,.94));
+  border:1px solid rgba(120,180,255,.14);
+  box-shadow:0 0 18px rgba(50,246,255,.06), inset 0 1px 0 rgba(255,255,255,.04);
+  color:#eaf2ff;
+  user-select:text;
+  pointer-events:auto;
+  backdrop-filter:blur(10px);
+}
+.movementDebugTitle{
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:1.2px;
+  text-transform:uppercase;
+  opacity:.72;
+}
+.movementDebugHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.movementDebugActions{
+  display:flex;
+  gap:6px;
+}
+.movementDebugBtn{
+  border:none;
+  border-radius:999px;
+  padding:4px 9px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.10);
+  color:#eef4ff;
+  font:10px/1.2 ui-sans-serif,system-ui,sans-serif;
+  font-weight:700;
+  cursor:pointer;
+}
+.movementDebugBtn:hover{
+  border-color:rgba(50,246,255,.34);
+  background:rgba(50,246,255,.08);
+}
+.movementDebugBody{
+  margin:8px 0 0;
+  white-space:pre-wrap;
+  font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;
+  color:#cfe7ff;
+}
+.movementDebugLog{
+  margin:8px 0 0;
+  max-height:160px;
+  overflow:auto;
+  white-space:pre-wrap;
+  font:10px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;
+  color:#9fc8ee;
+  border-top:1px solid rgba(255,255,255,.08);
+  padding-top:8px;
+}
 .pill{
   display:inline-flex; align-items:center; gap:8px;
   padding:8px 11px; border-radius:13px;

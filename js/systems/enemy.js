@@ -573,10 +573,14 @@ window.EnemySystem = (() => {
     const nx = dx / dist;
     const ny = dy / dist;
     const pushOut = rr - dist + 1;
-    player.spr.x += nx * pushOut;
-    player.spr.y += ny * pushOut;
-    player.vx += nx * 1.8;
-    player.vy += ny * 1.8;
+    const pushSpeed = Math.min(3.2, 0.8 + pushOut * 0.14);
+    player.vx += nx * pushSpeed;
+    player.vy += ny * pushSpeed;
+    if (GameState.debugMovement) {
+      GameState.debugMovement.externalMoveDx = nx * pushOut;
+      GameState.debugMovement.externalMoveDy = ny * pushOut;
+      GameState.debugMovement.externalMoveSource = `satellite:${enemy.id || "contact"}`;
+    }
   }
 
   function updateSatelliteEnemy(enemy, target, dt) {

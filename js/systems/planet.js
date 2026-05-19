@@ -253,9 +253,9 @@ window.PlanetSystem = (() => {
     for (const config of configs) {
       const planet = {
         ...config,
-        collision: true,
+        collision: false,
         blocksBullet: true,
-        blocksShip: true,
+        blocksShip: false,
         damageOnContact: false,
         gravity: false,
         spr: null,
@@ -284,9 +284,9 @@ window.PlanetSystem = (() => {
       return {
         ...data,
         radius,
-        collision: true,
+        collision: false,
         blocksBullet: true,
-        blocksShip: true,
+        blocksShip: false,
         damageOnContact: false,
         gravity: false,
         spr: null,
@@ -365,11 +365,20 @@ window.PlanetSystem = (() => {
     }
 
     if (moved) {
+      const movedDx = nextX - x;
+      const movedDy = nextY - y;
       if (entity.x != null) entity.x = nextX;
       if (entity.y != null) entity.y = nextY;
       if (entity.spr) {
         entity.spr.x = nextX;
         entity.spr.y = nextY;
+      }
+      if (entity === S.player && S.debugMovement) {
+        S.debugMovement.externalMoveDx = movedDx;
+        S.debugMovement.externalMoveDy = movedDy;
+        S.debugMovement.externalMoveSource = damagingPlanet
+          ? `planet:${damagingPlanet.id || "contact"}`
+          : "planet:collision";
       }
     }
     if (

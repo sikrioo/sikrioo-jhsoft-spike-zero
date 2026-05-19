@@ -5,6 +5,7 @@ window.CombatSystem = (() => {
     { range: 140, targetCount: 2, damageMultiplier: 1.1, falloffRates: [1.0, 0.8, 0.5], bossTargetCap: 1, bossDamageMul: 0.75 },
     { range: 140, targetCount: 3, damageMultiplier: 1.2, falloffRates: [1.0, 0.8, 0.5], bossTargetCap: 2, bossDamageMul: 0.72 }
   ];
+  let autoAimLock = null;
 
   function getWeaponDef(){
     return WEAPON_DEFINITIONS[GameState.weaponState.current];
@@ -79,20 +80,56 @@ window.CombatSystem = (() => {
     return value;
   }
 
+  function isAutoAimLockValid(lock, originX, originY, baseAngle, maxRangeSq) {
+    if (!lock || !lock.enemy || !GameState.enemies.includes(lock.enemy) || lock.expiresAt <= performance.now()) return false;
+    const hitCircles = getEnemyHitCircles(lock.enemy);
+    for (const circle of hitCircles) {
+      const dx = circle.x - originX;
+      const dy = circle.y - originY;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > maxRangeSq) continue;
+      if (
+        window.PlanetSystem &&
+        PlanetSystem.blocksLineOfSight &&
+        PlanetSystem.blocksLineOfSight(originX, originY, circle.x, circle.y, circle.radius * 0.2)
+      ) {
+        continue;
+      }
+      const angle = Math.atan2(dy, dx);
+      const angleDelta = Math.abs(normalizeAngleDelta(angle - baseAngle));
+      if (angleDelta > Math.PI * 0.68 && distSq > 140 * 140) continue;
+      return true;
+    }
+    return false;
+  }
+
+  function makeAutoAimCandidate(enemy, circle, angle, distance, score, mode) {
+    return {
+      mode,
+      enemy,
+      x: circle.x,
+      y: circle.y,
+      angle,
+      distance,
+      score
+    };
+  }
+
   function getAutoAimTarget(originX, originY, baseAngle) {
     const S = GameState;
     if (!S.autoAim || !S.enemies.length) return null;
 
     const view = Helpers.getViewBounds();
-    const maxRange = 360;
+    const maxRange = 460;
     const maxRangeSq = maxRange * maxRange;
-    const fallbackRange = 240;
+    const fallbackRange = 320;
     const fallbackRangeSq = fallbackRange * fallbackRange;
-    const maxAngleDelta = Math.PI * 0.42;
+    const maxAngleDelta = Math.PI * 0.56;
     let bestTarget = null;
     let bestScore = -Infinity;
     let fallbackTarget = null;
     let fallbackScore = -Infinity;
+    const lockActive = isAutoAimLockValid(autoAimLock, originX, originY, baseAngle, maxRangeSq);
 
     for (const enemy of S.enemies) {
       if (!enemy) continue;
@@ -117,22 +154,27 @@ window.CombatSystem = (() => {
 
         const dist = Math.sqrt(distSq) || 1;
         const distanceBias = 1 - Helpers.clamp(dist / maxRange, 0, 1);
+        const closeBias = 1 - Helpers.clamp(dist / 220, 0, 1);
+        const sizeBias = Helpers.clamp(circle.radius / 30, 0, 0.18);
+        const stickyBias = lockActive && autoAimLock.enemy === enemy ? 0.22 : 0;
+        const priorityBias = enemy.targetPaintT > 0 ? 0.12 : 0;
 
         if (distSq <= fallbackRangeSq) {
           const fallbackAngle = Math.atan2(dy, dx);
           const fallbackAngleDelta = Math.abs(normalizeAngleDelta(fallbackAngle - baseAngle));
-          const fallbackScoreNow = distanceBias * 0.8 + Math.cos(Math.min(Math.PI, fallbackAngleDelta)) * 0.2;
+          const fallbackLineOffset = Math.abs(Math.sin(fallbackAngleDelta)) * dist;
+          const fallbackLineBias = 1 - Helpers.clamp(fallbackLineOffset / 120, 0, 1);
+          const fallbackForwardBias = Math.cos(Math.min(Math.PI, fallbackAngleDelta));
+          const fallbackScoreNow =
+            fallbackLineBias * 0.34 +
+            distanceBias * 0.28 +
+            closeBias * 0.26 +
+            fallbackForwardBias * 0.12 +
+            priorityBias +
+            stickyBias * 0.8;
           if (fallbackScoreNow > fallbackScore) {
             fallbackScore = fallbackScoreNow;
-            fallbackTarget = {
-              mode: "fallback",
-              enemy,
-              x: circle.x,
-              y: circle.y,
-              angle: fallbackAngle,
-              distance: dist,
-              score: fallbackScoreNow
-            };
+            fallbackTarget = makeAutoAimCandidate(enemy, circle, fallbackAngle, dist, fallbackScoreNow, "fallback");
           }
         }
 
@@ -141,23 +183,33 @@ window.CombatSystem = (() => {
         const absAngleDelta = Math.abs(angleDelta);
         if (absAngleDelta > maxAngleDelta) continue;
         const forwardBias = Math.cos(absAngleDelta);
-        const score = forwardBias * 0.62 + distanceBias * 0.38;
+        const lineOffset = Math.abs(Math.sin(absAngleDelta)) * dist;
+        const lineBias = 1 - Helpers.clamp(lineOffset / 110, 0, 1);
+        const score =
+          forwardBias * 0.24 +
+          lineBias * 0.4 +
+          distanceBias * 0.18 +
+          closeBias * 0.26 +
+          sizeBias +
+          priorityBias +
+          stickyBias;
         if (score <= bestScore) continue;
 
         bestScore = score;
-        bestTarget = {
-          mode: "front",
-          enemy,
-          x: circle.x,
-          y: circle.y,
-          angle: angleToTarget,
-          distance: dist,
-          score
-        };
+        bestTarget = makeAutoAimCandidate(enemy, circle, angleToTarget, dist, score, "front");
       }
     }
 
-    return bestTarget || fallbackTarget;
+    const chosen = bestTarget || fallbackTarget;
+    if (chosen) {
+      autoAimLock = {
+        enemy: chosen.enemy,
+        expiresAt: performance.now() + (chosen.mode === "front" ? 180 : 120)
+      };
+    } else if (autoAimLock && autoAimLock.expiresAt <= performance.now()) {
+      autoAimLock = null;
+    }
+    return chosen;
   }
 
   function applyAutoAim(originX, originY, baseAngle, options = {}) {
@@ -168,13 +220,16 @@ window.CombatSystem = (() => {
 
     const angleDelta = normalizeAngleDelta(target.angle - baseAngle);
     if (target.mode === "fallback") {
-      const fallbackTurn = Math.min(1, options.fallbackTurnStrength || 1);
+      const closeFactor = 1 - Helpers.clamp(target.distance / 260, 0, 1);
+      const fallbackTurn = Math.min(1, (options.fallbackTurnStrength || 0.78) + closeFactor * 0.18);
       return baseAngle + angleDelta * fallbackTurn;
     }
 
-    const maxStrength = Math.min(0.4, options.maxStrength || 0.36);
-    const distanceFactor = 1 - Helpers.clamp(target.distance / 360, 0, 1);
-    const assistStrength = maxStrength * (0.45 + distanceFactor * 0.55);
+    const baseStrength = Math.min(0.72, options.maxStrength || 0.36);
+    const distanceFactor = 1 - Helpers.clamp(target.distance / 420, 0, 1);
+    const closeFactor = 1 - Helpers.clamp(target.distance / 220, 0, 1);
+    const angleFactor = 1 - Helpers.clamp(Math.abs(angleDelta) / (Math.PI * 0.56), 0, 1);
+    const assistStrength = Math.min(0.82, baseStrength * (0.82 + distanceFactor * 0.26 + angleFactor * 0.18) + closeFactor * 0.24);
     return baseAngle + angleDelta * assistStrength;
   }
 

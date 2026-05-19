@@ -366,7 +366,9 @@ window.PlayerFactory = (() => {
   // ══════════════════════════════════════════════════════════
   function makePlayer(shipType = "standard") {
     const S = GameState;
+    const root = new PIXI.Container();
     const c = new PIXI.Container();
+    root.addChild(c);
 
     const builders = {
       standard: buildStandard,
@@ -387,13 +389,14 @@ window.PlayerFactory = (() => {
     const afterburnerSpr = makeAfterburnerOverlay();
     c.addChildAt(afterburnerSpr, 0);
 
-    c.x = S.app.renderer.width  / 2;
-    c.y = S.app.renderer.height / 2;
-    S.uiLayer.addChild(c);
+    root.x = S.app.renderer.width  / 2;
+    root.y = S.app.renderer.height / 2;
+    S.uiLayer.addChild(root);
 
     return {
       type:      "player",
-      spr:       c,
+      spr:       root,
+      visualSpr: c,
       shieldSpr: shield,
       afterburnerSpr,
       engineFlareSpr: engineFlare,

@@ -172,5 +172,36 @@ window.GameState = {
     open: false
   },
 
+  debugMovement: {
+    mode: "keyboard",
+    keys: [],
+    focus: true,
+    activeElement: "",
+    ax: 0,
+    ay: 0,
+    vx: 0,
+    vy: 0,
+    moveSpeed: 0,
+    x: 0,
+    y: 0,
+    screenX: 0,
+    screenY: 0,
+    mouseX: 0,
+    mouseY: 0,
+    cameraX: 0,
+    cameraY: 0,
+    angleDeg: 0,
+    hasMoveInput: false,
+    directKeyboardMove: false,
+    stalledFor: 0,
+    externalMoveDx: 0,
+    externalMoveDy: 0,
+    externalMoveSource: "",
+    note: "",
+    lastKeydown: "",
+    lastKeyup: "",
+    logLines: []
+  },
+
   shake: 0
 };

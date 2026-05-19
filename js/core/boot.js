@@ -8,9 +8,68 @@ window.Boot = (() => {
     if (node && node.parent) node.parent.removeChild(node);
   }
 
-  function resetInputState() {
-    S.keys.clear();
+  function appendMoveDebugLog(line) {
+    if (!S.debugMovement) return;
+    S.debugMovement.logLines.push(line);
+    if (S.debugMovement.logLines.length > 120) S.debugMovement.logLines.shift();
+  }
+
+  function normalizeAngleDelta(delta) {
+    let value = delta;
+    while (value > Math.PI) value -= Math.PI * 2;
+    while (value < -Math.PI) value += Math.PI * 2;
+    return value;
+  }
+
+  function getMoveDebugSnapshotSuffix() {
+    const player = S.player;
+    const x = player && player.spr ? Math.round(player.spr.x) : Math.round(Number(S.debugMovement?.x || 0));
+    const y = player && player.spr ? Math.round(player.spr.y) : Math.round(Number(S.debugMovement?.y || 0));
+    const screenX = player && player.spr
+      ? Math.round(player.spr.x + (S.world?.x || 0))
+      : Math.round(Number(S.debugMovement?.screenX || 0));
+    const screenY = player && player.spr
+      ? Math.round(player.spr.y + (S.world?.y || 0))
+      : Math.round(Number(S.debugMovement?.screenY || 0));
+    const cameraX = Math.round(Number(S.camera?.x || S.debugMovement?.cameraX || 0));
+    const cameraY = Math.round(Number(S.camera?.y || S.debugMovement?.cameraY || 0));
+    const mx = Math.round(Number(S.mouse?.x || S.debugMovement?.mouseX || 0));
+    const my = Math.round(Number(S.mouse?.y || S.debugMovement?.mouseY || 0));
+    const angle = player && player.spr
+      ? Math.round((((player.spr.rotation - Math.PI / 2) * 180 / Math.PI) + 360) % 360)
+      : Math.round(Number(S.debugMovement?.angleDeg || 0));
+    return ` | pos:${x},${y} | screen:${screenX},${screenY} | cam:${cameraX},${cameraY} | mouse:${mx},${my} | angle:${angle}`;
+  }
+
+  function isEditableElement(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = (el.tagName || "").toUpperCase();
+    if (tag === "TEXTAREA") return true;
+    if (tag !== "INPUT") return false;
+    const type = String(el.type || "text").toLowerCase();
+    return !["button", "checkbox", "radio", "range", "submit", "reset"].includes(type);
+  }
+
+  function refocusGameView(reason = "refocus") {
+    const active = document.activeElement;
+    if (!active || active === document.body || active === S.app?.view) return;
+    if (isEditableElement(active)) return;
+    if (typeof active.blur === "function") active.blur();
+    if (S.app && S.app.view && typeof S.app.view.focus === "function") {
+      S.app.view.focus({ preventScroll: true });
+    }
+    appendMoveDebugLog(`[FOCUS] ${reason} | from:${active.id || active.tagName || "-"} -> game${getMoveDebugSnapshotSuffix()}`);
+  }
+
+  function resetInputState(reason = "reset", options = {}) {
+    const preserveKeys = !!options.preserveKeys;
+    if (!preserveKeys) S.keys.clear();
     S.mouse.down = false;
+    if (S.debugMovement) {
+      S.debugMovement.note = preserveKeys ? `pointer reset (${reason})` : `input reset (${reason})`;
+      appendMoveDebugLog(`[RESET] ${reason} | keys:${preserveKeys ? "keep" : "clear"} | focus:${document.hasFocus() ? "Y" : "N"}${getMoveDebugSnapshotSuffix()}`);
+    }
   }
 
   function clearCombatState(options = {}) {
@@ -352,41 +411,6 @@ window.Boot = (() => {
     S.camera.y = h * 0.5;
   }
 
-  function updateMouseWorldCoordinates() {
-    const screenX = S.mouse.screenX != null ? S.mouse.screenX : (S.app.renderer.width * 0.5);
-    const screenY = S.mouse.screenY != null ? S.mouse.screenY : (S.app.renderer.height * 0.5);
-    const worldPoint = Helpers.screenToWorld(screenX, screenY);
-    S.mouse.x = worldPoint.x;
-    S.mouse.y = worldPoint.y;
-  }
-
-  function updateCameraTransform(dt = 1) {
-    const w = S.app.renderer.width;
-    const h = S.app.renderer.height;
-    const player = S.player;
-    const arena = Helpers.getArenaBounds();
-    if (!player) {
-      S.world.x = 0;
-      S.world.y = 0;
-      return;
-    }
-
-    const minCameraX = arena.left + w * 0.5;
-    const maxCameraX = arena.right - w * 0.5;
-    const minCameraY = arena.top + h * 0.5;
-    const maxCameraY = arena.bottom - h * 0.5;
-    const desiredX = Helpers.clamp(player.spr.x, minCameraX, maxCameraX);
-    const desiredY = Helpers.clamp(player.spr.y, minCameraY, maxCameraY);
-
-    S.camera.x = Helpers.lerp(S.camera.x || desiredX, desiredX, Math.min(1, 0.1 * dt));
-    S.camera.y = Helpers.lerp(S.camera.y || desiredY, desiredY, Math.min(1, 0.1 * dt));
-
-    const shakeX = S.shake > 0.01 ? Helpers.rand(-S.shake, S.shake) : 0;
-    const shakeY = S.shake > 0.01 ? Helpers.rand(-S.shake, S.shake) : 0;
-    S.world.x = Math.round((w * 0.5) - S.camera.x + shakeX);
-    S.world.y = Math.round((h * 0.5) - S.camera.y + shakeY);
-  }
-
   function resetAll(options=false){
     const testMode = typeof options === "boolean" ? options : !!options.testMode;
     const practiceMode = typeof options === "object" && options
@@ -527,8 +551,8 @@ window.Boot = (() => {
       S.player.spr.x = S.app.renderer.width * 0.5;
       S.player.spr.y = S.app.renderer.height * 0.5;
     }
-    updateMouseWorldCoordinates();
-    updateCameraTransform();
+    CameraSystem.updateMouseWorldCoordinates();
+    CameraSystem.updateCameraTransform();
     CombatSystem.applyStartingWeaponLoadout(testMode);
     CombatSystem.syncWeaponStats();
     ActiveSkillSystem.assignStartingLoadout(testMode);
@@ -582,6 +606,9 @@ window.Boot = (() => {
 
   function bindInput(){
     window.addEventListener("keydown", (e)=>{
+      if (/^Key[WASD]$|^Arrow(Up|Down|Left|Right)$/.test(e.code)) {
+        refocusGameView(`move ${e.code}`);
+      }
       if (window.SoundSystem) SoundSystem.prime();
       if (window.BgmSystem) BgmSystem.prime();
       if (
@@ -606,6 +633,15 @@ window.Boot = (() => {
         return;
       }
       S.keys.add(e.code);
+      if (S.debugMovement) {
+        S.debugMovement.lastKeydown = `${e.code}${e.repeat ? " (r)" : ""}`;
+        S.debugMovement.lastKeydownCode = e.code;
+        S.debugMovement.lastKeydownAt = performance.now();
+        S.debugMovement.focus = document.hasFocus();
+        S.debugMovement.activeElement = document.activeElement ? (document.activeElement.id || document.activeElement.tagName || "") : "";
+        const line = `[KD] ${e.code}${e.repeat ? " (r)" : ""} | focus:${S.debugMovement.focus ? "Y" : "N"} | active:${S.debugMovement.activeElement || "-"}${getMoveDebugSnapshotSuffix()}`;
+        appendMoveDebugLog(line);
+      }
       if (e.code === "KeyC") {
         if (window.ActiveSkillSystem && ActiveSkillSystem.cycleBoostDirection && ActiveSkillSystem.cycleBoostDirection()) {
           e.preventDefault();
@@ -620,23 +656,38 @@ window.Boot = (() => {
       ActiveSkillSystem.tryUseSlotByKey(e.code);
     }, { passive:false });
 
-    window.addEventListener("keyup", (e)=>S.keys.delete(e.code));
-    window.addEventListener("blur", resetInputState);
-    window.addEventListener("pointercancel", resetInputState);
+    window.addEventListener("keyup", (e)=>{
+      S.keys.delete(e.code);
+      if (S.debugMovement) {
+        S.debugMovement.lastKeyup = e.code;
+        S.debugMovement.lastKeyupCode = e.code;
+        S.debugMovement.lastKeyupAt = performance.now();
+        S.debugMovement.focus = document.hasFocus();
+        S.debugMovement.activeElement = document.activeElement ? (document.activeElement.id || document.activeElement.tagName || "") : "";
+        const line = `[KU] ${e.code} | focus:${S.debugMovement.focus ? "Y" : "N"} | active:${S.debugMovement.activeElement || "-"}${getMoveDebugSnapshotSuffix()}`;
+        appendMoveDebugLog(line);
+      }
+    });
+    window.addEventListener("blur", () => resetInputState("window blur"));
+    window.addEventListener("pointercancel", () => resetInputState("pointercancel", { preserveKeys: true }));
     document.addEventListener("visibilitychange", () => {
-      if (document.hidden) resetInputState();
+      if (document.hidden) resetInputState("visibility hidden");
     });
 
     S.app.view.addEventListener("pointermove", (e)=>{
       const rect = S.app.view.getBoundingClientRect();
       S.mouse.screenX = (e.clientX - rect.left) * (S.app.renderer.width / rect.width);
       S.mouse.screenY = (e.clientY - rect.top) * (S.app.renderer.height / rect.height);
-      updateMouseWorldCoordinates();
+      CameraSystem.updateMouseWorldCoordinates();
     });
 
     S.app.view.addEventListener("pointerdown", ()=>{
       if (window.SoundSystem) SoundSystem.prime();
       if (window.BgmSystem) BgmSystem.prime();
+      refocusGameView("pointerdown");
+      if (typeof S.app.view.focus === "function") {
+        S.app.view.focus({ preventScroll: true });
+      }
       S.mouse.down = true;
     });
     window.addEventListener("pointerup", ()=>{ S.mouse.down = false; });
@@ -656,8 +707,8 @@ window.Boot = (() => {
       S.player.spr.x = Helpers.clamp(S.player.spr.x, arena.left + 20, arena.right - 20);
       S.player.spr.y = Helpers.clamp(S.player.spr.y, arena.top + 20, arena.bottom - 20);
     }
-    updateMouseWorldCoordinates();
-    updateCameraTransform();
+    CameraSystem.updateMouseWorldCoordinates();
+    CameraSystem.updateCameraTransform();
     BackgroundRenderer.drawBackground();
     if (window.StageAtmosphere) StageAtmosphere.resize();
   }
@@ -708,6 +759,11 @@ window.Boot = (() => {
 
   function updatePlayer(dt){
     const p = S.player;
+    if (S.debugMovement) {
+      S.debugMovement.externalMoveDx = 0;
+      S.debugMovement.externalMoveDy = 0;
+      S.debugMovement.externalMoveSource = "";
+    }
 
     if (p.fireCd > 0) p.fireCd -= dt;
     if (p.inv > 0) p.inv -= dt;
@@ -727,7 +783,13 @@ window.Boot = (() => {
       const dx = S.mouse.x - p.spr.x;
       const dy = S.mouse.y - p.spr.y;
       const dist = Math.hypot(dx, dy);
-      const deadzone = 18;
+      const arena = Helpers.getArenaBounds();
+      const nearWall =
+        p.spr.x <= arena.left + 60 ||
+        p.spr.x >= arena.right - 60 ||
+        p.spr.y <= arena.top + 60 ||
+        p.spr.y >= arena.bottom - 60;
+      const deadzone = nearWall ? 0 : 18;
       const fullSpeedRadius = 170;
       if (dist > deadzone) {
         const nx = dx / dist;
@@ -757,6 +819,8 @@ window.Boot = (() => {
       ? afterburnerSkill.effectData.speedMultiplier
       : 1;
     const accel = S.stats.speed * afterburnerBoost * 0.9;
+    const hasMoveInput = Math.abs(ax) > 0.001 || Math.abs(ay) > 0.001;
+    const directKeyboardMove = false;
     p.vx = Helpers.lerp(p.vx, ax * accel, 0.18);
     p.vy = Helpers.lerp(p.vy, ay * accel, 0.18);
     if (S.activeSkillState.boostT > 0){
@@ -768,15 +832,114 @@ window.Boot = (() => {
     p.spr.y += p.vy * dt;
 
     const arena = Helpers.getArenaBounds();
-    p.spr.x = Helpers.clamp(p.spr.x, arena.left + 20, arena.right - 20);
-    p.spr.y = Helpers.clamp(p.spr.y, arena.top + 20, arena.bottom - 20);
+    const minX = arena.left + 20;
+    const maxX = arena.right - 20;
+    const minY = arena.top + 20;
+    const maxY = arena.bottom - 20;
+    const clampedX = Helpers.clamp(p.spr.x, minX, maxX);
+    const clampedY = Helpers.clamp(p.spr.y, minY, maxY);
+    const hitLeft = clampedX !== p.spr.x && clampedX === minX;
+    const hitRight = clampedX !== p.spr.x && clampedX === maxX;
+    const hitTop = clampedY !== p.spr.y && clampedY === minY;
+    const hitBottom = clampedY !== p.spr.y && clampedY === maxY;
+    p.spr.x = clampedX;
+    p.spr.y = clampedY;
+    if ((hitLeft && p.vx < 0) || (hitRight && p.vx > 0)) p.vx = ax * accel;
+    if ((hitTop && p.vy < 0) || (hitBottom && p.vy > 0)) p.vy = ay * accel;
+    if (S.debugMovement && (hitLeft || hitRight || hitTop || hitBottom)) {
+      const edges = [
+        hitLeft ? "left" : null,
+        hitRight ? "right" : null,
+        hitTop ? "top" : null,
+        hitBottom ? "bottom" : null
+      ].filter(Boolean).join(",");
+      S.debugMovement.note = `arena clamp ${edges}`;
+    }
     if (window.PlanetSystem) PlanetSystem.resolveShipCollision(p, p.r);
 
     const ang = window.CombatSystem && CombatSystem.getPlayerAimAngle
       ? CombatSystem.getPlayerAimAngle({ maxStrength: 0.36 })
       : Math.atan2(S.mouse.y - p.spr.y, S.mouse.x - p.spr.x);
     const now = performance.now();
+    const moveSpeed = Math.hypot(p.vx, p.vy);
+    const stallActive = hasMoveInput && moveSpeed < Math.max(0.6, accel * 0.12);
+    S.debugMovement.mode = S.movementMode || "keyboard";
+    S.debugMovement.keys = Array.from(S.keys.values()).filter((code) => /^Key[WASD]$|^Arrow(Up|Down|Left|Right)$/.test(code));
+    S.debugMovement.focus = document.hasFocus();
+    S.debugMovement.activeElement = document.activeElement ? (document.activeElement.id || document.activeElement.tagName || "") : "";
+    S.debugMovement.ax = ax;
+    S.debugMovement.ay = ay;
+    S.debugMovement.vx = p.vx;
+    S.debugMovement.vy = p.vy;
+    S.debugMovement.moveSpeed = moveSpeed;
+    S.debugMovement.x = p.spr.x;
+    S.debugMovement.y = p.spr.y;
+    S.debugMovement.screenX = p.spr.x + (S.world?.x || 0);
+    S.debugMovement.screenY = p.spr.y + (S.world?.y || 0);
+    S.debugMovement.mouseX = S.mouse.x;
+    S.debugMovement.mouseY = S.mouse.y;
+    S.debugMovement.cameraX = S.camera?.x || 0;
+    S.debugMovement.cameraY = S.camera?.y || 0;
+    S.debugMovement.angleDeg = ((ang * 180 / Math.PI) + 360) % 360;
+    S.debugMovement.hasMoveInput = hasMoveInput;
+    S.debugMovement.directKeyboardMove = directKeyboardMove;
+    S.debugMovement.externalMoveDx = Number(S.debugMovement.externalMoveDx || 0);
+    S.debugMovement.externalMoveDy = Number(S.debugMovement.externalMoveDy || 0);
+    if (S.debugMovement.keys.length > 0) {
+      S.debugMovement.lastMoveKeySeenAt = now;
+    }
+    S.debugMovement.stalledFor = stallActive ? ((S.debugMovement.stalledFor || 0) + (dt / 60)) : 0;
+    S.debugMovement.note = S.debugMovement.externalMoveSource
+      ? `external ${S.debugMovement.externalMoveSource}`
+      : (stallActive ? "input active but speed low" : (directKeyboardMove ? "keyboard direct" : "smoothed move"));
+    if (S.debugMovement.keys.length > 0 && (!S.debugMovement._lastHoldLogAt || now - S.debugMovement._lastHoldLogAt >= 220)) {
+      S.debugMovement._lastHoldLogAt = now;
+      appendMoveDebugLog(
+        `[HOLD] keys:${S.debugMovement.keys.join(",")} ax:${ax.toFixed(2)} ay:${ay.toFixed(2)} vx:${p.vx.toFixed(2)} vy:${p.vy.toFixed(2)}${getMoveDebugSnapshotSuffix()}`
+      );
+    }
+    const recentMoveKeydown = /^Key[WASD]$|^Arrow(Up|Down|Left|Right)$/.test(S.debugMovement.lastKeydownCode || "")
+      && now - Number(S.debugMovement.lastKeydownAt || 0) <= 180;
+    const noMatchingKeyupYet =
+      (S.debugMovement.lastKeyupAt || 0) < (S.debugMovement.lastKeydownAt || 0)
+      || S.debugMovement.lastKeyupCode !== S.debugMovement.lastKeydownCode;
+    if (
+      S.debugMovement.keys.length === 0 &&
+      recentMoveKeydown &&
+      noMatchingKeyupYet &&
+      (!S.debugMovement._lastDropLogAt || now - S.debugMovement._lastDropLogAt >= 250)
+    ) {
+      S.debugMovement._lastDropLogAt = now;
+      appendMoveDebugLog(
+        `[DROP?] recent:${S.debugMovement.lastKeydownCode} | no active keys before keyup${getMoveDebugSnapshotSuffix()}`
+      );
+    }
+    if (stallActive && (!S.debugMovement._lastLogAt || now - S.debugMovement._lastLogAt >= 400)) {
+      S.debugMovement._lastLogAt = now;
+      const external = S.debugMovement.externalMoveSource
+        ? ` ext:${S.debugMovement.externalMoveSource} dx:${S.debugMovement.externalMoveDx.toFixed(2)} dy:${S.debugMovement.externalMoveDy.toFixed(2)}`
+        : "";
+      const line = `[STALL ${Number(S.debugMovement.stalledFor || 0).toFixed(2)}s] keys:${S.debugMovement.keys.join(",") || "-"} ax:${ax.toFixed(2)} ay:${ay.toFixed(2)} vx:${p.vx.toFixed(2)} vy:${p.vy.toFixed(2)} spd:${moveSpeed.toFixed(2)} ang:${Math.round(S.debugMovement.angleDeg)} pos:${Math.round(p.spr.x)},${Math.round(p.spr.y)} mouse:${Math.round(S.mouse.x)},${Math.round(S.mouse.y)}${external}`;
+      appendMoveDebugLog(line);
+      console.debug("[move-debug]", {
+        mode: S.debugMovement.mode,
+        keys: S.debugMovement.keys,
+        ax: Number(ax.toFixed(3)),
+        ay: Number(ay.toFixed(3)),
+        vx: Number(p.vx.toFixed(3)),
+        vy: Number(p.vy.toFixed(3)),
+        moveSpeed: Number(moveSpeed.toFixed(3)),
+        angleDeg: Math.round(S.debugMovement.angleDeg),
+        x: Math.round(p.spr.x),
+        y: Math.round(p.spr.y),
+        mouseX: Math.round(S.mouse.x),
+        mouseY: Math.round(S.mouse.y)
+      });
+    }
     p.spr.rotation = ang + Math.PI / 2;
+    if (p.visualSpr) {
+      p.visualSpr.rotation = Helpers.lerp(p.visualSpr.rotation || 0, 0, 0.22);
+    }
     p.spr.tint = afterburnerActive ? 0xffc087 : 0xffffff;
     if (p.afterburnerSpr) {
       p.afterburnerSpr.alpha = afterburnerActive ? 0.72 + Math.sin(now / 55) * 0.12 : 0;
@@ -785,7 +948,6 @@ window.Boot = (() => {
     }
     p.engineTrailT = Math.max(0, (p.engineTrailT || 0) - dt);
     p.idleWakeT = Math.max(0, (p.idleWakeT || 0) - dt);
-    const moveSpeed = Math.hypot(p.vx, p.vy);
     const isMoving = moveSpeed > 0.35;
     p.idleT = (p.idleT || 0) + dt * (isMoving ? 0.08 : 0.18);
     const thrustRatio = Helpers.clamp(moveSpeed / Math.max(2, S.stats.speed * afterburnerBoost), 0, 1);
@@ -797,9 +959,9 @@ window.Boot = (() => {
       let flareScaleX = 0.88 + thrustRatio * 0.16;
       let flareScaleY = 0.84 + thrustRatio * 0.28;
       if (idleVisualActive) {
-        flareAlpha = 0.26 + idleWave2 * 0.05;
-        flareScaleX = 0.92 + idleWave * 0.02;
-        flareScaleY = 0.88 + idleWave2 * 0.035;
+        flareAlpha = 0.22 + idleWave2 * 0.025;
+        flareScaleX = 0.92;
+        flareScaleY = 0.88;
       }
       if (afterburnerActive) {
         flareAlpha = 0.62 + Math.sin(now / 60) * 0.1;
@@ -810,23 +972,23 @@ window.Boot = (() => {
       p.engineFlareSpr.scale.set(flareScaleX, flareScaleY);
     }
     if (p.haloSpr) {
-      const haloScale = 1 + (idleVisualActive ? idleWave * 0.008 : thrustRatio * 0.01);
+      const haloScale = 1 + (idleVisualActive ? 0 : thrustRatio * 0.01);
       const haloAlpha = 0.26 + thrustRatio * 0.08 + (idleVisualActive ? idleWave2 * 0.03 : 0);
       p.haloSpr.scale.set(haloScale, haloScale);
       p.haloSpr.alpha = Helpers.clamp(haloAlpha + (afterburnerActive ? 0.08 : 0), 0.18, 0.52);
     }
     if (p.targetRingSpr) {
-      p.targetRingSpr.rotation += (idleVisualActive ? 0.0052 : 0.0028) * dt;
-      const ringScale = 1 + (idleVisualActive ? idleWave2 * 0.007 : thrustRatio * 0.008);
+      p.targetRingSpr.rotation += (idleVisualActive ? 0 : 0.0028) * dt;
+      const ringScale = 1 + (idleVisualActive ? 0 : thrustRatio * 0.008);
       const ringAlpha = 0.22 + thrustRatio * 0.08 + Math.sin(now / 260 + p.idleT) * 0.04;
       p.targetRingSpr.scale.set(ringScale, ringScale);
       p.targetRingSpr.alpha = Helpers.clamp(ringAlpha, 0.14, 0.4);
     }
     if (p.accentRingSpr) {
-      p.accentRingSpr.rotation -= (idleVisualActive ? 0.0066 : 0.0038) * dt;
+      p.accentRingSpr.rotation -= (idleVisualActive ? 0 : 0.0038) * dt;
       const accentScale = afterburnerActive
         ? 1.08 + Math.sin(now / 85) * 0.04
-        : 0.99 + (idleVisualActive ? idleWave * 0.016 : thrustRatio * 0.03);
+        : 0.99 + (idleVisualActive ? 0 : thrustRatio * 0.03);
       const accentAlpha = 0.72 + (idleVisualActive ? idleWave2 * 0.04 : thrustRatio * 0.05) + (afterburnerActive ? 0.12 : 0);
       p.accentRingSpr.scale.set(accentScale, accentScale);
       p.accentRingSpr.alpha = Helpers.clamp(accentAlpha, 0.6, 1);
@@ -834,7 +996,7 @@ window.Boot = (() => {
     if (p.coreSpr) {
       const coreScale = afterburnerActive
         ? 1.16 + Math.sin(now / 72) * 0.08
-        : 1 + (idleVisualActive ? idleWave * 0.035 : thrustRatio * 0.04);
+        : 1 + (idleVisualActive ? 0 : thrustRatio * 0.04);
       const coreAlpha = 0.76 + (idleVisualActive ? idleWave2 * 0.05 : thrustRatio * 0.06) + (afterburnerActive ? 0.12 : 0);
       p.coreSpr.scale.set(coreScale, coreScale);
       p.coreSpr.alpha = Helpers.clamp(coreAlpha, 0.64, 1);
@@ -890,35 +1052,8 @@ window.Boot = (() => {
       });
       p.engineTrailT = afterburnerActive ? 1.1 : 1.6;
     }
-    if (idleVisualActive && p.idleWakeT <= 0 && S.particles.length < 180) {
-      const rearX = p.spr.x - Math.cos(ang) * 18;
-      const rearY = p.spr.y - Math.sin(ang) * 18;
-      const sideX = -Math.sin(ang);
-      const sideY = Math.cos(ang);
-      for (let i = 0; i < 2; i++) {
-        const side = i === 0 ? -1 : 1;
-        const drift = Helpers.rand(0.9, 2.2);
-        const puff = Effects.makeTrailSprite(
-          rearX + sideX * side * 3 + Helpers.rand(-0.8, 0.8),
-          rearY + sideY * side * 3 + Helpers.rand(-0.8, 0.8),
-          side === -1 ? 0xffdfcf : 0xbcecff,
-          Helpers.rand(0.16, 0.24),
-          0.14,
-          { kind: "linear" }
-        );
-        puff.rotation = ang + Math.PI + Helpers.rand(-0.18, 0.18);
-        S.fx.addChild(puff);
-        S.particles.push({
-          spr: puff,
-          x: puff.x,
-          y: puff.y,
-          vx: -Math.cos(ang) * drift * 0.08 + sideX * side * Helpers.rand(0.01, 0.03),
-          vy: -Math.sin(ang) * drift * 0.08 + sideY * side * Helpers.rand(0.01, 0.03),
-          life: Helpers.rand(9, 14),
-          drag: 0.92
-        });
-      }
-      p.idleWakeT = 5.5 + Math.random() * 2.5;
+    if (idleVisualActive && !hasMoveInput) {
+      p.idleWakeT = 12;
     }
     if (afterburnerActive && ((now | 0) % 2 === 0)) {
       const rearX = p.spr.x - Math.cos(ang) * 18;
@@ -1162,8 +1297,8 @@ window.Boot = (() => {
     } else {
       S.shake = 0;
     }
-    updateMouseWorldCoordinates();
-    updateCameraTransform(dt);
+    CameraSystem.updateMouseWorldCoordinates();
+    CameraSystem.updateCameraTransform(dt);
     if (window.StageAtmosphere) StageAtmosphere.update(dt);
 
     if (S.progression.waveState === "dying"){
@@ -1182,7 +1317,8 @@ window.Boot = (() => {
     updateProgress(dt);
     if (window.PlanetSystem && PlanetSystem.update) PlanetSystem.update(dt);
     updatePlayer(dt);
-    updateCameraTransform(dt);
+    CameraSystem.updateCameraTransform(dt);
+    CameraSystem.updateMouseWorldCoordinates();
     if (window.DefenseSystem) DefenseSystem.update(dt);
     CombatSystem.tryShoot();
     CombatSystem.tryShootMissiles();
@@ -1207,6 +1343,7 @@ window.Boot = (() => {
     });
 
     document.getElementById("wrap").appendChild(S.app.view);
+    S.app.view.tabIndex = 0;
     S.app.view.style.width = "100%";
     S.app.view.style.height = "100%";
     S.app.view.style.display = "block";

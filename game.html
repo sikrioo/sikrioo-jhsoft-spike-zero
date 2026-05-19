@@ -83,6 +83,18 @@
     <div><span>Score</span><strong id="hudScoreText">0</strong></div>
   </div>
 
+  <div class="movementDebugHud" id="movementDebugHud">
+    <div class="movementDebugHead">
+      <div class="movementDebugTitle">Move Debug</div>
+      <div class="movementDebugActions">
+        <button class="movementDebugBtn" id="btnCopyMoveDebug" type="button">Copy</button>
+        <button class="movementDebugBtn" id="btnClearMoveDebug" type="button">Clear</button>
+      </div>
+    </div>
+    <pre class="movementDebugBody" id="movementDebugBody">waiting...</pre>
+    <pre class="movementDebugLog" id="movementDebugLog">log waiting...</pre>
+  </div>
+
   <div class="activeHud" id="activeHud">
     <div class="activeSlot" data-key="KeyQ">
       <div class="slotTop"><span class="slotKey">Q</span><span class="slotCd">READY</span></div>
@@ -361,6 +373,7 @@
 
   <script src="./js/core/utils.js"></script>
   <script src="./js/core/state.js"></script>
+  <script src="./js/systems/camera.js"></script>
 
   <script src="./js/render/background.js"></script>
   <script src="./js/render/effects.js"></script>

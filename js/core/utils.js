@@ -17,26 +17,19 @@ window.Helpers = {
       height
     };
   },
-  getViewBounds: ()=>{
-    const renderer = GameState.app && GameState.app.renderer;
-    const w = renderer ? renderer.width : 0;
-    const h = renderer ? renderer.height : 0;
-    const camera = GameState.camera || {};
-    const cx = camera.x || w * 0.5;
-    const cy = camera.y || h * 0.5;
-    return {
-      left: cx - w * 0.5,
-      top: cy - h * 0.5,
-      right: cx + w * 0.5,
-      bottom: cy + h * 0.5,
-      width: w,
-      height: h,
-      centerX: cx,
-      centerY: cy
-    };
-  },
-  screenToWorld: (x, y)=>{
-    const view = window.Helpers.getViewBounds();
-    return { x: view.left + x, y: view.top + y };
-  }
+  getViewBounds: ()=> window.CameraSystem && CameraSystem.getViewBounds
+    ? CameraSystem.getViewBounds()
+    : {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        centerX: 0,
+        centerY: 0
+      },
+  screenToWorld: (x, y)=> window.CameraSystem && CameraSystem.screenToWorld
+    ? CameraSystem.screenToWorld(x, y)
+    : { x, y }
 };

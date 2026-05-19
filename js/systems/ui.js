@@ -28,6 +28,10 @@ window.UI = (() => {
   const afterburnerTime = document.getElementById("afterburnerTime");
   const hudTimeText = document.getElementById("hudTimeText");
   const hudScoreText = document.getElementById("hudScoreText");
+  const movementDebugBody = document.getElementById("movementDebugBody");
+  const movementDebugLog = document.getElementById("movementDebugLog");
+  const copyMoveDebugBtn = document.getElementById("btnCopyMoveDebug");
+  const clearMoveDebugBtn = document.getElementById("btnClearMoveDebug");
 
   const overlayRoot = document.getElementById("overlayRoot");
   const startCard = document.getElementById("startCard");
@@ -263,6 +267,30 @@ window.UI = (() => {
     if (bossSelect) bossSelect.style.display = isBossTest ? "block" : "none";
     const bossLabel = document.querySelector("label[for='bossSelect']");
     if (bossLabel) bossLabel.style.display = isBossTest ? "block" : "none";
+    if (movementDebugBody) {
+      const M = S.debugMovement || {};
+      movementDebugBody.textContent = [
+        `mode: ${M.mode || "-"}`,
+        `focus: ${M.focus ? "Y" : "N"} | active: ${M.activeElement || "-"}`,
+        `keys: ${(M.keys || []).join(" ") || "-"}`,
+        `last: down ${M.lastKeydown || "-"} | up ${M.lastKeyup || "-"}`,
+        `input: ax ${Number(M.ax || 0).toFixed(2)} ay ${Number(M.ay || 0).toFixed(2)} | has ${M.hasMoveInput ? "Y" : "N"}`,
+        `vel: vx ${Number(M.vx || 0).toFixed(2)} vy ${Number(M.vy || 0).toFixed(2)} | spd ${Number(M.moveSpeed || 0).toFixed(2)}`,
+        `pos: x ${Math.round(Number(M.x || 0))} y ${Math.round(Number(M.y || 0))}`,
+        `screen: x ${Math.round(Number(M.screenX || 0))} y ${Math.round(Number(M.screenY || 0))}`,
+        `camera: x ${Math.round(Number(M.cameraX || 0))} y ${Math.round(Number(M.cameraY || 0))}`,
+        `mouse: x ${Math.round(Number(M.mouseX || 0))} y ${Math.round(Number(M.mouseY || 0))}`,
+        `angle: ${Math.round(Number(M.angleDeg || 0))} deg | direct ${M.directKeyboardMove ? "Y" : "N"}`,
+        `external: ${M.externalMoveSource || "-"} | dx ${Number(M.externalMoveDx || 0).toFixed(2)} dy ${Number(M.externalMoveDy || 0).toFixed(2)}`,
+        `stall: ${Number(M.stalledFor || 0).toFixed(2)}s`,
+        `note: ${M.note || "-"}` 
+      ].join("\n");
+    }
+    if (movementDebugLog) {
+      const lines = (S.debugMovement && S.debugMovement.logLines) || [];
+      movementDebugLog.textContent = lines.length ? lines.join("\n") : "log waiting...";
+      movementDebugLog.scrollTop = movementDebugLog.scrollHeight;
+    }
     renderBossHud();
     renderActiveSlots();
   }
@@ -1211,6 +1239,35 @@ window.UI = (() => {
     document.getElementById("btnRetry").onclick = onRetry;
     document.getElementById("btnBack").onclick = onBack;
     if (pauseBtn) pauseBtn.onclick = () => onPauseToggle && onPauseToggle();
+    if (copyMoveDebugBtn) {
+      copyMoveDebugBtn.onmousedown = (e) => e.preventDefault();
+      copyMoveDebugBtn.onclick = async () => {
+        const M = GameState.debugMovement || {};
+        const payload = [
+          movementDebugBody ? movementDebugBody.textContent : "",
+          "",
+          movementDebugLog ? movementDebugLog.textContent : ((M.logLines || []).join("\n"))
+        ].join("\n");
+        try {
+          await navigator.clipboard.writeText(payload);
+          copyMoveDebugBtn.textContent = "Copied";
+          setTimeout(() => { copyMoveDebugBtn.textContent = "Copy"; }, 900);
+        } catch (_) {
+          copyMoveDebugBtn.textContent = "Failed";
+          setTimeout(() => { copyMoveDebugBtn.textContent = "Copy"; }, 900);
+        }
+        if (typeof copyMoveDebugBtn.blur === "function") copyMoveDebugBtn.blur();
+      };
+    }
+    if (clearMoveDebugBtn) {
+      clearMoveDebugBtn.onmousedown = (e) => e.preventDefault();
+      clearMoveDebugBtn.onclick = () => {
+        GameState.debugMovement.logLines = [];
+        GameState.debugMovement.stalledFor = 0;
+        if (movementDebugLog) movementDebugLog.textContent = "log cleared";
+        if (typeof clearMoveDebugBtn.blur === "function") clearMoveDebugBtn.blur();
+      };
+    }
     if (resumePauseBtn) resumePauseBtn.onclick = () => onPauseToggle && onPauseToggle(false);
     if (nextStageBtn) nextStageBtn.onclick = resolveStageClear;
     if (bossSelect) bossSelect.onchange = () => onBossChange && onBossChange(bossSelect.value);
